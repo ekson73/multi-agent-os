@@ -18,7 +18,7 @@ Usage
   synopsis-fuse.py [--compass-json F|-] [--hitl-md F] [--hitl-json F|-]
                    [--format tree|mermaid|html|json]
                    [--scope current|session|repo|vault|all]
-                   [--session-id ID[,ID]]
+                   [--session-id ID[,ID]] [--this-session-only]
                    [--include pending|all] [--hitl-only] [--pending-only]
                    [--title TEXT] [--self-heal]
 
@@ -47,6 +47,12 @@ Usage
                   uses the adjacent root file; recovered roots include only ancestors
                   explicitly named by parentSession. Overrides stay exact. Cyclic or
                   conflicting native headers leave the session scope unresolved.
+  --this-session-only
+                  ALIAS of `--scope session` for the HITL ledger slice: only the items
+                  whose ledger provenance names this conversation, in EVERY mode (the
+                  general panel included). It only narrows, so it never widens the
+                  ledger; combined with `--scope all` the contradiction is refused
+                  with a usage error (exit 2) instead of silently picking one.
   --self-heal     on a renderer/parse error, print a structured repair-request
                   envelope to stderr instead of a bare traceback (hybrid self-heal M.O.).
 
@@ -387,8 +393,21 @@ def resolve_hitl_scope(args) -> tuple[str, str]:
     ledger (legacy items included). Every other --scope value narrows to session,
     because widening must be asked for and never inferred. Outside --hitl-only the
     general panel keeps its historical behaviour: the whole ledger.
+
+    `--this-session-only` is the ALIAS of `--scope session`: the same slice, in
+    every mode. It only ever narrows, so it can never widen the ledger by
+    accident — and it is the one spelling that means "this conversation" even
+    where the general panel would otherwise show the whole queue.
     """
+    if getattr(args, "this_session_only", False):
+        return "session", ("--this-session-only: this conversation's items only "
+                           "(alias of --scope session)")
     if not args.hitl_only:
+        # The general panel is a landscape: the ledger slice stays whole UNLESS the
+        # caller explicitly asks for this conversation's items (--scope session,
+        # or its alias --this-session-only).
+        if args.scope == "session":
+            return "session", "--scope session: this conversation's items only"
         return "all", "general panel: whole ledger (unchanged behaviour)"
     if args.scope == "all":
         return "all", "explicit --scope all: whole ledger, legacy items included"
@@ -1132,6 +1151,16 @@ def render_ask_user_question(fused: dict, title: str, raw_hitl: list[dict], *,
         pre.extend(_wrap_cols(f"⚠ session scope unresolved: {meta['hitl_scope_unresolved']}"))
     elif not cards:
         pre.append("nenhuma decisão pendente — não abra AskUserQuestion")
+        # "0 shown" must never read as "0 exist": an empty slice of a full ledger
+        # says how many the ledger holds, and why none of them is this one's.
+        total = meta.get("hitl_ledger_total")
+        shown = meta.get("hitl_count", 0)
+        if (meta.get("hitl_scope") == "session" and meta.get("hitl_session_resolved")
+                and isinstance(total, int) and total > shown):
+            pre.extend(_wrap_cols(
+                f"{shown} of {total} ledger items are this conversation's — the other "
+                f"{total - shown} belong to other conversations or carry no provenance. "
+                f"`--scope all` shows the whole ledger."))
     if meta.get("hitl_source"):
         pre.extend(_wrap_cols(f"HITL ledger: {meta['hitl_source']}"))
     if meta.get("hitl_warning"):
@@ -1209,12 +1238,25 @@ def main(argv=None) -> int:
                          "compared exactly); default: MAOS_SELF_SESSION_ID, "
                          "CLAUDE_CODE_SESSION_ID, CLAUDE_SESSION_ID, then native "
                          "PI_SESSION_FILE headers and explicit parentSession ancestors")
+    ap.add_argument("--this-session-only", action="store_true",
+                    help="alias of --scope session for the HITL ledger slice: only the "
+                         "items the ledger attributes to THIS conversation, in every "
+                         "mode (it never widens; it contradicts --scope all)")
     ap.add_argument("--include", choices=["pending", "all"], default="pending")
     ap.add_argument("--hitl-only", action="store_true", help="render only the HITL branch")
     ap.add_argument("--pending-only", action="store_true", help="keep flagged/HITL-bearing pendency nodes")
     ap.add_argument("--title", default="Synopsis — pend\u00eancias + HITL (N-Tree)")
     ap.add_argument("--self-heal", action="store_true", help="emit a repair-request envelope on error instead of a traceback")
     args = ap.parse_args(argv)
+
+    # `--this-session-only` and `--scope all` ask for opposite slices: one narrows
+    # to this conversation, the other widens to the whole ledger. Rendering either
+    # one would silently ignore the other, so the contradiction is refused BEFORE
+    # anything is read or drawn (usage error, exit 2 — never a silent widening).
+    if args.this_session_only and args.scope == "all":
+        ap.error("--this-session-only contradicts --scope all: one narrows the HITL "
+                 "ledger to this conversation, the other widens it to the whole "
+                 "ledger. Pass only one.")
 
     ctx = {"format": args.format, "scope": args.scope or "all", "include": args.include}
     try:
@@ -1228,7 +1270,8 @@ def main(argv=None) -> int:
         # number in the output describes the slice that was actually shown.
         # Live decision cards use digest scope even alongside a pendency tree.
         # Deferred/machine consumers keep their existing renderer's scope.
-        scope_args = (argparse.Namespace(hitl_only=True, scope=args.scope)
+        scope_args = (argparse.Namespace(hitl_only=True, scope=args.scope,
+                                        this_session_only=args.this_session_only)
                       if args.format == AUQ_FORMAT and args.consumer == "human-live"
                       else args)
         scope, scope_reason = resolve_hitl_scope(scope_args)

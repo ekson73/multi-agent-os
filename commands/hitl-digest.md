@@ -33,7 +33,8 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 ## Usage
 
 ```text
-/hitl-digest [--scope current|session|repo|vault|all] [--session-id ID[,ID]]
+/hitl-digest [--scope current|session|repo|vault|all] [--this-session-only]
+             [--session-id ID[,ID]]
              [--format tree|mermaid|html|json|ask-user-question]
              [--consumer human-live|human-deferred|machine]
              [--with-pendencies] [--hitl-md PATH] [--title TEXT]
@@ -44,6 +45,7 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 | Param | Default | Effect |
 |-------|---------|--------|
 | `--scope` | `session` (só o digest) | **no digest puro**: `session` = só os HITLs desta conversa; `all` = o ledger inteiro, legados inclusive. Qualquer outro valor (`current`/`repo`/`vault`) é escopo de *pendência*, não de ledger — nunca amplia. **com `--with-pendencies`**: recorte do panorama repassado ao `work-compass` (comportamento antigo, intacto) |
+| `--this-session-only` | off | **alias de `--scope session`** para a fatia do ledger HITL: só os itens cuja proveniência (coluna `Sessão`) nomeia esta conversa — **em qualquer modo**, inclusive no painel geral com `--with-pendencies`, onde o resto do ledger continua inteiro. É a grafia do operador (`/maos:hitl-digest --this-session-only`). Só **restringe**, nunca amplia; por isso **contradiz** `--scope all` — as duas juntas são recusadas com erro de uso (exit 2), nunca resolvidas em silêncio |
 | `--session-id` | resolvido do ambiente | identidade da conversa que **invocou** o digest (aceita lista separada por vírgula; comparação **exata** — um id é opaco, `A` ≠ `a`). Ordem: `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_SESSION_ID` → headers nativos de `PI_SESSION_FILE` com ancestrais `parentSession` explícitos (ver contrato em `synopsis-panel`). **Sem identidade resolvida o digest não mostra nada e diz o motivo** — nunca mostra tudo, nunca afirma "não existem" |
 | `--format` | `tree` | `tree` (chat/terminal) · `mermaid` · `html` (página autônoma) · `json` (envelope p/ agente) · `ask-user-question` (payload p/ a ferramenta AskUserQuestion — ver §Modo AskUserQuestion) |
 | `--consumer` | `human-live` | só com `ask-user-question`: classe de consumidor do §7.0 (`human-live` · `human-deferred` · `machine`) — o agente decide |
@@ -69,6 +71,19 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 > no header do OMP; não usa cache de prompt nem procura conversas parecidas.
 > `--session-id` explícito continua sendo um override exato. Sem identidade
 > resolvida, o digest **falha fechado**: nada mostrado + motivo.
+>
+> **`--this-session-only` é o alias de `--scope session`** — a mesma fatia, em
+> qualquer modo. Ele só **restringe**, então nunca amplia: combinado com
+> `--scope all` (que amplia) as duas flags são **recusadas** com erro de uso
+> (exit 2), porque resolver a contradição em silêncio entregaria ao operador
+> um ledger inteiro quando ele pediu "só esta conversa".
+>
+> **Zero nunca é mudo.** Quando a fatia desta conversa sai vazia, o digest diz
+> **quantos** itens o ledger tem e **por que** nenhum é desta conversa
+> ("0 de 16 ledger items are this conversation's — the other 16 belong to other
+> conversations or carry no provenance"). "0 mostrados" nunca pode ser lido como
+> "0 existem"; e identidade não resolvida é dita como tal ("this is NOT an empty
+> queue"), nunca como fila vazia.
 
 **Decisão explícita do SSOT de runtime HITL:** A = `$HOME/eko-engram/hitl/punch-list.md`,
 o vault normal, preserva o WIP local por cutover aditivo autorizado; B =
@@ -155,7 +170,14 @@ SESSION_ID="${HITL_SESSION_ID:-}"
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \
   ${SESSION_ID:+--session-id "$SESSION_ID"} --format tree
 
+# O ALIAS do operador: `--this-session-only` = `--scope session` na fatia do ledger
+# HITL. É a MESMA invocação do digest puro acima (o default já é a sessão) — aqui
+# a intenção fica explícita, e o alias também funciona no painel com pendências.
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \
+  --this-session-only --format tree
+
 # LEDGER INTEIRO (global, legados inclusive) — pedido explícito, nunca o default.
+# ( `--scope all` CONTRADIZ `--this-session-only`: as duas juntas saem com exit 2.)
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --scope all --format tree
 
 # digest puro em página HTML autônoma (estilo hitl-digest, dark/light)
@@ -167,6 +189,11 @@ echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --f
 # pendências a que os gates pertencem — NÃO o painel de sinopse completo.
 # Aqui --scope all é o recorte de PENDÊNCIAS (o work-compass), comportamento antigo e intacto.
 python3 "$FUSE" --hitl-md "$LEDGER" --scope all --include pending --pending-only --format tree
+
+# O MESMO painel, com a fatia do ledger HITL restrita a esta conversa. Aqui o alias
+# SUBSTITUI `--scope all`: o escopo de pendências do motor já é "all" por default, e as
+# duas flags se contradizem (uma restringe a fatia do ledger, a outra a amplia).
+python3 "$FUSE" --hitl-md "$LEDGER" --this-session-only --include pending --pending-only --format tree
 ```
 
 > **Por que o compass vazio no caminho puro** — medido na fonte: o `synopsis-fuse.py` sempre
@@ -231,6 +258,12 @@ Regras do payload (cada uma vem do spec, nenhuma é nova):
 - O preâmbulo traz o cabeçalho com o código `K<YYMMDD>-<HHMM>-<s8>` (data e hora locais da máquina; sem id de sessão raiz, sem
   código), a linha de contagem, uma linha `· … aberta no AskUserQuestion` por card (registro durável,
   sem letras e sem `Responda:`), o `⏭` e `harness · repo · sessão`. Cada linha cabe em 80 colunas.
+- **Fatia vazia, ledger cheio ⇒ o preâmbulo diz o tamanho do ledger.** Quando a fatia desta
+  conversa não tem nenhum card, o preâmbulo acrescenta `0 of N ledger items are this
+  conversation's — the other N belong to other conversations or carry no provenance`
+  (`--scope all` mostra o ledger inteiro). A linha `nenhuma decisão pendente` (que é da spec)
+  continua lá — o que muda é que ela **nunca é lida sozinha**: "0 decisions" sem o total do
+  ledger é o "0 = não existe" que o DoD proíbe.
 - Determinístico: mesma entrada + `--now` + `--session-id` + mesmo fuso local ⇒ mesmo payload. Timestamps dos envelopes de máquina continuam em UTC.
 
 ```bash
@@ -246,6 +279,7 @@ com `ask_user_question.questions`. Se a pergunta expirar sem resposta, no próxi
 
 ```text
 /hitl-digest                                   # o digest puro (agulhas) DESTA CONVERSA, árvore no chat
+/hitl-digest --this-session-only               # o mesmo digest, com a intenção explícita (alias de --scope session)
 /hitl-digest --scope all                       # o ledger inteiro, legados inclusive (global, explícito)
 /hitl-digest --session-id 01a13c82-…          # identidade da conversa invocadora, explícita
 /hitl-digest --format html                     # página autônoma estilo hitl-digest
