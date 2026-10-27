@@ -29,6 +29,7 @@ The CLI is invoked as a real subprocess — no mocks, because the behaviour bein
 tested IS the CLI's.
 """
 
+import importlib.util
 import json
 import os
 import pathlib
@@ -36,6 +37,18 @@ import subprocess
 import sys
 
 import pytest
+
+# The engine's OWN column measurement, imported (not re-implemented): the
+# engine counts DISPLAY columns (a wide CJK/emoji glyph is 2), while
+# `len(line)` counts code points. A line with wide glyphs can be 79 code
+# points and 80+ display columns, so a `len()` assertion would let an
+# over-wide preamble pass. Importing the function keeps one source of truth
+# instead of a parallel invention that can drift from the engine.
+_ENGINE_PATH = pathlib.Path(__file__).resolve().parents[1] / "bin" / "synopsis-fuse.py"
+_spec = importlib.util.spec_from_file_location("synopsis_fuse_under_test", _ENGINE_PATH)
+_engine = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_engine)
+_cols = _engine._cols
 
 SESSION_A = "01a13c82-0525-75a0-b620-c81e79c32830"
 SESSION_B = "01a16b0d-cd00-74c2-8c50-164ec90b27f6"
@@ -758,4 +771,6 @@ def test_the_zero_of_n_case_states_the_reason_in_the_ask_user_question_preamble(
         "the preamble must name the ledger's size: '0 shown' is not '0 exist'")
     assert "nenhumadecisãopendente" in visible, (
         "the spec-mandated line stays")
-    assert all(len(line) <= 80 for line in payload["preamble"])
+    # Display columns, not code points: the engine wraps at 80 DISPLAY columns
+    # (see `_cols`), so this assertion must measure the same way.
+    assert all(_cols(line) <= 80 for line in payload["preamble"])
