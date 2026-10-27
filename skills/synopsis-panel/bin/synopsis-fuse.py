@@ -949,7 +949,6 @@ TYPE_OPTIONS = {
     "": ("Aprovar", "O agente segue com o que o item descreve e registra a decis\u00e3o.",
          "Recusar", "O agente n\u00e3o segue; o item \u00e9 fechado como recusado no ledger."),
 }
-AUQ_QUESTION_MAX = 240
 _OPCOES_RE = re.compile(r"op[çc][õo]es\s*:\s*(.+?)(?:[.;]\s|[.;]?$)", re.IGNORECASE)
 
 
@@ -1073,7 +1072,7 @@ def _digest_code(now: int | None, session_id: str | None) -> str | None:
     if not session_id or len(session_id) < 8:
         return None  # spec §2: root session id unknown ⇒ no code (AUQ binds the answer)
     t = dt.datetime.fromtimestamp(now if now is not None else dt.datetime.now(dt.timezone.utc).timestamp(),
-                                  tz=dt.timezone.utc)
+                                  tz=dt.timezone.utc).astimezone()
     return f"K{t.strftime('%y%m%d-%H%M')}-{session_id[-8:]}"
 
 
@@ -1107,7 +1106,7 @@ def render_ask_user_question(fused: dict, title: str, raw_hitl: list[dict], *,
         opts, has_rec, source = _card_options(h, raw)
         urg = SEV_URGENCY.get(h.get("sev"), SEV_URGENCY["NORMAL"])
         questions.append({
-            "question": f"{_clip(h.get('decidir', ''), AUQ_QUESTION_MAX)} — como decide?",
+            "question": f"{h.get('decidir') or ''} — como decide?",
             "header": (h.get("id") or f"item-{i}")[:AUQ_HEADER_MAX],
             "multiSelect": False,
             "options": opts,

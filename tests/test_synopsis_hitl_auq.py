@@ -27,11 +27,12 @@ SESSION_A = ARGS[1]
 SESSION_B = "0000000022222222ccccdddd"
 
 
-def run(*args, stdin="{}", hitl_only=True):
+def run(*args, stdin="{}", hitl_only=True, tz="UTC"):
     env = dict(os.environ)
     for key in ("MAOS_SELF_SESSION_ID", "PI_SESSION_ID", "PI_SESSION_FILE",
                 "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_THREAD_ID"):
         env.pop(key, None)
+    env["TZ"] = tz
     mode = ["--hitl-only"] if hitl_only else []
     p = subprocess.run([sys.executable, str(FUSE), *mode, "--compass-json", "-", *args],
                        input=stdin, capture_output=True, text=True, timeout=60, env=env)
@@ -338,3 +339,40 @@ def test_nonlive_consumers_preserve_general_panel_parity(tmp_path, consumer, fmt
     baseline = run(*common, "--format", fmt, hitl_only=False)
     assert normalize(out, tmp_path) == normalize(baseline, tmp_path)
     assert "H-0823" in out and "H-0824" in out
+
+
+@pytest.mark.parametrize("decision_length", [239, 240, 241, 600])
+def test_answerable_question_preserves_authorization_limit_and_condition(tmp_path, decision_length):
+    decisions = []
+    items = []
+    for i, amount in enumerate(["10,50", "100.000,00"]):
+        prefix = "SYNTHETIC_AUTHORIZATION "
+        tail = (f" limite total: R$ {amount}; condição de negócio: executar somente "
+                "após confirmação do responsável sintético.")
+        decision = prefix + "x" * (decision_length - len(prefix) - len(tail)) + tail
+        assert len(decision) == decision_length
+        decisions.append(decision)
+        items.append({"id": f"H-083{i}", "tipo": "gasto", "decidir": decision})
+    d = _hj(tmp_path, items)
+    questions = d["ask_user_question"]["questions"]
+    for question, decision in zip(questions, decisions):
+        assert decision in question["question"]
+        assert len(question["options"]) >= 2
+    assert questions[0]["question"] != questions[1]["question"]
+
+
+@pytest.mark.parametrize("tz, expected", [
+    ("UTC", "K261027-0027-aaaabbbb"),
+    ("America/Sao_Paulo", "K261026-2127-aaaabbbb"),
+])
+def test_digest_code_uses_process_local_date_and_time(ledger, tz, expected):
+    parent_tz = os.environ.get("TZ")
+    args = ["--hitl-md", str(ledger), "--scope", "all",
+            "--format", "ask-user-question", *ARGS, "--now", "1793060820"]
+    a = run(*args, tz=tz)
+    b = run(*args, tz=tz)
+    assert a == b
+    d = json.loads(a)
+    assert d["code"] == expected
+    assert expected in d["preamble"][0]
+    assert os.environ.get("TZ") == parent_tz
