@@ -75,5 +75,6 @@ Surface named · only its reference loaded · route given · every "how" carries
 
 ## Changelog
 
+- 2026-10-26 — Corrected companion routes: OpenClaw is optional/external and capability-detected; session recap uses `morning-briefing --mode=recap`, session close uses `postflight`. Neutralized C8's organization names without changing its prohibition; safety gates and historical verification/snapshot dates unchanged.
 - 2026-10-26 — v2.0.0 — Renamed and widened from `claude-code-concierge` (Claude Code only) to `claude-concierge` (all Claude product surfaces). Progressive disclosure: lean body + one reference per surface; the former AWARENESS-REGISTRY became `references/surfaces/code.md`. No slash-command wrapper (repo policy, PR #407: skills are already `/`-invokable). Six surfaces sourced from official docs on 2026-10-26; unsourced items (claude.ai "styles", skills in the Desktop chat) are marked NOT VERIFIED in their references. Review round (same day): the plan/settings path for claude.ai skills, the Claude Code skills sync, the Duet product page and the Claude Code Projects beta were confirmed against official pages; "styles" (blog URL returns 404) and skills in the Desktop chat (support article names no app) stay NOT VERIFIED. The skill no longer pre-approves Bash.
 - 2026-06-13 — v1.0.0 — Bootstrap as `claude-code-concierge` (see git history).
