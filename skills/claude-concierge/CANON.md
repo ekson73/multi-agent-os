@@ -45,13 +45,13 @@ Every command the concierge hands is either capability-detected as present (`com
 
 ## C7 — Orient, don't reimplement (DRY)
 
-The concierge ROUTES to `claude-code-guide` (Q&A), `find-docs`/Context7/ref-tools (docs muscle), `agentic-tool-forge`+`anima` (creation/naming), the lifecycle skills (preflight/postflight/auto-pilot/morning-briefing/pulse/quiesce/recap), and the sibling concierges (maos/walkthrough/openclaw). It never re-exposes or reimplements them.
+The concierge ROUTES to `claude-code-guide` (Q&A), `find-docs`/Context7/ref-tools (docs muscle), `agentic-tool-forge`+`anima` (creation/naming), the lifecycle skills (preflight/postflight/auto-pilot/morning-briefing/pulse/quiesce; `postflight` for session close, `morning-briefing --mode=recap` for recap), and the sibling concierges (`maos-concierge`/`walkthrough-concierge`). `openclaw-concierge` is an optional EXTERNAL dependency, not bundled here: capability-detect it before routing; if not installed, report it unavailable. It never re-exposes or reimplements them.
 
 **Drift flag:** the concierge answering a deep feature-Q&A itself (instead of routing to `claude-code-guide`), or building/naming a tool itself (instead of `forge`/`anima`) = contradiction (DRY miss).
 
 ## C8 — Frontmatter + ISO-8601 + community-clean (layer purity)
 
-This skill (and anything it places) carries frontmatter; dates are ISO-8601; content is MIT/AAIF universal — **no Eko/Vek/corporate-specific content** in this community repo.
+This skill (and anything it places) carries frontmatter; dates are ISO-8601; content is MIT/AAIF universal — **no organization-specific content** in this community repo.
 
 **Drift flag:** corporate/operator-personal content leaking into this community skill, a relative date, or missing frontmatter = contradiction.
 

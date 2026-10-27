@@ -1,6 +1,6 @@
 # The Forge — 33 Socratic Questions (self-executed) → `claude-code-concierge` spec
 
-> Historical spec: written for the v1 name `claude-code-concierge`; the skill is now `claude-concierge` v2.0.0 (multi-surface). Kept unchanged as the genesis record.
+> Historical spec: written for the v1 name `claude-code-concierge`; the skill is now `claude-concierge` v2.0.0 (multi-surface). Preserved as the genesis record, with route-availability annotations corrected on 2026-10-26. OpenClaw routing below requires the optional EXTERNAL `openclaw-concierge` (not bundled): capability-detect it, and report unavailable if not installed.
 
 > Per the Forge discipline: *"Execute internally BEFORE creating any agentic-tool. The answers form the spec."*
 > Self-executed 2026-06-13 for **claude-code-concierge** (soul-name *Cicerone*). The answers below WERE the
@@ -38,11 +38,11 @@
 
 ## Interfaces (22-26)
 
-22. **Interacts with which agents?** — Upstream: the human/agent invoking it. Downstream (routes to): `claude-code-guide`, `find-docs`, `agentic-tool-forge`, `anima`, `agentic-tool-evaluator`/`-trainer`, `preflight`/`postflight`/`auto-pilot`/`morning-briefing`/`pulse`/`quiesce`/`recap`, `maos-concierge`/`walkthrough-concierge`/`openclaw-concierge`, `maos-mcp-hub`, `agentic-status`/`status-map`.
+22. **Interacts with which agents?** — Upstream: the human/agent invoking it. Downstream (routes to): `claude-code-guide`, `find-docs`, `agentic-tool-forge`, `anima`, `agentic-tool-evaluator`/`-trainer`, `preflight`/`postflight`/`auto-pilot`/`morning-briefing`/`pulse`/`quiesce` (`postflight` for session close, `morning-briefing --mode=recap` for recap), `maos-concierge`/`walkthrough-concierge`, optional EXTERNAL `openclaw-concierge` (not bundled; capability-detect, report unavailable if absent), `maos-mcp-hub`, `agentic-status`/`status-map`.
 23. **Communication format?** — Markdown (human) + structured tables; ASCII for dashboard; `--format=json` for agent-to-agent; mode-flagged invocation.
 24. **Receives tasks how?** — Skill invocation (no command wrapper exists) with optional `--mode=`/flag-alias + NL intent.
 25. **Reports results how?** — Mode-specific: orientation block · onboarding checklist · research reconciliation (cited) · dashboard · health-check findings table · install audit line · anchor decision+contradiction+pointer.
-26. **Integrates with ecosystem how?** — Sits ABOVE the Claude-Code tool catalog as the platform onboarding/research/install entry-point; cross-refs (never duplicates) the registry; 4th member of the cross-vendor concierge family (maos/walkthrough/openclaw + this).
+26. **Integrates with ecosystem how?** — Sits ABOVE the Claude-Code tool catalog as the platform onboarding/research/install entry-point; cross-refs (never duplicates) the registry and the maos/walkthrough concierges. OpenClaw's concierge is an optional EXTERNAL family peer, not bundled; capability-detect before routing and report unavailable if not installed.
 
 ## Governance (27-30)
 
