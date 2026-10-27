@@ -220,6 +220,7 @@ classifica é o agente, que passa `--consumer`.
 
 Regras do payload (cada uma vem do spec, nenhuma é nova):
 - 1 card = 1 pergunta; `header` = o id `H-NNNN` (≤12 colunas); `multiSelect: false`.
+- A pergunta respondível contém `Decidir` integral, inclusive valores e condições de autorização; só o título de registro no preâmbulo é resumido para caber em 80 colunas.
 - No máximo 3 cards; um 4º só quando há mais de 3 itens ⏫ (URGENTE). O resto vai para a linha
   `⏭ próximo digest`, que não é respondível.
 - Opções, nesta ordem de fonte: (1) `options` estruturadas no item (`--hitl-json`); (2) as opções
@@ -227,10 +228,10 @@ Regras do payload (cada uma vem do spec, nenhuma é nova):
   (credencial · gasto · irreversível · envio · negócio) + `Manter pendente`. Nunca inventadas por item.
 - `(recomendado)` só na opção estruturada com `recommended: true` **e** `evidence` textual não vazia após remover espaços (§3: sem ponteiro de evidência não há recomendação). Ela vem primeiro. Sem ela, o preâmbulo diz
   `sem recomendação: falta ponteiro de evidência`.
-- O preâmbulo traz o cabeçalho com o código `K<YYMMDD>-<HHMM>-<s8>` (UTC; sem id de sessão raiz, sem
+- O preâmbulo traz o cabeçalho com o código `K<YYMMDD>-<HHMM>-<s8>` (data e hora locais da máquina; sem id de sessão raiz, sem
   código), a linha de contagem, uma linha `· … aberta no AskUserQuestion` por card (registro durável,
   sem letras e sem `Responda:`), o `⏭` e `harness · repo · sessão`. Cada linha cabe em 80 colunas.
-- Determinístico: mesma entrada + `--now` + `--session-id` ⇒ mesmo payload.
+- Determinístico: mesma entrada + `--now` + `--session-id` + mesmo fuso local ⇒ mesmo payload. Timestamps dos envelopes de máquina continuam em UTC.
 
 ```bash
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Fixed — complete live HITL authorization context and local digest clock
+
+- AskUserQuestion questions now preserve the complete decision text, including trailing monetary limits and business conditions; only the durable preamble title remains clipped by display columns. Addresses the post-merge finding on #535 without changing approval gates, options, session ownership or machine/deferred output.
+- The digest header code uses the machine's local date and time, including local-day rollover; machine-envelope timestamps remain UTC. Deterministic subprocess fixtures isolate their `TZ` without changing the parent environment.
+
 ### Fixed — `/hitl-digest` AskUserQuestion mode (bot review of #535)
 - Single structured option padded with `Manter pendente`; unknown `sev` no longer crashes the overflow line; option labels de-duplicated after clipping; empty queue emits `ask_user_question: null` + `no_decisions: true`; ledger provenance (dirty/behind/warning) carried into the envelope and preamble; SKILL example now pipes `--compass-json -`.
 - Follow-up review: decimal commas remain part of options; emitted labels remain unique even when a suffix collides; blank/non-text evidence cannot recommend; Unicode record titles use display columns; long warnings and harness metadata wrap without losing content. AUQ cards now use the already session-filtered raw ledger so attached gates survive `--hitl-only` without exposing other sessions.
