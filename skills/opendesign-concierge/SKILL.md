@@ -27,7 +27,7 @@ evals:
   should_not_trigger:
     - "Actually run the full design migration / spawn the daemon (that is the od CLI / Docker job)"
     - "Build/clone Open Design from source (it is already cloned — don't reinstall)"
-    - "Onboard onto MAOS or Claude Code itself (that is maos-concierge / claude-code-concierge)"
+    - "Onboard onto MAOS or Claude Code itself (that is maos-concierge / claude-concierge)"
     - "Generate a brand-new Figma file (use the Figma MCP, not this concierge)"
 metadata:
   version: "1.0.0"
