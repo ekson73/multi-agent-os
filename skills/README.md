@@ -6,7 +6,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 
 > **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. The 2026-10-08 snapshot listed 93 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08), including `live-session-continuity-recovery` and `session-to-vault`. Later additions include `spec-backlog-ticket-reconciler` (2026-10-13), `ratchet-loop` and `virtuous-spiral` (2026-10-25), and `claude-concierge` (successor, old name kept as an alias; 2026-10-26). The table below is the current inventory, not a frozen total in this paragraph. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
 
-## Available Skills (96)
+## Available Skills
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
