@@ -14,7 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   external request (found by Codex review on ekson73/eko-engram#62).
 - Render now removes exactly that template block (byte-for-byte match, nothing else
   touched) before `archify check`, and both render and `verify` fail with
-  `NETWORK_ACCESS_DENIED` on any remaining remote `href`/`src`/`url()`/`@import` fetch.
+  `NETWORK_ACCESS_DENIED` on any remaining remote fetch. The scan reads only active
+  contexts (start-tag attributes, `<style>`, `<script>` and inline handlers), never text
+  nodes or comments, so a label like `url(https://…)` is not a false positive. It
+  entity-decodes attributes and escape-decodes CSS, checks every `srcset` candidate,
+  refuses `srcdoc`, meta refresh, any `@import`, and script network APIs.
   The body font stack already falls back to system monospace; image export already used
   `local()` faces only.
 - Generator and manifest schema version move to 2.1.4. A regression test renders, asserts

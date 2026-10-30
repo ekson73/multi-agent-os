@@ -808,6 +808,40 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
     const verify = run(["verify", manifestFile, "--archify-dir", stockArchify]);
     assert.equal(verify.status, 1, verify.stdout);
     assert.equal(body(verify.stderr).error.code, "NETWORK_ACCESS_DENIED");
+    // Every fetch vector reviewers named must also be refused, one at a time.
+    const vectors = {
+      metaRefresh: "<meta http-equiv=\"refresh\" content=\"0;url=https://evil.example\">",
+      srcsetLaterCandidate: "<img alt=\"\" srcset=\"/a.png 1x, //evil.example/b.png 2x\">",
+      srcdoc: "<iframe title=\"x\" srcdoc=\"&lt;p&gt;x&lt;/p&gt;\"></iframe>",
+      cssEscapedUrl: "<style>body{background:url(https\\3A //evil.example/)}</style>",
+      entityEncodedHref: "<link rel=\"icon\" href=\"https&#58;//evil.example/i.png\">",
+      styleAttribute: "<div style=\"background:url(//evil.example/a)\"></div>",
+      handler: "<img alt=\"\" src=\"#\" onerror=\"this.src='https://evil.example/p'\">",
+      scriptFetch: "<script>fetch('/x')</script>"
+    };
+    for (const [name, vector] of Object.entries(vectors)) {
+      const injected = html.replace("</head>", `${vector}\n</head>`);
+      await writeFile(outputs.html, injected);
+      const current = JSON.parse(await readFile(manifestFile, "utf8"));
+      current.subjects.find((item) => item.role === "diagram_html").digest.value = sha(Buffer.from(injected));
+      await writeFile(manifestFile, `${JSON.stringify(current, null, 2)}\n`);
+      const refused = run(["verify", manifestFile, "--archify-dir", stockArchify]);
+      assert.equal(refused.status, 1, `${name}: ${refused.stdout}`);
+      assert.equal(body(refused.stderr).error.code, "NETWORK_ACCESS_DENIED", `${name}: ${refused.stderr}`);
+    }
+  });
+});
+
+test("standard offline guard ignores URL-like text in visible content", async (context) => {
+  if (!stockArchify) { context.skip("stock Archify unavailable"); return; }
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      value.plan.work_items[0].title = "Investigate url(https://example.com/font.woff2) usage";
+    }, readyFixture);
+    const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
+    assert.equal(render.status, 0, render.stderr);
+    const verify = run(["verify", body(render.stdout).manifest, "--archify-dir", stockArchify]);
+    assert.equal(verify.status, 0, verify.stderr);
   });
 });
 

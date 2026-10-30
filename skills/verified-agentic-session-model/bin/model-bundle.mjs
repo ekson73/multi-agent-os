@@ -2048,21 +2048,77 @@ const ARCHIFY_REMOTE_FONT_BLOCK = [
 ].join("\n");
 const OFFLINE_FONT_NOTE = "  <!-- verified-agentic-session-model: remote font loads removed (network_access_from_html is default-denied); the body font stack uses system monospace. -->\n";
 
-// Attribute values or CSS url()/@import that make the browser fetch from the network.
-// Plain strings inside script (e.g. the SVG namespace passed to createElementNS) are not
-// fetches and are deliberately not matched.
-const REMOTE_RESOURCE_PATTERNS = [
-  /\b(?:href|src|srcset|poster|action|formaction|data|background|ping|manifest)\s*=\s*["']?\s*(?:https?:)?\/\//giu,
-  /url\(\s*["']?\s*(?:https?:)?\/\//giu,
-  /@import\s+(?:url\(\s*)?["']?\s*(?:https?:)?\/\//giu
-];
+// The scan looks only at ACTIVE contexts: start-tag attributes, <style> bodies, and <script>
+// bodies/inline handlers. Text nodes and comments are inert, so a model label such as
+// "Investigate url(https://example.com/x)" does not trip it. Values are entity-decoded
+// (HTML) or escape-decoded (CSS) before matching, and a URL anywhere in a URL-bearing value
+// counts, not only at its start (srcset candidates, meta refresh content=...;url=...).
+const URL_ATTRIBUTES = new Set(["href", "xlink:href", "src", "srcset", "imagesrcset", "poster", "action", "formaction", "data", "background", "ping", "manifest", "cite", "longdesc", "codebase", "archive", "icon", "lowsrc", "dynsrc", "profile", "usemap"]);
+// XML namespace identifiers are names, not fetches (createElementNS, xmlns).
+const NAMESPACE_URIS = new Set(["http://www.w3.org/2000/svg", "http://www.w3.org/1999/xlink", "http://www.w3.org/1999/xhtml", "http://www.w3.org/XML/1998/namespace", "http://www.w3.org/2000/xmlns/"]);
+const REMOTE_IN_VALUE = /(?:^|[\s,;=(])\s*(?:(?:https?|ftp|wss?):)?\/\/|^\s*(?:https?|ftp|wss?):/iu;
+const NETWORK_SCRIPT_APIS = /\b(?:fetch|XMLHttpRequest|sendBeacon|WebSocket|EventSource|importScripts|Worker|SharedWorker)\s*\(|\bimport\s*\(/u;
+
+function decodeAttributeEntities(value) {
+  const named = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", colon: ":", sol: "/", sol2: "/", lpar: "(", rpar: ")", comma: ",", semi: ";", equals: "=", tab: "\t", newline: "\n" };
+  return value.replace(/&(?:#x([0-9a-f]+)|#([0-9]+)|([a-z][a-z0-9]*));?/giu, (whole, hex, dec, name) => {
+    if (hex) return String.fromCodePoint(Number.parseInt(hex, 16));
+    if (dec) return String.fromCodePoint(Number.parseInt(dec, 10));
+    return Object.hasOwn(named, name.toLowerCase()) ? named[name.toLowerCase()] : whole;
+  });
+}
+
+function decodeCss(css) {
+  return css.replace(/\/\*[\s\S]*?\*\//gu, " ")
+    .replace(/\\([0-9a-f]{1,6})\s?/giu, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/\\(.)/gu, "$1");
+}
+
+function cssFetches(css) {
+  const decoded = decodeCss(css);
+  return /@import\b/iu.test(decoded) || /(?:url|image-set|image|src)\s*\(\s*["']?\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded) || /["']\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded);
+}
+
+function scriptFetches(code) {
+  if (NETWORK_SCRIPT_APIS.test(code)) return true;
+  for (const match of code.matchAll(/(["'`])\s*((?:(?:https?|ftp|wss?):)?\/\/[^"'`\s]*)/giu)) {
+    if (!NAMESPACE_URIS.has(match[2])) return true;
+  }
+  return false;
+}
+
+function parseAttributes(tag) {
+  const attributes = [];
+  const body = tag.replace(/^<[a-zA-Z][^\s/>]*/u, "").replace(/\/?>$/u, "");
+  for (const match of body.matchAll(/([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gu)) {
+    attributes.push({ name: match[1].toLowerCase(), value: decodeAttributeEntities(match[2] ?? match[3] ?? match[4] ?? "") });
+  }
+  return attributes;
+}
 
 function remoteResourceRefs(html) {
   const found = [];
-  for (const pattern of REMOTE_RESOURCE_PATTERNS) {
-    for (const match of html.matchAll(pattern)) found.push({ offset: match.index, excerpt: match[0].slice(0, 80) });
+  const flag = (offset, reason, excerpt) => found.push({ offset, reason, excerpt: excerpt.slice(0, 80) });
+  const contexts = /<!--[\s\S]*?-->|(<script\b[^>]*>)([\s\S]*?)<\/script\s*>|(<style\b[^>]*>)([\s\S]*?)<\/style\s*>|<[a-zA-Z][^>]*>/giu;
+  for (const match of html.matchAll(contexts)) {
+    if (match[0].startsWith("<!--")) continue;
+    const tag = match[1] ?? match[3] ?? match[0];
+    const element = tag.match(/^<([a-zA-Z][^\s/>]*)/u)[1].toLowerCase();
+    const attributes = parseAttributes(tag);
+    for (const { name, value } of attributes) {
+      if (name === "srcdoc") flag(match.index, "srcdoc", tag);
+      else if (name === "style" && cssFetches(value)) flag(match.index, "style attribute", tag);
+      else if (name.startsWith("on") && scriptFetches(value)) flag(match.index, `${name} handler`, tag);
+      else if (URL_ATTRIBUTES.has(name) && !/^\s*data:/iu.test(value) && REMOTE_IN_VALUE.test(value)) flag(match.index, name, tag);
+    }
+    if (element === "meta" && attributes.some((item) => item.name === "http-equiv" && /refresh/iu.test(item.value))) {
+      const content = attributes.find((item) => item.name === "content")?.value ?? "";
+      if (/url\s*=/iu.test(content)) flag(match.index, "meta refresh", tag);
+    }
+    if (match[2] !== undefined && scriptFetches(match[2])) flag(match.index, "script", match[2]);
+    if (match[4] !== undefined && cssFetches(match[4])) flag(match.index, "style", match[4]);
   }
-  return found.sort((a, b) => a.offset - b.offset);
+  return found;
 }
 
 function enforceOfflineHtml(html) {
