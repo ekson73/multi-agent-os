@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Security
+- Hygiene: removed third-party personal data from transcript-corrector examples; removed personal email.
+  Review round: `author.email` dropped from the plugin manifest (no URL in an email field); the
+  scoped PII check now lints the same suffixes it name-scans (TOML included), follows `--skill-dir`,
+  matches hyphenated names and windows up to 6 tokens; `correct.sh --phonetic <path>` loads a
+  private phonetic catalog.
+
 ### Added — `protocols/agent-comm-protocol.md` (ACP) compact bot↔bot messaging
 
 - New `protocols/agent-comm-protocol.md` (ACP v1.0.0, Status: Proposed): a compact,

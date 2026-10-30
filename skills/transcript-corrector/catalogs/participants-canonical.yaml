@@ -6,73 +6,65 @@
 # - contexts: tags identifying meetings/orgs where this person appears
 # - source: where this entry was confirmed (operator directive | Invitees block | etc)
 #
-# PDCA-grown: new entries added when an invitee/speaker is empirically confirmed.
-# Wrong-direction edits (renaming a canonical name) require operator authorization.
+# Shipped entries are synthetic pseudonyms (P1, P2, P3, ...). A real roster
+# belongs in a local overlay, not in this public catalog.
 #
-# Version: 1.0.0 (2026-05-28)
+# Version: 1.1.0 (2026-10-22)
 # Cross-vendor AAIF: language-neutral, format-stable YAML
 
 schema_version: 1.0.0
-updated: "2026-05-28"
+updated: "2026-10-22"
 
 participants:
-  # ---- Vek - Desenvolvimento de Software ----
+  # ---- Synthetic roster (public fixture) ----
 
-  - canonical_name: "Emilson Moraes"
-    full_name: "Emilson de Queiroz Moraes"
+  - canonical_name: "P1"
     aliases:
-      - "Emilson"
-      - "Emilson de Queiroz Moraes"
+      - "P1"
     contexts:
-      - vek-daily
-      - eko-personal
-    source: "operator + Vek roster"
+      - synthetic-daily
+    source: "synthetic roster"
 
-  - canonical_name: "Nelvael Modelo Ficticio"
+  - canonical_name: "P2"
     aliases:
-      - "Nelvael"
+      - "P2"
     contexts:
-      - vek-daily
-    source: "Confluence page 900000001 Invitees block + operator correction 2026-05-28"
+      - synthetic-daily
+    source: "synthetic roster"
     notes: |
-      ASR-prone name. Mainstream transcribers frequently substitute "Nilson" or "Nielson"
-      (common Brazilian first names) for "Nelvael" (uncommon). Pair with
-      phonetic-substitutions catalog entry.
+      ASR-prone label in the shipped example. The phonetic catalog maps the
+      synthetic mishearing "Ptwo" to "P2" when P2 is also on the invitee list.
 
-  - canonical_name: "Ana Exemplo"
+  - canonical_name: "P3"
     aliases:
-      - "Ana"
+      - "P3"
     contexts:
-      - vek-daily
-    source: "Confluence page 900000001 Invitees block"
-    notes: |
-      Truncated in TWG/MCP excerpt — verify full surname in next Daily Meeting page
-      and update via PDCA cycle.
+      - synthetic-daily
+    source: "synthetic roster"
 
-  - canonical_name: "Bruno Teste"
+  - canonical_name: "P4"
     aliases:
-      - "Bru"
-      - "Bruno"
+      - "P4"
     contexts:
-      - vek-daily
-    source: "Daily Meeting summary 2026-05-27 action items attribution"
+      - synthetic-daily
+    source: "synthetic roster"
 
-  - canonical_name: "Caio"
-    aliases: []
+  - canonical_name: "P5"
+    aliases:
+      - "P5"
     contexts:
-      - vek-daily
-    source: "Mentioned in 2026-05-27 Daily Meeting (wireframe review with Bru)"
-    notes: "Full name TBD via PDCA"
+      - synthetic-daily
+    source: "synthetic roster"
 
-  - canonical_name: "Davi"
-    aliases: []
+  - canonical_name: "P6"
+    aliases:
+      - "P6"
     contexts:
-      - vek-daily
-    source: "Mentioned in 2026-05-27 Daily Meeting (NFE/NFIO/NFRIO alignment)"
-    notes: "Full name TBD via PDCA"
+      - synthetic-daily
+    source: "synthetic roster"
 
 # Operator override mechanism (per [C07] v2.1.0):
 # To add/edit entries, the operator may:
-# 1. Edit this file directly + commit via PR (standard workflow)
+# 1. Edit a local overlay + commit via PR only if the names are synthetic or already public
 # 2. Use `bash scripts/add-participant.sh --name "..." --context "..."` (planned v1.1.0)
 # 3. Approve a PDCA-cycle-generated suggestion (via PR review)
