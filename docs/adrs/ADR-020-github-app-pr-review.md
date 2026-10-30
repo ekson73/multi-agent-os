@@ -113,7 +113,7 @@ of phase 2).
 | N copies of the pilot workflow, one per repo | N places to patch every fix; drift is certain |
 | one App + one key for all 20 repositories, pilot included | blast radius = the weakest `main`; crosses the client/owner world boundary |
 | hub repository that runs every review and posts cross-repo (key in one place only) | the App then needs `contents: read` on every repo, and the target must dispatch to the hub with a cross-repo token it does not have; more moving parts than the problem. Revisit only if per-repo key copies become the real pain |
-| `anthropics/claude-code-action` as the reviewer core | same job holds the agent and the write token; its default toolset includes GitHub write operations |
+| `anthropics/claude-code-action` as the reviewer core | the agent runs in the step that holds the GitHub token, and its README lists GitHub API access among the agent's default tools |
 | composite action | cannot hold the two-job key separation |
 | build it now | the pilot has run **zero** real reviews and lacks its agent token; generalizing an unproven mechanism is over-engineering |
 
