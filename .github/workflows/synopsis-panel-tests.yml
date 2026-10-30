@@ -1,0 +1,85 @@
+# Synopsis-panel tests — the HITL digest's session scope, the ledger provenance
+# and the AskUserQuestion payload.
+#
+# WHY this workflow exists: the suites under skills/synopsis-panel/tests/ and
+# tests/test_synopsis_hitl_auq.py encode the contract the `/hitl-digest` command
+# depends on (the digest shows THIS conversation's gates, the zero case says why,
+# the AUQ payload stays deterministic), but nothing ran them on a pull request —
+# a contract nobody runs is a claim, not a guarantee. Same rule the lens-dispatch
+# matrix follows ("it must run in CI or the claim must be deleted").
+#
+# The `paths:` filter lists every file the suites READ: the engine itself, the
+# skill's tests, the AUQ suite, its frozen fixtures, the hash-pinned
+# requirements and the command contract the suites assert on
+# (commands/hitl-digest.md). A filter that omitted any of them would let that
+# change land without the contract being re-measured.
+#
+# The suites invoke the real CLI as a subprocess (no mocks) and use the stdlib
+# only — no project dependencies, no collector, no network.
+
+name: Synopsis-panel tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/synopsis-panel/**"
+      - "tests/test_synopsis_hitl_auq.py"
+      - "tests/fixtures/synopsis-panel/**"
+      - "tests/synopsis-panel-requirements.txt"
+      - "commands/hitl-digest.md"
+      - ".github/workflows/synopsis-panel-tests.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "skills/synopsis-panel/**"
+      - "tests/test_synopsis_hitl_auq.py"
+      - "tests/fixtures/synopsis-panel/**"
+      - "tests/synopsis-panel-requirements.txt"
+      - "commands/hitl-digest.md"
+      - ".github/workflows/synopsis-panel-tests.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synopsis-panel-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synopsis-panel:
+    name: session scope + ledger provenance + AUQ payload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # SHA-pinned, matching supply-chain-sentinel.yml ("All third-party actions
+        # pinned"). The checkout token is not persisted: this job only reads the
+        # tree and runs tests; it never pushes.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the test deps (hash-pinned)
+        # The repo's convention (ontology-validation.yml) is
+        # `--require-hashes -r tests/<name>-requirements.txt`, and OpenSSF
+        # Scorecard's Pinned-Dependencies check reads a bare `pip install` as
+        # an unpinned dependency. PyYAML rides along because
+        # tests/validate-plugin.sh SKIPS the YAML frontmatter parse when
+        # PyYAML is missing — it warns and still passes, so without it this
+        # job would silently skip the check it exists to run.
+        run: python -m pip install --require-hashes -r tests/synopsis-panel-requirements.txt
+
+      - name: Run the synopsis-panel suites
+        run: pytest skills/synopsis-panel/tests tests/test_synopsis_hitl_auq.py -v
+
+      - name: Validate plugin structure (repo MUST rule)
+        # CLAUDE.md § MUST: "Validate plugin structure before committing." The
+        # command and the skill carry frontmatter the repo's own validator reads.
+        run: bash tests/validate-plugin.sh

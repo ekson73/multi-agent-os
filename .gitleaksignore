@@ -1,2 +1,14 @@
 # .gitleaksignore -- Fingerprints of confirmed false positives
 # Add fingerprints from: gitleaks protect --staged -v
+#
+# Historical findings of ROTATED credentials. These are NOT false positives:
+# the value was a real credential. Each is ignored only because it is already
+# rotated and invalid, and this repo's history is not rewritten. The current
+# tree of main must not hold the value; a NEW commit with it still fires,
+# because a fingerprint pins one commit, one file and one line.
+#
+# 2026-10-30: vek-db-password, commit 4450184 (2026-03-23), a datasource
+# password default in an insights doc. Rotated and invalidated on 2026-10-26
+# (HITL H-0033 in the operator's private ledger). Current tree redacted by #473.
+# Remove this line if that rotation is ever reverted.
+44501845428e9a8762f242d573d5f230d7e5130b:docs/insights/secret-management-strategy.md:vek-db-password:46
