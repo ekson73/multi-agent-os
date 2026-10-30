@@ -79,7 +79,7 @@ names (dual-name doctrine, envelope-safety).
   the activity (`review`). This pairs with the mechanism: `github-app-pr-review` is the review, `eko-pr-reviewer`
   is who publishes it.
 - **Scorecard for `eko-pr-reviewer`**: 12/12 correctness PASS (taxonomy `eko-*`; semantics and scope = PR
-  reviewer; singular attributive `pr`; durable; gloss-free: "eko's PR reviewer"). Resonance PASS: 4 syllables
+  reviewer; singular attributive `pr`; durable; gloss-free: "eko's PR reviewer"). Resonance PASS: 5 syllables
   after the prefix, sayable in EN and PT, no unintended meaning. 15 chars.
 - **Sweep**: no `eko-pr-reviewer` in this repository or in the artifact registry;
   `.claude/rules/pr-reviewer-communication.md` is a rule about talking to review bots, a different object.
