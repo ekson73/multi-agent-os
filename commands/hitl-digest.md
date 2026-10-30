@@ -224,6 +224,22 @@ python3 "$FUSE" --hitl-md "$LEDGER" --this-session-only --include pending --pend
 > echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md /tmp/ledger.md --format tree
 > ```
 
+## Passo 2 opcional: rotear com o `decision-engine`
+
+O digest acima continua igual e read-only. Quando o agente quiser saber, por item, quem
+age e qual a resposta recomendada, ele passa o JSON do digest para a skill
+[`decision-engine`](../skills/decision-engine/SKILL.md). Ela devolve `DIY`, `COMPUTE` ou
+`HITL` por item, com recomendação e alternativas, e não muta nada.
+
+```bash
+DE="$(dirname "$(dirname "$(dirname "$FUSE")")")/decision-engine/bin/decision_engine.py"
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format json \
+  | python3 "$DE" - --format tree
+```
+
+Só os itens `HITL` sobem ao operador. `DIY` o agente resolve e registra; `COMPUTE`
+o agente classifica e recalcula. Sem o `decision-engine` instalado, pule este passo.
+
 ## Modo AskUserQuestion (`--format ask-user-question`)
 
 Garantias do contrato:

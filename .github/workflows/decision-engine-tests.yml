@@ -1,0 +1,53 @@
+# decision-engine tests: the routing rules (DIY / COMPUTE / HITL) the optional
+# step 2 of /hitl-digest depends on. A contract nobody runs is a claim.
+#
+# `paths:` lists every file the suite reads: the skill, the synopsis-panel engine
+# it imports options from and pipes through, and the hash-pinned requirements.
+
+name: decision-engine tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/decision-engine/**"
+      - "skills/synopsis-panel/bin/**"
+      - "tests/synopsis-panel-requirements.txt"
+      - ".github/workflows/decision-engine-tests.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "skills/decision-engine/**"
+      - "skills/synopsis-panel/bin/**"
+      - "tests/synopsis-panel-requirements.txt"
+      - ".github/workflows/decision-engine-tests.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: decision-engine-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  decision-engine:
+    name: routing rules + synopsis-fuse pipe
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the test deps (hash-pinned)
+        run: python -m pip install --require-hashes -r tests/synopsis-panel-requirements.txt
+
+      - name: Run the decision-engine suite
+        run: pytest skills/decision-engine/tests -v
