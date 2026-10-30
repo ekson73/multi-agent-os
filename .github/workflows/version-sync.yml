@@ -1,6 +1,14 @@
-# Version Sync Workflow
+# Version Sync Check
 # SSOT: .claude-plugin/plugin.json
-# Synced: README.md, CLAUDE.md, package.json, packaging/opencode-maos/package.json
+# Checked: README.md, CLAUDE.md, package.json, packaging/opencode-maos/package.json
+#
+# main is protected (PR-only + required checks), so this workflow never pushes.
+# It compares the version VALUES (not file bytes) and fails with the fix command.
+#
+# It runs after merge on main only, never on PRs: a release PR may change only
+# plugin.json + CHANGELOG.md (scripts/check-release-coherence.py), so derived
+# files lag by design. Release flow: merge the release PR, this check goes red,
+# then run scripts/sync-version.sh on a branch and merge that PR (check goes green).
 
 name: Version Sync
 
@@ -9,94 +17,25 @@ on:
     branches: [main]
     paths:
       - '.claude-plugin/plugin.json'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'package.json'
+      - 'packaging/opencode-maos/package.json'
+      - 'scripts/sync-version.sh'
+      - '.github/workflows/version-sync.yml'
   workflow_dispatch:
-    inputs:
-      force_sync:
-        description: 'Force version sync even without plugin.json change'
-        type: boolean
-        default: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  sync-version:
+  check-version:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 1
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract version from plugin.json
-        id: version
-        run: |
-          VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Source version: $VERSION"
-
-      - name: Sync README.md badge
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i "s/Version-[0-9]*\.[0-9]*\.[0-9]*-blue/Version-${VERSION}-blue/g" README.md
-          echo "✅ README.md badge updated"
-
-      - name: Sync README.md footer
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i "s/Multi-Agent OS v[0-9]*\.[0-9]*\.[0-9]*/Multi-Agent OS v${VERSION}/g" README.md
-          echo "✅ README.md footer updated"
-
-      - name: Sync CLAUDE.md footer
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i "s/Multi-Agent OS v[0-9]*\.[0-9]*\.[0-9]*/Multi-Agent OS v${VERSION}/g" CLAUDE.md
-          echo "✅ CLAUDE.md footer updated"
-
-      - name: Sync package.json + OpenCode packaging version
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
-          if [ -f packaging/opencode-maos/package.json ]; then
-            jq --arg v "$VERSION" '.version = $v' packaging/opencode-maos/package.json > /tmp/oc.json && mv /tmp/oc.json packaging/opencode-maos/package.json
-          fi
-          echo "✅ package.json + packaging/opencode-maos version → $VERSION"
-
-      - name: Check for changes
-        id: changes
-        run: |
-          FILES=(README.md CLAUDE.md package.json packaging/opencode-maos/package.json)
-          if git diff --quiet -- "${FILES[@]}"; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ No version changes needed"
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "📝 Version changes detected:"
-            git diff --stat -- "${FILES[@]}"
-          fi
-
-      - name: Commit and push changes
-        if: steps.changes.outputs.changed == 'true'
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add README.md CLAUDE.md package.json packaging/opencode-maos/package.json
-          git commit -m "chore: sync version to v${VERSION} [skip ci]"
-          git push
-          echo "🚀 Version synced to v${VERSION}"
-
-      - name: Summary
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          echo "## Version Sync Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| File | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| \`.claude-plugin/plugin.json\` | v${VERSION} (SSOT) |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`package.json\` | Synced |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`packaging/opencode-maos/package.json\` | Synced |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`README.md\` / \`CLAUDE.md\` | Synced |" >> $GITHUB_STEP_SUMMARY
+      - name: Check versions match plugin.json
+        run: scripts/sync-version.sh --check
