@@ -1,0 +1,12 @@
+> HITL ledger: `<TMP>/punch-list.md`
+
+```mermaid
+mindmap
+  root((Synopsis — pendências + HITL [N-Tree]))
+    HITL
+      ⏫ H-0901 Escolher o nome do painel:::hitl
+      ⏫ H-0902 Credencial de teste: opções: u:::hitl
+      ⏫ H-0903 Aprovar o rascunho de e-mail d:::hitl
+      ⏫ H-0904 Subir a máquina de teste paga:::hitl
+      ⏫ H-0905 Apagar o diretório legado de t:::hitl
+```
