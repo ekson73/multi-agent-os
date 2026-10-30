@@ -69,8 +69,12 @@ quebrado) sai com exit `2`; nunca é adivinhada.
 O guard `R2` reconhece ação + objeto: mudar permissões/configurações da conta,
 ativar/desativar MFA, aceitar verificação de segurança do provedor ou usar dados
 pessoais reais. `conta` ou `dados` isolados não bastam: parsing de conta sintética,
-fixtures de dados sintéticos e implementação local de autenticação continuam técnicos.
-É uma proteção lexical limitada, não uma classificação universal de HUMAN_DOMAIN.
+fixtures de dados sintéticos e formas explícitas reconhecidas de implementação local
+de testes/mocks continuam técnicos, mesmo descrevendo a funcionalidade de MFA/permissões.
+O ato deve ser apenas a descrição da funcionalidade: alvo real, produção, outro pedido
+sensível ou alvo não reconhecido como sintético continuam HITL. Uma palavra `mock`
+ou `teste` solta não retira o gate. É proteção lexical limitada, não classificação
+universal de HUMAN_DOMAIN.
 Antes de agir, preserve a confirmação exigida pelo efeito e pela autoridade da ação,
 independentemente de `route`; nenhum veredito concede consentimento.
 

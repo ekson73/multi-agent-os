@@ -70,9 +70,10 @@ _GUARD_RE = re.compile(
 _HUMAN_ACT_RE = re.compile(
     r"\b(?:(?:alterar|mudar|modificar|conceder|revogar|change|modify|grant|revoke)\s+"
     r"(?:(?:a|as|o|os|the)\s+)?(?:(?:permiss(?:ao|oes)|privilegios?|acesso|configurac(?:ao|oes)|"
-    r"permissions?|privileges?|access|settings?)\s+(?:d[ao]s?|de|n[ao]s?|a|of|on|to|for)\s+"
-    r"(?:contas?|accounts?|usuarios?|users?)|(?:provider\s+)?account\s+"
-    r"(?:permissions?|settings?))|"
+    r"permissions?|privileges?|access|settings?)(?:\s+(?:real|reais))?\s+"
+    r"(?:d[ao]s?|de|n[ao]s?|a|of|on|to|for)\s+"
+    r"(?:contas?|accounts?|usuarios?|users?)|(?:(?:real|live)\s+)?(?:provider\s+)?"
+    r"account\s+(?:permissions?|settings?))|"
     r"(?:ativar|desativar|habilitar|desabilitar|redefinir|enable|disable|reset)\s+"
     r"(?:(?:a|o|the)\s+)?(?:mfa|2fa|autenticacao\s+(?:multifator|de dois fatores)|"
     r"multi[- ]factor authentication|two[- ]factor authentication)|"
@@ -82,6 +83,20 @@ _HUMAN_ACT_RE = re.compile(
     r"(?:usar|utilizar|processar|coletar|analisar|use|process|collect|analyze)\s+"
     r"(?:(?:os|the)\s+)?(?:dados pessoais reais|dados reais d[oa]s? clientes?|pii real|"
     r"real (?:pii|personal data|customer data)))\b")
+
+# Only a directly attributed local implementation, not a stray "mock" label.
+# An unknown target or another request after the feature description stays HITL.
+_LOCAL_IMPL_PREFIX_RE = re.compile(
+    r"^(?:implementar|criar|escrever|implement|create|write)\s+"
+    r"(?:(?:um|uma|a|an|the)\s+)?"
+    r"(?:(?:testes?|mocks?|fixtures?)\s+(?:local|locais|sintetic[oa]s?)|"
+    r"(?:local|synthetic)\s+(?:tests?|mocks?|fixtures?))\s+(?:para|to)\s+$")
+_SYNTHETIC_TARGET_RE = re.compile(
+    r"\s*(?:(?:em|in|on)\s+(?:(?:uma?|a|an|the)\s+)?"
+    r"(?:contas?\s+sintetic[oa]s?|synthetic\s+accounts?|"
+    r"fixtures?\s+(?:sintetic[oa]s?|local|locais)|"
+    r"(?:synthetic|local)\s+fixtures?))?\s*[.!]?\s*")
+_REAL_OBJECT_RE = re.compile(r"\b(?:real|reais|live)\b")
 
 _NEG_RE = re.compile(r"\b(n[aã]o|nunca|sem|not|never|no|without)\s+(\w+\s+)?$", re.IGNORECASE)
 
@@ -108,8 +123,15 @@ def _fold(text: str) -> str:
 
 def _human_authority_act(text: str) -> bool:
     folded = _fold(text)
-    return any(not _NEG_RE.search(folded[:m.start()])
-               for m in _HUMAN_ACT_RE.finditer(folded))
+    for m in _HUMAN_ACT_RE.finditer(folded):
+        if _NEG_RE.search(folded[:m.start()]):
+            continue
+        if (_LOCAL_IMPL_PREFIX_RE.fullmatch(folded[:m.start()])
+                and _SYNTHETIC_TARGET_RE.fullmatch(folded[m.end():])
+                and not _REAL_OBJECT_RE.search(m.group())):
+            continue
+        return True
+    return False
 
 
 def _load_card_options(fuse_path: pathlib.Path = _FUSE_PATH):

@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `R2-guard` now keeps account permissions/settings, MFA changes, provider-safety
   acceptance and real-personal-data use visible as HITL even with a technical type.
-  Action/object matching preserves synthetic parsing and local technical work.
+  Action/object matching preserves synthetic parsing and recognized local mock/test
+  implementation descriptions, including sensitive feature phrases. Real/production
+  or unrecognised targets and separate sensitive requests retain the HITL gate.
   R0/default policy and R1 precedence remain unchanged; routing never grants consent.
 - Real CLI and session-scoped synopsis pipe regressions cover both policies,
   technical aliases, boundaries and precedence. Refs #555, parent PR #556.

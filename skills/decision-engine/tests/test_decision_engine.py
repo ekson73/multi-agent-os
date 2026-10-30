@@ -13,6 +13,24 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "bin" / "decision_engine.py"
 FUSE = ROOT.parent / "synopsis-panel" / "bin" / "synopsis-fuse.py"
 
+LOCAL_IMPLEMENTATIONS = (
+    "Implementar testes locais para desativar MFA em conta sintética",
+    "Implement a local mock to change account permissions",
+    "Criar mock local para alterar permissões da conta",
+    "Criar fixture sintética para desativar autenticação multifator",
+)
+MIXED_REAL_ACTS = (
+    "Implementar testes locais para desativar MFA em conta real",
+    "Implement a local mock to change account permissions in a real account",
+    "Implement a local mock to change real account permissions",
+    "Implementar testes locais para alterar permissões reais da conta",
+    "Implement a local mock to change account permissions in production",
+    "Implementar testes locais para desativar MFA na conta alvo",
+    "Mock de teste: desativar MFA da conta",
+    "Implement a local mock to use real personal data",
+    "Implementar testes locais para desativar MFA em conta sintética; desativar MFA",
+)
+
 HUMAN_ACTS = (
     "Alterar permissões da conta do provedor",
     "Desativar a autenticação multifator da conta",
@@ -27,7 +45,7 @@ HUMAN_ACTS = (
     "Alterar permissões de conta",
     "Alterar permissões na conta",
     "Conceder permissão à conta",
-)
+) + MIXED_REAL_ACTS
 TECHNICAL_CONTROLS = (
     "Escolher biblioteca de parsing",
     "Fazer parsing de conta sintética",
@@ -38,7 +56,7 @@ TECHNICAL_CONTROLS = (
     "Implementar biblioteca local sem alterar permissões da conta",
     "Não desativar autenticação multifator",
     "Do not disable MFA",
-)
+) + LOCAL_IMPLEMENTATIONS
 
 
 def _load():
@@ -334,6 +352,9 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
         _item("H-5100", "credencial", "Token exposto", session_id="guard-fixture"),
         _item("H-5101", "tecnico", HUMAN_ACTS[0], session_id="other-fixture"),
     ]
+    payload += [
+        _item(f"H-{5200 + i}", "tecnico", text, session_id="guard-fixture")
+        for i, text in enumerate(LOCAL_IMPLEMENTATIONS + MIXED_REAL_ACTS)]
     before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
     fuse = subprocess.run(
         [sys.executable, str(FUSE), "--hitl-only", "--compass-json", str(compass),
@@ -349,6 +370,9 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
         **{f"H-{5000 + i}": ("HITL", False) for i in range(4)},
         **{f"H-{5004 + i}": ("DIY", False) for i in range(4)},
         "H-5100": ("HITL", False) if override else ("DIY", True),
+        **{f"H-{5200 + i}": ("DIY", False) for i in range(len(LOCAL_IMPLEMENTATIONS))},
+        **{f"H-{5200 + len(LOCAL_IMPLEMENTATIONS) + i}": ("HITL", False)
+           for i in range(len(MIXED_REAL_ACTS))},
     }
     assert out["source"]["hitl_scope"] == "session"
     assert out["source"]["hitl_session_resolved"] is True
