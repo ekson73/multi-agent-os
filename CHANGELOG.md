@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The person-agent language rule is generic: `Responde no idioma configurado do usuário.` (`MAOS_USER_LOCALE`, falling back to the language the user writes in).
 - Installation config replaces hard-coded values: `MAOS_JIRA_KEY_PREFIXES` / `MAOS_LINEAR_KEY_PREFIXES` (ticket routing in `plugin-scripts/gaac/delegate.sh`), `MAOS_PERSONAL_GH_OWNERS` / `MAOS_WORK_GH_OWNERS` / `MAOS_PERSONAL_SSH_ALIAS` (`seed_active_world`), `MAOS_LAYER_PURITY_PATTERNS` / `MAOS_LAYER_PURITY_PATTERNS_FILE` (`bin/check-layer-purity`, CI reads the `LAYER_PURITY_PATTERNS` repository variable), `MAOS_TOOLKIT_DIR` (`bin/sync-agentic-tools.sh`), `$SCM_WRITE_ACCOUNT` (provider matrix) and `~/.config/maos/`.
 - **Upgrade note:** without that config, ticket keys resolve to `auto` and `active_world` resolves to `unknown` (fail-closed). Prefix and owner lists accept spaces or commas. Layer purity with no patterns configured warns locally and scans only its neutral default, fails in CI, and on a pull request from a fork emits `::warning::` and skips. Set the variables locally, and the `LAYER_PURITY_PATTERNS` repository variable for CI, to keep the previous routing and org-pattern behaviour.
+### Changed — GitNexus sub-skills: one layout (EKO-156, #522)
+
+- The six GitNexus sub-skills move from `.claude/skills/gitnexus/<name>/` to
+  `.claude/skills/gitnexus-<name>/SKILL.md`, one directory per skill, which is where
+  Claude Code discovers skills and where the `AGENTS.md`/`CLAUDE.md` tables already point.
+  No duplicate copy under `.agents/skills/`. Content refreshed to the current GitNexus
+  output (CLI fallbacks, `risk: UNKNOWN` handling, `trace`); `.omc/` is ignored.
+
 ### Changed — `goal-recovery` 0.3.0: `ci` and `tests` on the inference ladder
 
 - `skills/goal-recovery/SKILL.md` 0.2.0 → 0.3.0. Two sources inserted **below `ticket`** (ranks 4 and 5): `ci` (passing check/pipeline status) and `tests` (test names and assertions). Both are deterministic-but-partial evidence, so the goal they recover is a lower bound and `confidence` is capped by coverage breadth.
