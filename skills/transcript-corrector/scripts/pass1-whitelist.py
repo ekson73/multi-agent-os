@@ -190,8 +190,7 @@ def correct_pass1(text: str, participants: list[dict], phonetic: list[dict],
     # document (in the Invitees block OR anywhere). If present, that authorizes the
     # high-confidence substitution.
     # Word-boundary matching (\b) prevents false positives where a canonical's letters
-    # appear as a substring inside an unrelated word (e.g., "Ana" matching "banana",
-    # "havana"). Empirical case raised by amazon-q-developer 2026-05-28.
+    # appear as a substring inside an unrelated word (e.g., "cat" matching "catalog").
     text_lower = text.lower()
     active_phonetic: list[dict] = []
     for entry in phonetic:
@@ -263,7 +262,7 @@ def correct_pass1(text: str, participants: list[dict], phonetic: list[dict],
             })
 
     # Apply HIGH-confidence corrections (regex with word boundaries).
-    # Case-insensitive detection so "nilson" / "NILSON" / "Nilson" all match;
+    # Case-insensitive detection so "ptwo" / "PTWO" / "Ptwo" all match;
     # replacement uses the canonical (correctly-cased) form.
     out = text
     for original, correct in corrections:
