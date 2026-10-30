@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — ADR-020 §5: pluggable engine with a per-boundary fallback queue (proposed, nothing built)
+
+- The reviewer keeps one App per trust boundary and one reusable workflow; the model CLI becomes a pluggable
+  engine behind an adapter contract (`ok` / `quota` / `auth` / `error`). Only `quota` and `auth` move to the next
+  engine; anything else, or an empty queue, fails closed. An adapter is admitted only after a 4-question test
+  measured in the provider's primary sources (CI login within terms, read-only, structured verdict, limit
+  signal) plus a per-run tenant-scope check. Umbrella (operator) credentials may serve every tenant the umbrella
+  administers; a tenant-owned credential runs only inside its tenant. Real configuration lives in the calling
+  repository; this repository ships only the schema and a neutral example. Rollout gate unchanged.
+
 ### Changed — ADR-020: neutral App pattern `<boundary>-pr-reviewer`, pluggable engines, no names
 
 - An `anima` run (ADR-020 §2.1) names the App instance pattern in en-US: `<boundary>-pr-reviewer`, runner-up
