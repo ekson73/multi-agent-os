@@ -140,7 +140,7 @@ Recover from the strongest available; corroborate across sources; a single sourc
 ## Composition (the wiring — DRY; every step lands on an existing primitive)
 | Step | Composes (existing — reimplements nothing) |
 |---|---|
-| RECON | `skills/pulse` state-refresh · `skills/preflight` R0 ticket-anchor · `skills/work-compass` CPT N-Tree · CI/test reads (`gh pr checks`/`gh run`, test-runner + `git`/`jq` reads) |
+| RECON | `skills/pulse` state-refresh · `skills/preflight` R0 ticket-anchor · `skills/work-compass` CPT N-Tree · CI/test reads — any provider's check-status list (GitHub: `gh pr checks`/`gh run view`; Bitbucket/GitLab: their pipeline status API) plus the repo's own test entrypoint (here `bash skills/goal-recovery/tests/run-tests.sh`); cite the check name or test path in `recovered_from[].ref` · `git`/`jq` reads |
 | SYNTHESIZE | `skills/postflight` P2-DEBRIEF objectives-synthesis · `continuation-seed` contract (the schema base) |
 | audit source | `skills/agentic-session-harness` journal (`goal`, `decisions[]`, `spec_alignment`) |
 | EMIT + validate | `templates/handoff-as-prompt.schema.json` (extends continuation-seed) + `bin/validate_envelope.py` |
@@ -195,9 +195,12 @@ goal-recovery --ladder=ticket,ci,tests          # recover from stated intent cor
 A cold session on a branch with no ticket and no seed, but a green CI job `validate-envelope` and a
 test `test_rejects_empty_goal`. RECON reads `ci` + `tests`; the recovered `goal` is bounded by what
 they assert ("the envelope validator must reject an empty goal"), and `confidence` is kept moderate
-because the suite is partial. `recovered_from` cites both as the real sources:
+because the suite is partial. `recovered_from` cites both as the real sources. This is a
+**fragment of `params`** (provenance fields only); a full envelope also carries every other
+required key of `templates/handoff-as-prompt.schema.json` (`goal`, `objectives`, `hypotheses`, …):
 ```json
 {
+  "// fragment": "params excerpt — other required keys omitted; not a complete envelope",
   "confidence": 0.68,
   "recovered_from": [
     {"source": "ticket", "read": false, "ref": "absent"},
