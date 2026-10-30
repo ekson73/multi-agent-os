@@ -10,7 +10,7 @@ description: >-
   does harness Y keep asking for OAuth", and drives the deterministic executor `bin/harness-mcp-sync`
   to plan/apply/verify/restore ONE vendor-neutral MCP SSOT across every harness (dry-run by default,
   backups, idempotent, secret-masking). Routes Claude-Code-platform questions (scopes, plugins,
-  marketplaces, hooks) to the sibling `claude-code-concierge`. Soul-name Dragoman. NEVER invents a
+  marketplaces, hooks) to the sibling `claude-concierge`. Soul-name Dragoman. NEVER invents a
   config path: facts come from the registry `harnesses/<id>.yaml`, else research, else "unknown".
 allowed-tools: Read, Glob, Grep, Bash, WebFetch, WebSearch
 evals:
@@ -24,7 +24,7 @@ evals:
     - "List every AI coding tool installed here and which support MCP"
     - "Roll back the MCP config change you made to VS Code"
   should_not_trigger:
-    - "Install a Claude Code plugin marketplace at project scope (route to claude-code-concierge)"
+    - "Install a Claude Code plugin marketplace at project scope (route to claude-concierge)"
     - "How do Claude Code hooks work internally? (route to claude-code-guide)"
     - "Name a new tool (route to anima)"
     - "Record what an agent session did (agentic-session-harness — different meaning of 'harness')"
@@ -148,7 +148,7 @@ config layer, never in this repo. The executor takes them via `--ssot FILE --res
 
 | Intent | Route to |
 |---|---|
-| Claude Code scopes, plugins, marketplaces, hooks, settings | `claude-code-concierge` (Cicerone) |
+| Claude Code scopes, plugins, marketplaces, hooks, settings | `claude-concierge` (Cicerone) |
 | How a Claude Code feature works internally | `claude-code-guide` agent |
 | Skills/agents/commands folders per harness | `bin/sync-agentic-tools.sh` |
 | Naming a new harness style or tool | `anima` |

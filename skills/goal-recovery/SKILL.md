@@ -3,17 +3,18 @@ name: goal-recovery
 version: "0.2.0"
 description: |
   Recover a work session's real INTENT from its own live/context state — motivations, DoR,
-  context, scope, and the objective tree {originating, primary, secondary, auxiliary} — into ONE
-  typed, validator-gated `handoff-as-prompt` envelope whose `goal` field is consumed downstream as
-  {{goal}}. The direction-inverted twin of `postflight`: where postflight EMITS a continuation-seed
-  at session END, goal-recovery RECOVERS an often-UNSTATED intent at any point (session start,
-  mid-run, cold re-entry). Uncertainty-aware by design: ranked hypotheses + aggregate confidence +
-  `inconclusive->HITL` (goal-recovery from execution state is under-published SOTA — never a
-  confident oracle). Hybrid: probabilistic content (LLM over an inference ladder) inside a
-  deterministic, idempotent envelope (schema + validator). Reuses postflight's objectives-synthesis
-  + the continuation-seed contract — reimplements nothing.
-  Triggers: "goal-recovery", "recover the goal", "resgate o goal/objetivo", "what is this session
-  actually trying to do", "detect the session intent", "handoff-as-prompt", "recover intent".
+  context, scope, the objective tree {originating, primary, secondary, auxiliary} — into
+  ONE typed, validator-gated `handoff-as-prompt` envelope whose `goal` field is consumed
+  downstream as {{goal}}. The direction-inverted twin of `postflight`: where postflight
+  EMITS a continuation-seed at session END, goal-recovery RECOVERS an often-unstated intent
+  at any point (session start, mid-run, cold re-entry). Uncertainty-aware by design: ranked
+  hypotheses + aggregate confidence + `inconclusive->HITL` (goal-recovery from execution
+  state is under-published SOTA — never a confident oracle). Hybrid: probabilistic content
+  (LLM over an inference ladder) inside a deterministic, idempotent envelope (schema +
+  validator). Reuses postflight's objectives-synthesis + the continuation-seed contract;
+  reimplements nothing. Triggers: "goal-recovery", "recover the goal", "resgate o
+  goal/objetivo", "what is this session actually trying to do", "detect the session
+  intent", "handoff-as-prompt", "recover intent".
 allowed-tools: Read, Grep, Glob, Bash, Write, Task
 metadata:
   version: "0.2.0"
