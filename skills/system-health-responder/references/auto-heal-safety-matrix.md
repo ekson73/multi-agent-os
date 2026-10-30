@@ -61,7 +61,7 @@ ONLY if it appears in `references/no-source-fix-registry.md` with a confirmed up
 not-planned + verified-date. Un-vetted producer → propose + seed to investigate (`/quiesce`'s "pesquise
 do que se trata"), never auto-contain. **Protected tools (`1password openclaw omniroute claude`) are
 refused** even if a registry entry names them (`claude` matches **whole-string** — it guards the *runtime*,
-never claude-branded plugins/marketplaces like `claude-plugins-official`/`claude-code-concierge`; the others
+never claude-branded plugins/marketplaces like `claude-plugins-official`/`claude-concierge`/`claude-code-concierge` (alias); the others
 match as conservative substrings, mirroring the renice-denylist `op` whole-word exception). Every
 disable/remove appends its exact restore command to
 `containment.log` (auditable reversibility — the renice-reverts.log pattern generalized).

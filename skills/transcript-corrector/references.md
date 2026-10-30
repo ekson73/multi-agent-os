@@ -41,7 +41,7 @@ None are vendored in this repo; all are capability-detected at runtime
 
 ## ASR error patterns — research notes
 
-The empirical Nilson→Nelvael case (founding example for this skill) belongs to a
+The synthetic Ptwo→P2 case (shipped example for this skill) belongs to a
 well-documented ASR error class: **rare proper name substitution by common
 phonetic neighbor**. Mainstream literature:
 

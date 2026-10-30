@@ -218,7 +218,7 @@ assessment:
 | Previous v1 protocol | `multi-agent-os/docs/insights/multi-agent-backlog-governance.md` | Superseded |
 | Domain backlog | `vek-devops-backlog/backlog/MASTER-PLAN-execution-order.md` | Vek-specific |
 | Cross-project inventory | `vek-devops-backlog/inventory/cross-project-inventory.md` | Vek-specific |
-| Pre-flight checklist | `k8s-eks-prd-002/AGENTS.md → Pre-Flight Checklist` | Repo-specific |
+| Pre-flight checklist | `<private-iac-repo>/AGENTS.md → Pre-Flight Checklist` | Repo-specific |
 | Phase reports | `vek-devops-backlog/reports/PHASE-NNN-*.md` | Vek-specific |
 
 ## 14. Sources & References
