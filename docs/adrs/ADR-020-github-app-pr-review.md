@@ -69,7 +69,7 @@ names (dual-name doctrine, envelope-safety).
 | `revisor-agentico` | rejected | collides with the pilot's own instance name |
 
 Availability of `eko-revisor-agentico` as an App slug is **not proven**: `GET /apps/<slug>` returns 404 for the
-pilot's existing private App too, so a 404 says nothing. It is checked at registration (phase 2).
+pilot's existing private App too, so a 404 says nothing. It is checked at registration (phase 3).
 
 ### 3. Topology: one reusable workflow, one App per trust boundary — not one App for everything
 
