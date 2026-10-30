@@ -66,6 +66,30 @@ Para voltar ao comportamento de escalar, passe `--policy` com
 `{"leaked_secret": "escalate"}`. Política inválida (chave ou valor desconhecido, JSON
 quebrado) sai com exit `2`; nunca é adivinhada.
 
+Evidência do próprio item (R1 e R2). Sem opção estruturada, o motor lê o texto
+`decidir` da linha e usa o primeiro fato que achar, nesta ordem:
+
+| Evidência (`recommendation_basis`) | Gatilho no texto | Recomendação | Confiança |
+|---|---|---|---|
+| `evidence:adiado` | `adiado` + data futura (`revisar em AAAA-MM-DD` ou `Prazo`) | `Manter adiado até <data>` | alta |
+| `evidence:pre-condicao` | `Desbloqueio …:`, `antes do gate,` ou `BLOQUEADO …:` | `Manter pendente: antes, <passo>` | alta |
+| `evidence:nao-determinavel` | `não determinável … fechar exige <x>` | `Manter pendente: fechar exige <x>` | media |
+| `evidence:comando+undo` | `Comando: \`…\`` **e** `Undo: …` | `<sim do tipo> com o comando registrado (undo: …)` | media |
+| `evidence:recomendacao-registrada` | `Recomendação: <x>` | `<x>` | media |
+| `evidence:plano` | `plano pronto` | `<sim do tipo> seguindo o plano registrado` | baixa |
+
+Comando sem undo não é evidência para executar. Sem nenhum gatilho, a recomendação
+continua sendo o padrão do tipo (`type-default:…`), com `confidence: "nenhuma"`,
+`evidence: []` e `evidence_note` dizendo "sem evidência no item". R0, R3 e R4 não mudam.
+
+Prioridade: todo veredito traz `priority` = GUT (Gravidade × Urgência × Tendência, 1-5,
+`score` = produto; método do catálogo da casa). G vem do risco `R3/R2/R1` (5/4/3), senão
+da severidade. U vem do `Prazo` (vencido ou `expirado` = 5, ≤3 d = 4, ≤14 d = 3, depois 2,
+sem prazo 2) e vale 1 se adiado. T = 4 quando o texto diz que trava/destrava algo, 1 se
+adiado, senão 3. `--sort gut` ordena pelo score (empate mantém a ordem do documento);
+o padrão `--sort input` mantém a ordem de entrada. `--today AAAA-MM-DD` fixa a data de
+referência (testes e reprodução).
+
 `options_source` diz de onde vieram as opções: `structured`, `ledger-text` ou
 `type-generic` (do `synopsis-panel`), `fallback:synopsis-panel-error` (instalado mas falhou ao carregar), ou `fallback:synopsis-panel-absent` quando o
 `synopsis-panel` não está instalado. O fallback é sempre declarado, nunca silencioso.
@@ -76,7 +100,7 @@ quebrado) sai com exit `2`; nunca é adivinhada.
 DE="$MAOS_DIR/skills/decision-engine/bin/decision_engine.py"
 FUSE="$MAOS_DIR/skills/synopsis-panel/bin/synopsis-fuse.py"
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format json \
-  | python3 "$DE" - --format tree        # ou --format json (envelope decision-engine/verdict/v1)
+  | python3 "$DE" - --format tree --sort gut   # ou --format json (envelope decision-engine/verdict/v1)
 ```
 
 Saída JSON:

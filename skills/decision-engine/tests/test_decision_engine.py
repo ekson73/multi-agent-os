@@ -240,3 +240,130 @@ def test_a_broken_backend_is_not_reported_as_absent(tmp_path):
 
 def test_tree_output_shows_the_recommendation_basis():
     assert "[base: type-default" in _cli([_item("H-2002", "gasto")], "--format", "tree")
+
+
+# ── R9: recommendation from the item's own evidence + GUT priority ─────────────────
+import datetime as _dt
+
+TODAY = _dt.date(2026, 10, 30)
+
+
+def test_deferred_item_recommends_keeping_it_deferred():
+    v = de.decide(_item("H-0101", "irreversivel",
+                        "Fechar o SG. ADIADO pelo operador; revisar em 2026-11-30. Plano pronto",
+                        prazo="2026-11-30"), today=TODAY)
+    assert v["rule"] == "R1-human-type" and v["route"] == "HITL"
+    assert v["recommendation"] == "Manter adiado até 2026-11-30"
+    assert v["recommendation_basis"] == "evidence:adiado" and v["confidence"] == "alta"
+    assert v["alternatives"] and v["recommendation"] not in v["alternatives"]
+    assert v["priority"]["u"] == 1 and v["priority"]["t"] == 1
+
+
+def test_a_past_deferral_date_is_not_a_deferral():
+    v = de.decide(_item("H-0102", "irreversivel", "ADIADO; revisar em 2026-10-01"), today=TODAY)
+    assert v["recommendation_basis"].startswith("type-default")
+
+
+def test_open_precondition_recommends_waiting_with_the_step():
+    v = de.decide(_item("H-0103", "irreversivel",
+                        "Remover hoje quebra os 30 worktrees: antes do gate, migrar ou podar esses worktrees"),
+                  today=TODAY)
+    assert v["recommendation"] == "Manter pendente: antes, migrar ou podar esses worktrees"
+    assert v["recommendation_basis"] == "evidence:pre-condicao"
+
+
+def test_unblock_step_wins_over_the_bare_blocking_cause():
+    v = de.decide(_item("H-0104", "credencial",
+                        "Criar o bot. BLOQUEADO (causa X): a extensão está no Dia. "
+                        "Desbloqueio (qualquer um): (A) instalar no Chrome. Fim"), today=TODAY)
+    assert v["evidence"][0] == {"kind": "pre-condicao", "text": "(A) instalar no Chrome"}
+
+
+def test_command_and_undo_recommend_executing_with_the_undo_named():
+    v = de.decide(_item("H-0105", "irreversivel",
+                        "Criar o banco; destrava o dev. Comando: `CREATE DATABASE x` "
+                        "Undo: `DROP DATABASE x` (vazio)"), today=TODAY)
+    assert v["recommendation_basis"] == "evidence:comando+undo" and v["confidence"] == "media"
+    assert v["recommendation"].startswith("Executar com o comando registrado")
+    assert "DROP DATABASE x" in v["recommendation"]
+    assert v["priority"]["t"] == 4, "a row that unblocks something trends up"
+
+
+def test_a_command_without_undo_is_not_evidence_to_execute():
+    v = de.decide(_item("H-0106", "irreversivel", "Comando: `rm -rf x`"), today=TODAY)
+    assert v["recommendation_basis"].startswith("type-default")
+
+
+def test_undetermined_item_recommends_what_closing_requires():
+    v = de.decide(_item("H-0107", "envio",
+                        "Conferir a mensagem · NÃO DETERMINÁVEL pelo arquivo local; "
+                        "fechar exige backfill ou o operador olhar o celular"), today=TODAY)
+    assert v["recommendation_basis"] == "evidence:nao-determinavel"
+    assert "backfill" in v["recommendation"]
+
+
+def test_a_recommendation_written_in_the_row_is_used():
+    v = de.decide(_item("H-0108", "negocio", "Piloto no cliente? Recomendação: sim, sem isolamento. Fim"),
+                  today=TODAY)
+    assert v["recommendation"] == "sim, sem isolamento"
+    assert v["recommendation_basis"] == "evidence:recomendacao-registrada"
+
+
+def test_without_evidence_the_verdict_says_so_explicitly():
+    v = de.decide(_item("H-0109", "negocio", "Nomes da família do operador"), today=TODAY)
+    assert v["confidence"] == "nenhuma" and v["evidence"] == []
+    assert "sem evidência" in v["evidence_note"]
+    assert v["recommendation_basis"].startswith("type-default")
+
+
+@pytest.mark.parametrize("risk,prazo,status,expected", [
+    ("R3", "2026-10-29", "pendente", (5, 5)),
+    ("R2", "2026-11-01", "pendente", (4, 4)),
+    ("R1", "2026-11-10", "pendente", (3, 3)),
+    ("R1", "2026-12-30", "pendente", (3, 2)),
+    ("", "-", "expirado", (4, 5)),
+])
+def test_gut_reads_risk_and_deadline(risk, prazo, status, expected):
+    p = de.decide(_item("H-0110", "negocio", risk=risk, prazo=prazo, status=status),
+                  today=TODAY)["priority"]
+    assert (p["g"], p["u"]) == expected and p["score"] == p["g"] * p["u"] * p["t"]
+
+
+def test_sort_gut_orders_by_score_and_input_keeps_document_order():
+    items = [_item("H-0201", "negocio", risk="R1"),
+             _item("H-0202", "irreversivel", "trava o dev", risk="R3", prazo="2026-10-01")]
+    by_input = json.loads(_cli(items, "--today", "2026-10-30"))["verdicts"]
+    by_gut = json.loads(_cli(items, "--sort", "gut", "--today", "2026-10-30"))["verdicts"]
+    assert [v["id"] for v in by_input] == ["H-0201", "H-0202"]
+    assert [v["id"] for v in by_gut] == ["H-0202", "H-0201"]
+
+
+def test_tree_shows_confidence_gut_and_evidence():
+    out = _cli([_item("H-0203", "irreversivel", "ADIADO; revisar em 2099-01-01")],
+               "--format", "tree", "--today", "2026-10-30")
+    assert "confiança: alta" in out and "[GUT " in out and "evidência: adiado: 2099-01-01" in out
+
+
+def test_invalid_today_exits_2():
+    proc = subprocess.run([sys.executable, str(SCRIPT), "-", "--today", "30/10"],
+                          input="[]", capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 2
+
+
+def test_technical_and_leak_rules_are_unchanged_by_evidence():
+    assert de.decide(_item("H-0204", "tecnico", "ADIADO; revisar em 2099-01-01"),
+                     today=TODAY)["rule"] == "R3-technical"
+    v = de.decide(_item("H-0205", "credencial", "token vazado; Comando: `x` Undo: y"), today=TODAY)
+    assert v["rule"] == "R0-leaked-secret" and v["denied"] is True
+
+
+@pytest.mark.parametrize("text", ["Não adiado; revisar em 2099-01-01",
+                                  "Sem plano pronto ainda",
+                                  "Comando: `x` mas sem undo: nada"])
+def test_negated_evidence_is_not_evidence(text):
+    v = de.decide(_item("H-0206", "irreversivel", text), today=TODAY)
+    assert v["recommendation_basis"].startswith("type-default"), v["evidence"]
+
+
+def test_negated_blocking_word_does_not_raise_the_trend():
+    assert de.decide(_item("H-0207", "negocio", "não trava nada"), today=TODAY)["priority"]["t"] == 3
