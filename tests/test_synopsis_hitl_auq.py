@@ -1,7 +1,7 @@
 """synopsis-fuse.py — hitl-digest `--format ask-user-question` mode.
 
-(a) existing tree/mermaid/html/json outputs stay byte-identical to the pre-change
-    goldens (after normalizing the tmp path and the generation timestamp);
+(a) tree/mermaid/html retain their presentation goldens; JSON is checked as parsed
+    consumer-visible data, including metadata types, provenance and session scope;
 (b) the new mode yields a valid AskUserQuestion payload (1-4 questions, header <=12,
     2-4 options, recommended option first) and is deterministic;
 (c) a machine consumer never gets a text digest.
@@ -53,10 +53,71 @@ def ledger(tmp_path):
     return dst
 
 
-@pytest.mark.parametrize("fmt", ["tree", "mermaid", "html", "json"])
+@pytest.mark.parametrize("fmt", ["tree", "mermaid", "html"])
 def test_existing_formats_byte_identical(ledger, fmt):
     out = normalize(run("--hitl-md", str(ledger), "--scope", "all", "--format", fmt), ledger.parent)
     assert out == (FIX / f"golden.{fmt}.txt").read_text(encoding="utf-8")
+
+
+def test_json_contract_preserves_normalized_ledger_metadata(ledger):
+    doc = json.loads(run("--hitl-md", str(ledger), "--scope", "all", "--format", "json"))
+    assert doc["artifact"] == "synopsis-panel" and doc["schema"] == "synopsis-panel/v1"
+    assert doc["tree"]["domains"] == {}
+    rows = doc["tree"]["hitl_unattached"]
+    assert [(h["id"], h["tipo"], h["sev"], h["idade"]) for h in rows] == [
+        ("H-0901", "negocio", "NORMAL", "6 d"),
+        ("H-0902", "credencial", "URGENTE", "8 d"),
+        ("H-0903", "envio", "ALTA", "9 d"),
+        ("H-0904", "gasto", "ALTA", "7 d"),
+        ("H-0905", "irreversivel", "URGENTE", "5 d")]
+    glyphs = {"NORMAL": "\U0001F7E1", "ALTA": "\U0001F7E0", "URGENTE": "\U0001F534"}
+    for item in rows:
+        assert item["glyph"] == glyphs[item["sev"]]
+        assert item["flag"] == "\u23EB" and item["human"] == "\U0001F464"
+        assert all(isinstance(item[k], str) for k in (
+            "id", "tipo", "sev", "idade", "risk", "decidir", "pediu", "prazo", "status", "link"))
+        assert item["decidir"] and item["status"] == "pendente"
+    meta = doc["meta"]
+    assert (meta["hitl_count"], meta["hitl_orphan"], meta["hitl_attached"]) == (5, 5, 0)
+    assert meta["hitl_scope"] == "all" and meta["hitl_ledger_total"] == 5
+    assert meta["hitl_session_ids"] == [] and meta["hitl_session_resolved"] is False
+    assert meta["hitl_scope_unresolved"] is None
+    assert meta["hitl_source"] == str(ledger) and meta["hitl_source_kind"] == "md-explicit"
+    assert all(meta[k] is None for k in (
+        "hitl_source_dirty", "hitl_source_behind", "hitl_warning"))
+
+
+def test_json_contract_preserves_supported_types_without_widening_session(tmp_path):
+    options = [{"label": "Plano sintético", "description": "Sem efeito",
+                "recommended": True, "evidence": "synthetic:fixture", "confidence": 0.9}]
+    own = {"id": "H-0700", "tipo": "tecnico", "sev": "NORMAL",
+           "decidir": "Escolher parser", "session_id": SESSION_A,
+           "title": "Disable MFA", "titulo": {"synthetic": ["metadata"]},
+           "options": options, "idade": 3, "scope": "all",
+           "meta": {"hitl_scope": "all"}, "approved": True, "resolved": True,
+           "glyph": "raw", "flag": "raw", "human": "raw"}
+    other = dict(own, id="H-0701", session_id=SESSION_B)
+    source = tmp_path / "synthetic-hitl.json"
+    source.write_text(json.dumps([own, other]), encoding="utf-8")
+    doc = json.loads(run("--hitl-json", str(source), "--scope", "session",
+                         "--session-id", SESSION_A, "--format", "json"))
+    assert doc["schema"] == "synopsis-panel/v1"
+    assert doc["tree"]["domains"] == {}
+    selected = doc["tree"]["hitl_unattached"]
+    assert len(selected) == 1
+    item = selected[0]
+    assert (item["id"], item["tipo"], item["sev"]) == ("H-0700", "tecnico", "NORMAL")
+    assert all(item[k] == own[k] and type(item[k]) is type(own[k])
+               for k in ("title", "titulo", "options", "idade"))
+    assert item["glyph"] == "\U0001F7E1" and item["flag"] == "\u23EB"
+    assert item["human"] == "\U0001F464"
+    assert not {"approved", "resolved", "scope", "meta"} & item.keys()
+    meta = doc["meta"]
+    assert meta["hitl_scope"] == "session" and meta["hitl_session_ids"] == [SESSION_A]
+    assert meta["hitl_session_resolved"] is True and meta["hitl_scope_unresolved"] is None
+    assert (meta["hitl_count"], meta["hitl_orphan"], meta["hitl_attached"]) == (1, 1, 0)
+    assert meta["hitl_ledger_total"] == 2
+    assert meta["hitl_source"] == str(source) and meta["hitl_source_kind"] == "json"
 
 
 def payload(ledger, *extra):
