@@ -1,18 +1,19 @@
 ---
 name: reveng
 description: |
-  Use to REVERSE-ENGINEER source code into an OpenSpec SPEC model (the as-built behavioral
-  contract) — e.g. "reveng this src/ to OpenSpec specs", "reverse-engineer the code into specs",
-  "derive specs from the implementation", "extrair specs do código", "engenharia reversa do src
-  para SPEC", "what does this codebase actually specify?". It treats the code as a READ-ONLY
-  ORACLE, distills each capability into a neutral behavioral brief, recasts it into OpenSpec
-  format (## Purpose · ### Requirement[SHALL] · #### Scenario[WHEN/THEN]), runs a FAITHFULNESS
-  check (every requirement traces to a code/test oracle — no invented behavior), validates with
-  `openspec validate --specs`, documents un-capturable cloud-only truth as a GAP report, and
-  prints an end-of-reveng SCORE-CARD. Priority pair = src/ → OpenSpec SPEC; other source→target
-  pairs (docs/ADRs/tickets → SPEC; src → README/AGENTS) are documented roadmap, not yet built.
-  It RE-TARGETS ABSTRACTION/MODEL (code↔spec); it does NOT re-engineer the code itself
-  (refactor/migrate) and does NOT reverse the authority (specs never overwrite code). Cross-vendor AAIF.
+  REVERSE-ENGINEER source code into an OpenSpec SPEC model (the as-built behavioral
+  contract) — "reveng this src/ to OpenSpec specs", "reverse-engineer the code into specs",
+  "derive specs from the implementation", "extrair specs do código", "engenharia reversa do
+  src para SPEC", "what does this codebase actually specify?". Treats code as a READ-ONLY
+  ORACLE, distills each capability into a neutral behavioral brief, recasts it into
+  OpenSpec format (## Purpose · ### Requirement[SHALL] · #### Scenario[WHEN/THEN]), runs a
+  FAITHFULNESS check (every requirement traces to a code/test oracle — no invented
+  behavior), validates with `openspec validate --specs`, documents un-capturable cloud-only
+  truth as a GAP report, prints an end-of-reveng SCORE-CARD. Priority pair = src/ →
+  OpenSpec SPEC; other source→target pairs (docs/ADRs/tickets → SPEC; src → README/AGENTS)
+  are documented roadmap, not yet built. RE-TARGETS ABSTRACTION/MODEL (code↔spec); does NOT
+  re-engineer the code itself (refactor/migrate), does NOT reverse the authority (specs
+  never overwrite code). Cross-vendor AAIF.
 triggers:
   - reveng this src to OpenSpec
   - reverse-engineer the code into specs

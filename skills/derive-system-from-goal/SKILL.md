@@ -2,17 +2,19 @@
 name: derive-system-from-goal
 version: "0.1.0"
 description: |
-  Given a goal, derive the MINIMAL RECURRING SYSTEM (the vehicle) that conducts to it — BEFORE pursuing it.
-  The third envelope of the ooda-loop typed set, at ORIENT-b: handoff-as-prompt says WHERE I AM,
-  dod-as-prompt (Prisma) says WHEN TO STOP, this says WHAT TO DO EACH ROUND. Without it a driver
-  improvises its action every round — the failure the law names: "isso nao e uma meta, e simplesmente
-  uma sequencia de acoes". Emits a `system-as-prompt` envelope (implementation-intention trigger->action
-  + cadence + a Metron-admissible adherence signal + a revision trigger that falsifies the VEHICLE, not
-  the driver). One-shot/bounded goal -> N/A by design (a plan IS its system; no envelope emitted).
-  Thin deriver — reimplements NOTHING: no execution loop (that is gap-loop/quiesce), no
-  convergence gate, no verifier (verifier != generator stays the driver's invariant). Law:
-  akasha `docs/derive-system-from-goal.md` [C22]; soul-name Hodos (ho-dos, "a method, system; a way" —
-  the root of methodos = meta + hodos, so "method" IS "goal + the way").
+  Given a goal, derive the MINIMAL RECURRING SYSTEM (the vehicle) that conducts to it — BEFORE
+  pursuing it. The third envelope of the ooda-loop typed set, at ORIENT-b:
+  handoff-as-prompt says WHERE I AM, dod-as-prompt (Prisma) says WHEN TO STOP, this says
+  WHAT TO DO EACH ROUND. Without it a driver improvises its action every round — the
+  failure the law names: "isso nao e uma meta, e simplesmente uma sequencia de acoes".
+  Emits a `system-as-prompt` envelope (implementation-intention trigger->action + cadence +
+  a Metron-admissible adherence signal + a revision trigger that falsifies the VEHICLE, not the
+  driver). One-shot/bounded goal -> N/A by design (a plan IS its system; no envelope
+  emitted). Thin deriver — reimplements NOTHING: no execution loop (that is
+  gap-loop/quiesce), no convergence gate, no verifier (verifier != generator stays the
+  driver's invariant). Law: akasha `docs/derive-system-from-goal.md` [C22]; soul-name Hodos
+  (ho-dos, "a method, system; a way" — the root of methodos = meta + hodos, so IS
+  "goal + the way").
 dogfood_status: pending-first-cycle
 ---
 

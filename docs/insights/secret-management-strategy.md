@@ -32,7 +32,7 @@ ESO   → For runtime secrets fetched from AWS Secrets Manager at pod startup
 
 | Layer | Tool | Status | Issue |
 | ----- | ---- | ------ | ----- |
-| **IaC (k8s-eks-prd-002)** | SOPS | ✅ Configured (.sops.yaml, dual-region KMS) | Only 1 encrypted file exists |
+| **IaC (private IaC repo)** | SOPS | ✅ Configured (.sops.yaml, dual-region KMS) | Only 1 encrypted file exists |
 | **IaC** | Sealed Secrets | ❌ Chart="off", no controller | Dead end — not deployed |
 | **IaC** | ESO | ❌ Chart="off", SecretStore manifest exists | **Ready to activate** |
 | **App (sales-api)** | `load-runtime-secrets.sh` | ✅ Sophisticated (4-level TOML, AWS SM provider) | Shell script, not K8s-native |
@@ -42,10 +42,10 @@ ESO   → For runtime secrets fetched from AWS Secrets Manager at pod startup
 ### 🚨 Critical Security Findings in vks-jss-sales-api
 
 ```properties
-# application-hml.properties — PLAINTEXT CREDENTIALS IN GIT:
-quarkus.datasource.password=${VEK_DB_PASSWORD:dJOCBLn06GapAmuzHveS8w}
-quarkus.redis.hosts=rediss://...:hl0vM6hlm31HDu2c@...amazonaws.com:6379
-vek.db.encryption.secret.key=${VEK_DB_ENCRYPTION_SECRET_KEY:b571d5ca8981b6d5c9f8783ebc122261}
+# application-hml.properties — PLAINTEXT CREDENTIALS IN GIT: (values redacted here; rotate at source)
+quarkus.datasource.password=${VEK_DB_PASSWORD:***}
+quarkus.redis.hosts=rediss://***@...amazonaws.com:6379
+vek.db.encryption.secret.key=${VEK_DB_ENCRYPTION_SECRET_KEY:***}
 ```
 
 > [!CAUTION]
@@ -164,7 +164,7 @@ set-pre-build-env.sh
 
 | Document | Update |
 | -------- | ------ |
-| `k8s-eks-prd-002/AGENTS.md` | Add ESO as secret management standard |
+| `<private-iac-repo>/AGENTS.md` | Add ESO as secret management standard |
 | `helm-charts.yaml` | Change `external-secrets.status` from `"off"` to `"on"` |
 | `multi-agent-os/governance-v2` | Add secret management architecture diagram |
 | `vek-devops-backlog` | Create TASK for application-*.properties cleanup |

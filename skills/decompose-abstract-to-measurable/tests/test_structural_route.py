@@ -15,7 +15,7 @@ def _leaf(i, v=0.9, c=0.95):
             "anchors": {"positive": "hi", "negative": "lo"}}
 
 
-def _run(form=None, diags=None):
+def _run(form=None, diags=None, legacy=False):
     spec = {"meta": {"construct": "x", "context_lock": CTX},
             "nodes": [{"id": "root", "parents": [], "kind": "branch"}, _leaf("l1"), _leaf("l2")]}
     if form is not None:
@@ -26,7 +26,8 @@ def _run(form=None, diags=None):
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(spec, fh)
     try:
-        return json.loads(subprocess.check_output([sys.executable, ROUTER, path], text=True))
+        argv = [sys.executable, ROUTER] + (["--legacy-unrouted"] if legacy else []) + [path]
+        return json.loads(subprocess.check_output(argv, text=True))
     finally:
         os.remove(path)
 
@@ -92,14 +93,50 @@ def test_context_signature_present():
 
 
 @test
-def test_under_specified_passthrough():
-    # No structural_form declared -> advisory under_specified (OPT-IN gate). Engine band passes
-    # through UNCHANGED — deliberate: fail-closing this would cap every v1.0.0 spec (none declare a
-    # form) = silent breaking change. The engine's own inconclusive gates still provide the floor.
+def test_under_specified_failclosed_default():
+    # A2b defense: NO structural_form declared and no diagnostics -> fail-closed by DEFAULT.
+    # Unrouted omission must NOT earn a clean band; it is held for review (was fail-OPEN passthrough).
     d = _run(form=None, diags=None)
     assert d["route"]["status"] == "under_specified", d["route"]
-    assert d["route"]["reason"] == "structural_form_not_declared", d["route"]
-    assert d["band"] is not None, d["band"]  # NOT gated/nulled
+    assert d["route"]["allowed_use"] == "blocked_pending_review", d["route"]
+    assert d["route"]["human_review"] is True, d["route"]
+    assert d["inconclusive"]["flag"] is True, d["inconclusive"]
+    assert d["band"].startswith("REVIEW (unrouted"), d["band"]
+
+
+@test
+def test_under_specified_legacy_optin_passthrough():
+    # v1.0.0 compatibility preserved, but OPT-IN only via --legacy-unrouted (not the default).
+    d = _run(form=None, diags=None, legacy=True)
+    assert d["route"]["status"] == "under_specified", d["route"]
+    assert d["route"].get("legacy_unrouted") is True, d["route"]
+    assert d["band"] is not None and not str(d["band"]).startswith("REVIEW"), d["band"]  # passthrough
+
+
+@test
+def test_a2b_omission_with_relational_diagnostics_blocked():
+    # The core A2b hole: remove structural_form from a relational spec. Diagnostics still derive
+    # relational -> must BLOCK (an additive tree cannot represent it), not pass as HIGH.
+    d = _run(form=None, diags={"q_value_lives_in_relations": True})
+    assert d["band"] == "BLOCKED", d["band"]
+    assert d["route"]["status"] == "structural_mismatch", d["route"]
+    assert d["score"] is None, d["score"]
+
+
+@test
+def test_a2b_legacy_flag_cannot_bypass_relational_block():
+    # --legacy-unrouted must NOT bypass an H35-derived relational/gestalt block.
+    d = _run(form=None, diags={"q_value_lives_in_relations": True}, legacy=True)
+    assert d["band"] == "BLOCKED", d["band"]
+    assert d["score"] is None, d["score"]
+
+
+@test
+def test_a2b_omission_with_capped_diagnostics_stays_blocked_pending_review():
+    # Omission + normative/temporal/dispositional diagnostics: still held for review.
+    d = _run(form=None, diags={"q_depends_on_whose_values": True})
+    assert d["route"]["allowed_use"] == "blocked_pending_review", d["route"]
+    assert d["route"].get("h35_derived_cap") == "assistive_only", d["route"]
 
 
 @test
