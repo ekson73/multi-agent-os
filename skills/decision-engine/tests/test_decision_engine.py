@@ -209,3 +209,9 @@ def test_unresolved_scope_is_carried_and_not_read_as_empty():
     assert out["source"]["hitl_scope_unresolved"] == "no session identity"
     tree = _cli(env, "--format", "tree")
     assert "NÃO é fila vazia" in tree
+
+
+@pytest.mark.parametrize("text", ["Enviar mensagem ao cliente pelo WhatsApp",
+                                  "Postar o anúncio no Discord", "Send the release note"])
+def test_a_technical_item_that_sends_externally_is_guarded(text):
+    assert de.decide(_item("H-1000", "tecnico", text))["route"] == "HITL"

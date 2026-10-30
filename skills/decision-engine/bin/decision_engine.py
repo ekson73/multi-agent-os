@@ -57,7 +57,10 @@ _LEAK_RE = re.compile(
 _GUARD_RE = re.compile(
     r"\b(produ[cç][aã]o|production|prod|irrevers[ií]vel|irreversible|apagar|delete|"
     r"drop|force[- ]push|pagar|pagamento|contratar|assinar|payment|spend|"
-    r"enviar e-?mail|send email|publicar externamente)\b", re.IGNORECASE)
+    # External send: any send/publish verb or messaging channel. A false positive
+    # only escalates (safe); a false negative would let a send run unasked.
+    r"enviar|envio|mandar|send|publicar|postar|post|e-?mail|whatsapp|telegram|"
+    r"slack|discord|sms)\b", re.IGNORECASE)
 
 _FUSE_PATH = (pathlib.Path(__file__).resolve().parents[2]
               / "synopsis-panel" / "bin" / "synopsis-fuse.py")
