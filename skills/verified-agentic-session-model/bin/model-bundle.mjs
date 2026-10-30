@@ -2500,6 +2500,13 @@ async function deriveChildCommand(modelFile, options) {
   if (Buffer.byteLength(childText) > MAX_BYTES) throw new AppError("FILE_TOO_LARGE", "Derived child would exceed the 2 MiB input limit; request fewer inherited materials");
   const output = path.resolve(options.out);
   if (output === path.resolve(modelFile)) throw new AppError("CHILD_OUTPUT_ALIASES_PARENT", "Child --out must not be the same path as the parent model file");
+  // A symlinked ancestor directory (or a hard link) gives the same file a different path
+  // string; compare device and inode so the parent snapshot cannot be replaced that way.
+  if (fs.existsSync(output)) {
+    const parentStat = fs.statSync(modelFile);
+    const outputStat = fs.statSync(output);
+    if (parentStat.dev === outputStat.dev && parentStat.ino === outputStat.ino) throw new AppError("CHILD_OUTPUT_ALIASES_PARENT", "Child --out resolves to the parent model file (symlinked directory or hard link)");
+  }
   await ensureOwnedJsonOutput(output);
   const release = await acquireLock(path.join(path.dirname(output), `.${path.basename(output)}.lock`));
   try {

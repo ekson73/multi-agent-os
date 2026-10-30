@@ -1777,3 +1777,25 @@ test("schema diagnostics never echo an unexpected property name", async () => {
     }
   });
 });
+
+test("derive-child refuses an --out that reaches the parent through a symlinked directory or a hard link", async () => {
+  await temp(async (directory) => {
+    const real = path.join(directory, "real");
+    fs.mkdirSync(real);
+    const parent = path.join(real, "parent.session-model.json");
+    await cp(readyFixture, parent);
+    const before = await readFile(parent);
+    const alias = path.join(directory, "alias");
+    fs.symlinkSync(real, alias);
+    const hardLink = path.join(directory, "hard.session-model.json");
+    fs.linkSync(parent, hardLink);
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(childRequest()));
+    for (const target of [path.join(alias, "parent.session-model.json"), hardLink]) {
+      const result = run(["derive-child", parent, "--request", requestFile, "--expected-digest", sha(before), "--out", target]);
+      assert.equal(result.status, 1, `${target}: ${result.stdout.slice(0, 200)}`);
+      assert.equal(body(result.stderr).error.code, "CHILD_OUTPUT_ALIASES_PARENT");
+      assert.ok(before.equals(await readFile(parent)), "the parent must be untouched");
+    }
+  });
+});
