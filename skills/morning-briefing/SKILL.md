@@ -1,20 +1,22 @@
 ---
 name: morning-briefing
 description: |
-  Deliver a deterministic, scannable, evidence-backed briefing of operator's current work state across
-  repos / PRs / tasks / memory — for fast context restoration after a sleep cycle, break, or post-compact
-  fresh context. Produces a 7-section SitRep-inspired output (state · done · in-flight · blockers ·
-  decisions-awaiting · risks · next-action) with optional narrative polish. Also supports end-of-session
-  recap mode via `--mode=recap` flag (v1.3.0+) — produces multi-tier objective N-Tree (primary/secondary/
-  auxiliary) + tasks/subtasks/steps tree + % done + % PRs green + % agentic convergence + gaps + pendings +
-  unasked-questions + unanswered-questions + undecided-decisions + HITL-pendings + Eisenhower 2×2 next-tasks
-  + inter-dependencies DAG + blocked/blockers. Use when the operator says "morning briefing", "bom dia,
-  retomando", "where was I", "give me a state recap", "what's pending", "session recap", "end of session
-  recap", or starts/ends a session. Capability-detected (git/gh/jq optional), cross-vendor (AAIF spec),
-  no hardcoded vendors, open-source-promotable. Differs from /context-restore (no prior /context-save
-  required — works cold) and /retro (daily, not weekly, decision-oriented not retrospective).
-  Recap mode (v1.9.0+) renders always-on ASCII progress bars in §4 execution-metrics for the two
-  measured PR metrics (PRs-green, PR-agentic-convergence) with GREEN/WARN/RED state tokens.
+  Deliver a deterministic, scannable, evidence-backed briefing of the operator's current
+  work state across repos / PRs / tasks / memory — fast context restoration after a sleep
+  cycle, break, or post-compact fresh context. Produces a 7-section SitRep-inspired output
+  (state · done · in-flight · blockers · decisions-awaiting · risks · next-action), optional
+  narrative polish. Supports end-of-session recap mode via `--mode=recap` flag (v1.3.0+) —
+  multi-tier objective N-Tree (primary/secondary/auxiliary) + tasks/subtasks/steps tree + %
+  done + % PRs green + % agentic convergence + gaps + pendings + unasked-questions +
+  unanswered-questions + undecided-decisions + HITL-pendings + Eisenhower 2×2 next-tasks +
+  inter-dependencies DAG + blocked/blockers. Triggers: the operator starts/ends a session,
+  "morning briefing", "bom dia, retomando", "where was I", "give me a state recap", "what's
+  pending", "end of session recap". Capability-detected (git/gh/jq
+  optional), cross-vendor (AAIF spec), no hardcoded vendors, open-source-promotable. Differs
+  from /context-restore (no prior /context-save required — works cold) and /retro (daily,
+  not weekly, decision-oriented not retrospective). Recap (v1.9.0+) renders always-on ASCII
+  progress bars in §4 execution-metrics for the two measured PR metrics (PRs-green,
+  PR-agentic-convergence) with GREEN/WARN/RED state tokens.
 prompt_version: "1.9.0"
 type: skill
 spec: AAIF / agentskills.io

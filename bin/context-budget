@@ -1,0 +1,647 @@
+#!/usr/bin/env python3
+"""context-budget — measure what Claude Code loads into every context, per source.
+
+Read-only and idempotent: it only reads files; it never runs hooks, never writes,
+never calls the network. Run it twice on the same inputs and you get the same output.
+
+Two modes:
+  transcript  Reads a session transcript (JSONL) and measures what the harness
+              actually injected before the first model reply: system prompt,
+              instruction files (CLAUDE.md, rules, MEMORY.md), skill listing,
+              agent listing, deferred tool names, MCP server instructions and
+              SessionStart/UserPromptSubmit hook output. Status: measured.
+  disk        Scans files on disk: ~/.claude/rules, the CLAUDE.md chain from cwd
+              up, the auto-memory MEMORY.md, and the name+description of skills,
+              agents and commands (user + enabled plugins). Status: measured for
+              files, estimated for listings (the harness formats them its own way).
+              Deferred MCP tools, server instructions and hook output are
+              not on disk: reported as not_measured.
+
+Tokens are an ESTIMATE: bytes / 4. Never a tokenizer count.
+Values of secrets are never read into the report: only sizes, names and paths.
+
+Usage:
+  context-budget [--mode auto|transcript|disk] [--transcript PATH|latest]
+                 [--cwd DIR] [--home DIR] [--top N] [--json]
+
+Exit codes: 0 ok (also when auto mode found no transcript and fell back to disk)
+            · 1 error (--mode transcript with no transcript, or a read failure)
+            · 2 warning (the transcript used had no injected-context attachments).
+"""
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+
+TOKEN_DIVISOR = 4
+TOKEN_NOTE = "tokens_est = bytes/4 (estimate, not a tokenizer count)"
+_ENTRY_CLASSIFIER = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "scripts", "entry-classifier.sh")
+
+
+# Hook commands can carry credentials (env assignments, bearer tokens, URLs with
+# userinfo or a query string). Only the executable's basename is ever shown, and
+# any label text is redacted as a second line of defense.
+_SECRET_RES = (
+    # Substring match, so suffixed/prefixed keys (SECRET_KEY, PRIVATE_KEY, X_PASSPHRASE,
+    # AUTHORIZATION_HEADER) are caught too; AUTHOR= alone is not.
+    re.compile(r"[A-Za-z0-9_]*(TOKEN|KEY|SECRET|PASSWORD|PASSWD|PASSPHRASE|PASSCODE|AUTHORIZATION"
+               r"|CREDENTIAL|COOKIE)[^ ]*=\S+", re.I),
+    # Short words only as a whole segment (split by _ or -), so BYPASS=,
+    # COMPASS= or AUTHOR= are not redacted but PASS=, DB_PWD= and MY_AUTH_X= are.
+    re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z0-9]+[_-])*(?:PASS|PWD|AUTH)(?:[_-][A-Za-z0-9]+)*=\S+",
+               re.I),
+    re.compile(r"Bearer\s+\S+", re.I),
+    re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://[^\s/@]+@\S*"),
+    re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://\S*\?\S*"),
+)
+_ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _redact(text: str) -> str:
+    for rx in _SECRET_RES:
+        text = rx.sub("[REDACTED]", text)
+    return text
+
+
+def _hook_label(h: dict) -> str:
+    """Hook name plus the basename of argv[0]; never the raw command line."""
+    name = _redact(str(h.get("hookName") or "?"))[:80]
+    cmd = str(h.get("command") or "")
+    try:
+        toks = [t for t in shlex.split(cmd) if not _ENV_ASSIGN.match(t)]
+    except ValueError:  # unbalanced quotes: do not guess, show nothing of it
+        toks = []
+    exe = _redact(os.path.basename(toks[0]))[:40] if toks else ""
+    return name + (": " + exe if exe else "")
+
+
+def nbytes(s) -> int:
+    if s is None:
+        return 0
+    if not isinstance(s, str):
+        s = json.dumps(s, ensure_ascii=False)
+    return len(s.encode("utf-8"))
+
+
+def row(source, category, size, status, path=None, note=None, count=None):
+    r = {
+        "source": source,
+        "category": category,
+        "bytes": size,
+        "tokens_est": size // TOKEN_DIVISOR if size is not None else None,
+        "status": status,
+    }
+    if path:
+        r["path"] = path
+    if count is not None:
+        r["count"] = count
+    if note:
+        r["note"] = note
+    return r
+
+
+def encode_project(cwd: str) -> str:
+    # Claude Code's project-dir encoding: every non-alphanumeric char becomes '-'.
+    return re.sub(r"[^A-Za-z0-9]", "-", cwd)
+
+
+# ---------------------------------------------------------------- transcript
+
+def latest_transcript(home: str, cwd: str) -> str | None:
+    d = os.path.join(home, ".claude", "projects", encode_project(cwd))
+    files = [f for f in glob.glob(os.path.join(glob.escape(d), "*.jsonl")) if os.path.isfile(f)]
+    if not files:
+        return None
+    return max(files, key=lambda f: (os.path.getmtime(f), f))
+
+
+def _tilde(path: str, home: str) -> str:
+    if path == home:
+        return "~"
+    prefix = home.rstrip(os.sep) + os.sep
+    return "~" + os.sep + path[len(prefix):] if path.startswith(prefix) else path
+
+
+def classify_instruction(path: str, home: str) -> str:
+    p = _tilde(path, home)
+    if "/.claude/rules/" in p:
+        return "rules"
+    if p.endswith("/memory/MEMORY.md"):
+        return "memory_index"
+    base = os.path.basename(p)
+    if base in ("CLAUDE.md", "CLAUDE.local.md", "AGENTS.md"):
+        return "claude_md"
+    return "instructions_other"
+
+
+def _dicts(seq):
+    """Yield only dict items; anything else is malformed input, skipped."""
+    return [x for x in (seq if isinstance(seq, list) else []) if isinstance(x, dict)]
+
+
+def _lines(seq):
+    return "\n".join(str(x) for x in (seq if isinstance(seq, list) else []))
+
+
+KNOWN_KINDS = ("prompt_snapshot", "instructions", "skill_listing", "agent_listing_delta",
+               "deferred_tools_delta", "mcp_instructions_delta")
+# Hook attachments: only the text the harness injects into the model's context is
+# counted, never stdout/stderr/command. async_hook_response carries it under
+# response.hookSpecificOutput.additionalContext; hook_non_blocking_error injects
+# nothing (its stderr is shown to the user), so it adds no row.
+HOOK_KINDS = ("hook_success", "hook_additional_context", "hook_system_message",
+              "async_hook_response", "hook_non_blocking_error")
+
+
+def _hook_text(h):
+    c = h.get("content")
+    if isinstance(c, list):
+        c = _lines(c)
+    if isinstance(c, str) and c:
+        return c
+    r = h.get("response")
+    hso = r.get("hookSpecificOutput") if isinstance(r, dict) else None
+    ac = hso.get("additionalContext") if isinstance(hso, dict) else None
+    return ac if isinstance(ac, str) else ""
+
+
+def from_transcript(path: str, home: str):
+    rows = []
+    seen = {}          # attachment type -> every attachment of that type, in order
+    hooks = []
+    skipped = 0        # JSONL records or attachments that are not JSON objects
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            try:
+                o = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(o, dict):
+                skipped += 1
+                continue
+            if o.get("type") == "assistant":
+                break  # initial window ends at the first model reply
+            if o.get("type") != "attachment":
+                continue
+            a = o.get("attachment")
+            if not isinstance(a, dict):
+                skipped += 1
+                continue
+            k = str(a.get("type") or "?")
+            if k in HOOK_KINDS:
+                ev = str(a.get("hookEvent") or "")
+                if ev.startswith(("SessionStart", "UserPromptSubmit")):
+                    hooks.append(a)
+                continue
+            seen.setdefault(k, []).append(a)
+
+    for snap in seen.get("prompt_snapshot", []):
+        rows.append(row("system prompt (harness)", "system_prompt",
+                        nbytes(snap.get("systemPrompt")), "measured"))
+
+    for instr in seen.get("instructions", []):
+        for f in _dicts(instr.get("files")):
+            p = str(f.get("path") or "?")
+            rows.append(row(_tilde(p, home), classify_instruction(p, home),
+                            nbytes(f.get("content")), "measured", path=p))
+
+    sls = seen.get("skill_listing", [])
+    if sls:
+        rows.append(row("skill listing", "skills",
+                        sum(nbytes(x.get("content")) for x in sls), "measured",
+                        count=sum(x.get("skillCount") or 0 for x in sls
+                                  if type(x.get("skillCount")) is int)))
+
+    als = seen.get("agent_listing_delta", [])
+    if als:
+        rows.append(row("agent listing", "agents",
+                        sum(nbytes(_lines(x.get("addedLines"))) for x in als), "measured",
+                        count=sum(len(x.get("addedTypes") or []) for x in als
+                                  if isinstance(x.get("addedTypes"), list))))
+
+    dts = seen.get("deferred_tools_delta", [])
+    if dts:
+        rows.append(row("deferred tool names", "deferred_tools",
+                        sum(nbytes(_lines(x.get("addedLines"))) for x in dts), "measured",
+                        count=sum(len(x.get("addedNames") or []) for x in dts
+                                  if isinstance(x.get("addedNames"), list))))
+
+    for mi in seen.get("mcp_instructions_delta", []):
+        names = mi.get("addedNames") if isinstance(mi.get("addedNames"), list) else []
+        blocks = mi.get("addedBlocks") if isinstance(mi.get("addedBlocks"), list) else []
+        for name, block in zip(names, blocks):
+            rows.append(row("mcp instructions: " + str(name), "mcp_instructions",
+                            nbytes(block), "measured"))
+
+    # Unknown attachment types are not dropped: report the serialized size so the
+    # total never silently undercounts. Serialized JSON != rendered text, hence
+    # "estimated".
+    for k in sorted(set(seen) - set(KNOWN_KINDS)):
+        items = seen[k]
+        rows.append(row("unknown:" + _redact(k)[:60], "unknown",
+                        sum(nbytes(json.dumps(x, ensure_ascii=False)) for x in items),
+                        "estimated", count=len(items)))
+
+    for h in hooks:
+        content = _hook_text(h)
+        if not content:
+            continue  # nothing injected into the model's context
+        rows.append(row("hook " + _hook_label(h), "hooks",
+                        nbytes(content), "measured"))
+
+    if skipped:
+        rows.append(row("skipped non-object records", "skipped", 0, "skipped",
+                        count=skipped))
+
+    return rows
+
+
+# ---------------------------------------------------------------------- disk
+
+FM_RE = re.compile(r"\A---\s*\n(.*?)\n---", re.S)
+
+
+def frontmatter(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            head = fh.read(8192)
+    except OSError:
+        return {}
+    m = FM_RE.match(head)
+    if not m:
+        return {}
+    out, key, buf = {}, None, []
+    for ln in m.group(1).splitlines():
+        km = re.match(r"^([A-Za-z0-9_-]+):\s*(.*)$", ln)
+        if km and not ln.startswith(" "):
+            if key:
+                out[key] = " ".join(buf).strip()
+            key, buf = km.group(1), [km.group(2).strip().strip("|>").strip()]
+        elif key:
+            buf.append(ln.strip())
+    if key:
+        out[key] = " ".join(buf).strip()
+    return {k: v.strip().strip("'\"") for k, v in out.items()}
+
+
+def file_size(p: str) -> int:
+    try:
+        return os.path.getsize(p)
+    except OSError:
+        return 0
+
+
+def listing_bytes(paths, kind):
+    total, n = 0, 0
+    for p in paths:
+        fm = frontmatter(p)
+        name = fm.get("name") or os.path.splitext(os.path.basename(
+            os.path.dirname(p) if kind == "skills" else p))[0]
+        desc = fm.get("description", "")
+        total += nbytes("- %s: %s\n" % (name, desc))
+        n += 1
+    return total, n
+
+
+def _listing_entries(root, paths):
+    """Use the canonical entry predicate in one read-only batch per component root."""
+    if not paths:
+        return set()
+    env = {"PATH": os.defpath}
+    env.update({k: os.environ[k] for k in ("LANG", "LC_ALL", "LC_CTYPE") if k in os.environ})
+    result = subprocess.run(
+        ["/bin/bash", "--noprofile", "--norc", "-c",
+         'PLUGIN_ROOT="$2"; source "$1" || exit 1; shift 2; '
+         'for path; do if is_entry "$path"; then printf "%s\\0" "$path"; fi; done',
+         "context-budget", _ENTRY_CLASSIFIER, root,
+         *(os.path.relpath(p, root) for p in paths)],
+        capture_output=True, env=env)
+    if result.returncode:
+        raise OSError("entry classifier failed")
+    return {os.path.join(root, os.fsdecode(p)) for p in result.stdout.split(b"\0") if p}
+
+
+def _load_json(path: str):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def enabled_plugin_roots(home: str, cwd: str):
+    """Return ([(plugin_key, install_path)], ignored) — ignored counts malformed records.
+
+    enabledPlugins is merged user < project < local, as Claude Code applies settings."""
+    roots, ignored = [], 0
+    installed = _load_json(os.path.join(home, ".claude", "plugins", "installed_plugins.json"))
+    if not isinstance(installed, dict):
+        return roots, ignored
+    proj = os.path.join(os.path.abspath(cwd), ".claude")
+    enabled = {}
+    for sp in (os.path.join(home, ".claude", "settings.json"),
+               os.path.join(proj, "settings.json"), os.path.join(proj, "settings.local.json")):
+        settings = _load_json(sp)
+        if not isinstance(settings, dict):
+            continue
+        layer = settings.get("enabledPlugins")
+        if layer is None:
+            continue
+        if not isinstance(layer, dict):
+            ignored += 1
+            continue
+        enabled.update(layer)
+    inst = installed.get("plugins")
+    if inst is None:
+        inst = {}
+    if not isinstance(inst, dict):
+        return roots, ignored + 1
+    here = os.path.realpath(os.path.abspath(cwd))
+    rank = {"local": 2, "project": 1}
+    for key, on in enabled.items():
+        if on is not True:
+            continue
+        entries = inst.get(key) or []
+        if not isinstance(entries, list):
+            ignored += 1
+            continue
+        # keep only installations applicable to cwd; local > project > user,
+        # and the deepest projectPath wins inside a scope
+        best = None
+        for entry in entries:
+            if not isinstance(entry, dict):
+                ignored += 1
+                continue
+            p = entry.get("installPath")
+            if not (isinstance(p, str) and p and os.path.isdir(p)):
+                continue
+            scope = entry.get("scope")
+            if scope is not None and not isinstance(scope, str):
+                ignored += 1
+                continue
+            depth = -1
+            if scope in rank:
+                pp = entry.get("projectPath")
+                if not isinstance(pp, str) or not pp:
+                    continue
+                pp = os.path.realpath(pp)
+                if here != pp and not here.startswith(pp.rstrip(os.sep) + os.sep):
+                    continue
+                depth = len(pp)
+            score = (rank.get(scope, 0), depth)
+            if best is None or score > best[0]:
+                best = (score, p)
+        if best:
+            roots.append((key, best[1]))
+    return roots, ignored
+
+
+def plugin_components(root: str):
+    """(skills, agents, commands, ignored) for one plugin root.
+
+    Honors .claude-plugin/plugin.json: custom skills paths add to skills/,
+    custom commands and agents paths replace the default directories."""
+    man = _load_json(os.path.join(root, ".claude-plugin", "plugin.json"))
+    man = man if isinstance(man, dict) else {}
+    base = root = os.path.realpath(root)
+    ignored = 0
+
+    def paths(field):
+        nonlocal ignored
+        v = man.get(field)
+        if v is None:
+            return None
+        v = [v] if isinstance(v, str) else v
+        if not isinstance(v, list):
+            ignored += 1
+            return []
+        out = []
+        for x in v:
+            if not isinstance(x, str) or not x:
+                ignored += 1
+                continue
+            full = os.path.realpath(os.path.join(root, x))
+            if full != base and not full.startswith(base + os.sep):
+                ignored += 1
+                continue
+            out.append(full)
+        return out
+
+    def md_under(targets):
+        out = []
+        for t in targets:
+            if os.path.isfile(t) and t.endswith(".md"):
+                out.append(t)
+            elif os.path.isdir(t):
+                out += _walk_md(t)
+        return out
+
+    skill_dirs = [os.path.join(root, "skills")] + (paths("skills") or [])
+    skills = []
+    for sd in skill_dirs:
+        if os.path.isfile(os.path.join(sd, "SKILL.md")):
+            skills.append(os.path.join(sd, "SKILL.md"))
+        skills += glob.glob(os.path.join(glob.escape(sd), "*", "SKILL.md"))
+    a = paths("agents")
+    agents = glob.glob(os.path.join(glob.escape(root), "agents", "*.md")) if a is None else md_under(a)
+    c = paths("commands")
+    commands = _walk_md(os.path.join(root, "commands")) if c is None else md_under(c)
+    entries = _listing_entries(root, agents + commands)
+    return skills, [p for p in agents if p in entries], [p for p in commands if p in entries], ignored
+
+
+def _walk_md(root: str):
+    """*.md under root, recursively, without following symlinked directories.
+
+    Mirrors glob's default of skipping dot-files and dot-directories."""
+    out = []
+    for d, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = sorted(x for x in dirs if not x.startswith("."))
+        out += [os.path.join(d, f) for f in files if f.endswith(".md") and not f.startswith(".")]
+    return out
+
+
+def from_disk(home: str, cwd: str):
+    rows = []
+    cl = os.path.join(home, ".claude")
+
+    seen = set()
+    chain = [os.path.join(cl, "CLAUDE.md")]
+    rule_dirs = [os.path.join(cl, "rules")]
+    d = os.path.abspath(cwd)
+    while True:
+        for n in ("CLAUDE.md", "CLAUDE.local.md", os.path.join(".claude", "CLAUDE.md")):
+            chain.append(os.path.join(d, n))
+        rule_dirs.append(os.path.join(d, ".claude", "rules"))
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+
+    # user rules, then project rules (cwd and ancestors), nested dirs included
+    for rd in rule_dirs:
+        for p in sorted(_walk_md(rd)):
+            rp = os.path.realpath(p)
+            if rp in seen:
+                continue
+            seen.add(rp)
+            rows.append(row(_tilde(p, home), "rules", file_size(p), "measured", path=p))
+    for p in chain:
+        rp = os.path.realpath(p)
+        if rp in seen or not os.path.isfile(p):
+            continue
+        seen.add(rp)
+        rows.append(row(_tilde(p, home), "claude_md", file_size(p), "measured", path=p,
+                        note="@imports not followed"))
+
+    mem = os.path.join(cl, "projects", encode_project(os.path.abspath(cwd)), "memory", "MEMORY.md")
+    if os.path.isfile(mem):
+        rows.append(row(_tilde(mem, home), "memory_index", file_size(mem), "measured",
+                        path=mem, note="full file; the harness may truncate"))
+
+    # user scope, then project scope (cwd and ancestors)
+    claude_dirs = [cl] + [os.path.dirname(rd) for rd in rule_dirs[1:]]
+    skills, agents, commands = [], [], []
+    for cd in claude_dirs:
+        skills += glob.glob(os.path.join(glob.escape(cd), "skills", "*", "SKILL.md"))
+        a = glob.glob(os.path.join(glob.escape(cd), "agents", "*.md"))
+        c = _walk_md(os.path.join(cd, "commands"))
+        entries = _listing_entries(cd, a + c)
+        agents.extend(p for p in a if p in entries)
+        commands.extend(p for p in c if p in entries)
+    plugin_roots, ignored = enabled_plugin_roots(home, cwd)
+    for _, root in plugin_roots:
+        s_, a_, c_, bad = plugin_components(root)
+        skills += s_
+        agents += a_
+        commands += c_
+        ignored += bad
+    if ignored:
+        rows.append(row("ignored malformed plugin config records", "skipped", 0, "skipped",
+                        count=ignored))
+    for kind, paths in (("skills", skills), ("agents", agents), ("commands", commands)):
+        uniq = {}
+        for p in sorted(paths):
+            uniq.setdefault(os.path.realpath(p), p)
+        b, n = listing_bytes(sorted(uniq.values()), kind)
+        rows.append(row(kind + " listing (name+description)", kind, b, "estimated", count=n,
+                        note="frontmatter only; harness formatting differs"))
+
+    for cat, what in (("deferred_tools", "deferred MCP tool names"),
+                      ("mcp_instructions", "MCP server instructions"),
+                      ("hooks", "SessionStart/UserPromptSubmit hook output")):
+        rows.append(row(what, cat, None, "not_measured",
+                        note="not on disk; use --mode transcript"))
+    return rows
+
+
+# -------------------------------------------------------------------- report
+
+def summarize(rows):
+    cats = {}
+    for r in rows:
+        if r["bytes"] is None:
+            continue
+        c = cats.setdefault(r["category"], {"bytes": 0, "sources": 0})
+        c["bytes"] += r["bytes"]
+        c["sources"] += 1
+    for c in cats.values():
+        c["tokens_est"] = c["bytes"] // TOKEN_DIVISOR
+    total = sum(c["bytes"] for c in cats.values())
+    return cats, {"bytes": total, "tokens_est": total // TOKEN_DIVISOR}
+
+
+def render_text(report, top):
+    out = ["context-budget · mode=%s" % report["mode"]]
+    if report.get("transcript"):
+        out.append("transcript: %s" % report["transcript"])
+    out.append(report["token_note"])
+    out.append("")
+    out.append("%-14s %10s %10s %7s" % ("category", "bytes", "tokens~", "sources"))
+    for name, c in sorted(report["by_category"].items(), key=lambda kv: -kv[1]["bytes"]):
+        out.append("%-14s %10d %10d %7d" % (name, c["bytes"], c["tokens_est"], c["sources"]))
+    t = report["total"]
+    out.append("%-14s %10d %10d" % ("TOTAL", t["bytes"], t["tokens_est"]))
+    out.append("")
+    out.append("top %d sources:" % top)
+    ranked = sorted([r for r in report["sources"] if r["bytes"] is not None],
+                    key=lambda r: (-r["bytes"], r["source"]))
+    for r in ranked[:top]:
+        out.append("%10d  %8d  %-11s %s" % (r["bytes"], r["tokens_est"], r["status"], r["source"]))
+    nm = [r["source"] for r in report["sources"] if r["status"] == "not_measured"]
+    if nm:
+        out.append("")
+        out.append("not measured: " + "; ".join(nm))
+    return "\n".join(out)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="context-budget", description=__doc__.split("\n")[0])
+    ap.add_argument("--mode", choices=("auto", "transcript", "disk"), default="auto")
+    ap.add_argument("--transcript", default="latest", help="JSONL path or 'latest' (default)")
+    ap.add_argument("--cwd", default=None, help="session working dir (default: $PWD)")
+    ap.add_argument("--home", default=os.path.expanduser("~"))
+    ap.add_argument("--top", type=int, default=10)
+    ap.add_argument("--json", action="store_true", help="machine-readable output")
+    a = ap.parse_args(argv)
+
+    home = os.path.abspath(a.home)
+    cwd = os.path.abspath(a.cwd or os.getcwd())
+    status = 0
+    mode = a.mode
+    tpath = None
+    if mode in ("auto", "transcript"):
+        explicit = a.transcript != "latest"
+        tpath = a.transcript if explicit else latest_transcript(home, cwd)
+        if not tpath or not os.path.isfile(tpath):
+            # An explicit path that does not exist is an error in any mode; only the
+            # implicit 'latest' lookup may fall back to disk.
+            if mode == "transcript" or explicit:
+                sys.stderr.write(json.dumps({"jsonrpc": "2.0", "error": {
+                    "code": -32001, "message": "transcript not found",
+                    "data": {"cwd": cwd, "transcript": a.transcript}}}) + "\n")
+                return 1
+            tpath = None
+            mode = "disk"
+        else:
+            mode = "transcript"
+
+    try:
+        rows = from_transcript(tpath, home) if mode == "transcript" else from_disk(home, cwd)
+    except OSError as e:
+        sys.stderr.write(json.dumps({"jsonrpc": "2.0", "error": {
+            "code": -32002, "message": "read failed", "data": {"error": str(e)}}}) + "\n")
+        return 1
+
+    if mode == "transcript" and not rows:
+        sys.stderr.write("context-budget: transcript has no injected-context attachments\n")
+        status = 2
+
+    cats, total = summarize(rows)
+    report = {
+        "tool": "context-budget",
+        "version": "1.0.0",
+        "mode": mode,
+        "cwd": cwd,
+        "transcript": tpath,
+        "token_note": TOKEN_NOTE,
+        "total": total,
+        "by_category": cats,
+        "sources": rows,
+    }
+    if a.json:
+        print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))
+    else:
+        print(render_text(report, a.top))
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())

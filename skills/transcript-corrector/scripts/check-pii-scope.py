@@ -21,7 +21,7 @@ import unicodedata
 from pathlib import Path
 
 TOKEN_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
-MAX_WINDOW = 4
+MAX_WINDOW = 6
 TEXT_SUFFIXES = {
     ".md",
     ".yaml",
@@ -42,6 +42,15 @@ DEFAULT_DENYLIST = SKILL_DIR / "ci" / "removed-name-denylist.json"
 def normalize(value: str) -> str:
     folded = unicodedata.normalize("NFKC", value).casefold()
     return re.sub(r"\s+", " ", folded).strip()
+
+
+def window_forms(tokens: list[str]) -> list[str]:
+    """Space-joined window plus the hyphen/apostrophe-joined forms a sealed name may use."""
+    forms = [" ".join(tokens)]
+    if len(tokens) > 1:
+        forms.append("-".join(tokens))
+        forms.append("'".join(tokens))
+    return forms
 
 
 def digest(salt: str, value: str) -> str:
@@ -82,8 +91,8 @@ def name_hit_lines(text: str, salt: str, hashes: set[str]) -> list[int]:
         upper = min(MAX_WINDOW, len(folded))
         for size in range(1, upper + 1):
             for index in range(len(folded) - size + 1):
-                window = " ".join(folded[index : index + size])
-                if digest(salt, window) in hashes:
+                window = folded[index : index + size]
+                if any(digest(salt, form) in hashes for form in window_forms(window)):
                     matched = True
                     break
             if matched:
@@ -129,15 +138,20 @@ def _load_linter():
     return module
 
 
-def scan_linter(repo_root: Path) -> int:
-    """Run the existing PII linter scoped to this skill. Return its exit code."""
+def scan_linter(repo_root: Path, skill_dir: Path = SKILL_DIR) -> int:
+    """Run the existing PII linter over the same skill dir and suffixes. Return its exit code."""
     linter = _load_linter()
+    try:
+        rel = skill_dir.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        sys.stderr.write("check-pii-scope: --skill-dir must be inside --repo-root\n")
+        return 2
     patterns = []
-    for suffix in ("md", "yaml", "yml", "json", "py", "sh", "txt"):
-        patterns.append(f"--paths")
-        patterns.append(f"skills/transcript-corrector/**/*.{suffix}")
-        patterns.append(f"--paths")
-        patterns.append(f"skills/transcript-corrector/*.{suffix}")
+    for suffix in sorted(s.lstrip(".") for s in TEXT_SUFFIXES):
+        patterns.append("--paths")
+        patterns.append(f"{rel}/**/*.{suffix}")
+        patterns.append("--paths")
+        patterns.append(f"{rel}/*.{suffix}")
     return linter.main(
         [
             *patterns,
@@ -187,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.names_only:
         return 0
 
-    linter_code = scan_linter(repo_root)
+    linter_code = scan_linter(repo_root, skill_dir)
     if linter_code != 0:
         return linter_code
     return 0

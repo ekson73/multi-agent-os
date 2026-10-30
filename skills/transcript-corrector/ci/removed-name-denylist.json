@@ -1,6 +1,7 @@
 {
   "algorithm": "sha256",
   "normalization": "nfkc-casefold-collapse-whitespace",
+  "note": "The salt is public on purpose: this list stops removed names from coming back in plain text. It does not hide them from someone who guesses a name and hashes it. Never add a name here that is not already public elsewhere.",
   "salt": "a5cfd1d92afb931de23b790d6f70342388070f35becb9e48df3810da53546135",
   "hashes": [
     "06a3ca53508277cf1e5c8f32802811934c6e8240c3d7398191c1061f773e9a8e",

@@ -122,6 +122,8 @@ bash skills/transcript-corrector/scripts/correct.sh \
 
 ```bash
 # Inline mode (replace source — REQUIRES HITL auth per [C07] v2.1.0)
+# Run it from a throwaway git worktree: it rewrites the fixture and writes an
+# audit JSON under pdca/, both tracked files.
 bash skills/transcript-corrector/scripts/correct.sh \
   --source skills/transcript-corrector/pdca/fixture-synthetic-excerpt.md \
   --language en-us \
@@ -131,10 +133,10 @@ bash skills/transcript-corrector/scripts/correct.sh \
 
 ## Catalogs (versioned alongside skill)
 
-- `catalogs/participants-canonical.yaml` — speaker whitelist (shipped entries are pseudonyms P1–P6; extend locally)
+- `catalogs/participants-canonical.yaml` — speaker whitelist (shipped entries are pseudonyms P1–P6; pass a real roster with `--participants <path>`, never commit it)
 - `catalogs/common-typos-pt-br.yaml` — pt-BR typo dictionary (empty until a later cycle)
 - `catalogs/common-typos-en-us.yaml` — en-US typo dictionary (initially empty)
-- `catalogs/phonetic-substitutions.yaml` — known phonetic-class substitutions
+- `catalogs/phonetic-substitutions.yaml` — known phonetic-class substitutions (shipped mappings are synthetic; pass private ones with `--phonetic <path>`, never commit them)
 
 Catalogs grow via PDCA cycles. Each cycle's growth is captured in
 `pdca/cycle-<N>-<date>.md`.

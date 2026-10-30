@@ -21,6 +21,7 @@ LANGUAGE="auto"             # pt-br | en-us | auto
 OUTPUT="stdout"             # stdout | <path>
 SOURCE=""                   # path | stdin | confluence:<id> | notion:<id> | gdrive:<id>
 PARTICIPANTS_OVERRIDE=""    # optional path to custom participants whitelist
+PHONETIC_OVERRIDE=""        # optional path to a private phonetic-substitutions catalog
 # Per-destination write-auth tokens (mode-specific to prevent confluence-auth
 # from unlocking a notion-write, breaking the HUMAN_DOMAIN per-destination contract)
 CONFLUENCE_WRITE_AUTH=""
@@ -45,6 +46,7 @@ Options:
                              (default: review-only)
   --output <o>               stdout | <path> (default: stdout)
   --participants <path>      Override participants-canonical.yaml
+  --phonetic <path>          Override phonetic-substitutions.yaml (private local catalog)
   --confluence-write-auth <rationale>
   --notion-write-auth <rationale>
   --gdrive-write-auth <rationale>
@@ -71,6 +73,7 @@ while [ $# -gt 0 ]; do
     --mode) MODE="$2"; shift 2 ;;
     --output) OUTPUT="$2"; shift 2 ;;
     --participants) PARTICIPANTS_OVERRIDE="$2"; shift 2 ;;
+    --phonetic) PHONETIC_OVERRIDE="$2"; shift 2 ;;
     --confluence-write-auth) CONFLUENCE_WRITE_AUTH="$2"; shift 2 ;;
     --notion-write-auth) NOTION_WRITE_AUTH="$2"; shift 2 ;;
     --gdrive-write-auth) GDRIVE_WRITE_AUTH="$2"; shift 2 ;;
@@ -217,7 +220,7 @@ echo "[]" > "$AUDIT_JSON"
 # -------- Pass 1: participants whitelist + phonetic substitution --------
 log "Pass 1 — participants whitelist + phonetic check"
 PARTICIPANTS_FILE="${PARTICIPANTS_OVERRIDE:-$SKILL_DIR/catalogs/participants-canonical.yaml}"
-PHONETIC_FILE="$SKILL_DIR/catalogs/phonetic-substitutions.yaml"
+PHONETIC_FILE="${PHONETIC_OVERRIDE:-$SKILL_DIR/catalogs/phonetic-substitutions.yaml}"
 python3 "$SCRIPT_DIR/pass1-whitelist.py" \
   --input "$INPUT" \
   --output "$PASS1_OUT" \

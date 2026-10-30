@@ -30,7 +30,7 @@ CodeGraph pre-indexes a repo (tree-sitter → graph of 23 node-kinds / 12 edge-t
 | **Collaborations** | Could **complement** `understand-anything` (deep one-time human audit) on the biggest repos. |
 | **Cost** | Install low (npm + MCP register). Maintenance **medium-high** (T4 single-owner · 266 open issues · fast churn → upgrade treadmill). Token: small per-query, offset by the savings *if* the savings materialize. |
 | **Trust-tier ([C12])** | **T4** (individual, unverified) — mitigated by MIT + 100% local + 51k stars + 36 contributors. Requires **version/SHA-pin + operator gate** before any enable. |
-| **Expansion** | Gains scale with repo size → only the big repos (`k8s-eks-prd-002`, `vks-*` monorepos). Context-window-fit repos = no benefit (author agrees). |
+| **Expansion** | Gains scale with repo size → only the big repos (the private IaC repo, `vks-*` monorepos). Context-window-fit repos = no benefit (author agrees). |
 
 ## 4. VALIDATE — the decisive fit-risk (CASC)
 The author's own docs warn: **"if your agent hands work off to file-reading sub-agents, CodeGraph becomes pure overhead."** This operator's workflow is **heavily sub-agent fan-out** (Explore / Task / maos orchestration). A sub-agent that re-reads files does **not** benefit from the parent's CodeGraph MCP context → the headline 70%-fewer-tool-calls could erode toward zero (or net-negative from index overhead). **This is workflow-specific and unknowable without measurement** — it is the single fact that flips the verdict. Security/CASC otherwise green (local-only, MIT, no secrets, reversible).
@@ -41,7 +41,7 @@ The author's own docs warn: **"if your agent hands work off to file-reading sub-
 - **ADAPT** — adopt in a **scoped, pinned, measurable** form first.
 
 ### Recommended scoped trial (the actionable next step — separate operator GO)
-1. Pick ONE large repo (`k8s-eks-prd-002` or a `vks-*` monorepo).
+1. Pick ONE large repo (the private IaC repo or a `vks-*` monorepo).
 2. Register CodeGraph **project-scope** (that repo's `.mcp.json` / `--add-dir`), **version-pinned to `@1.0.1`** (T4 → pin), via `claude-code-concierge --mode=install` (confirm-gated, [C12]/[C14]/[C13]).
 3. Run a representative task **with vs without** CodeGraph; measure the **actual tool-call / token delta** — including a sub-agent-fan-out task (the caveat test).
 4. Decision gate: meaningful delta on *our* workflow → promote to user-scope; negligible/negative → ABANDON + record. This becomes the **child Agentic Step** under VKS-2244.

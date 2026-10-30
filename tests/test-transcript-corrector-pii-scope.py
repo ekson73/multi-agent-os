@@ -69,7 +69,7 @@ class TranscriptCorrectorPiiScopeTest(unittest.TestCase):
         self.assertEqual(self.check.name_hit_lines(sample, salt, hashes), [])
 
     def test_linter_flags_runtime_email_and_valid_cpf(self) -> None:
-        address = "person" + "@" + "gmail.com"
+        address = "person" + "@" + "mail.invalid"
         digits = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
         def checksum(count: int) -> int:
