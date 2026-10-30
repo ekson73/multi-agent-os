@@ -1927,6 +1927,12 @@ def _assess(ctx: Ctx, store: Store) -> Store:
         # the past-session contract applies to samples too: a file changed after high_water is
         # deferred by its walked mtime, never opened (and re-checked on the opened descriptor)
         rc = ctx.receipt[store.id]
+        excl = [f for f in files if ctx.excluded(f)]  # --exclude-path: never opened, not even to sample
+        rc["files_excluded"] += len(excl)
+        files = [f for f in files if f not in set(excl)]
+        if not files:
+            store.status, store.reason = "unavailable", "every file is excluded by --exclude-path"
+            return store
         past = [f for f in files if ctx.mtime(f) < ctx.high_water]
         rc["files_deferred_recent_or_unstable"] += len(files) - len(past)
         heads = []

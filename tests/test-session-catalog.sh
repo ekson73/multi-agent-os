@@ -1137,6 +1137,15 @@ sst = {x.id: x for x in mod.build_stores(sctx, [])}
 su = sst["antigravity/brain"].units()
 ok(all(not u.load()[1] for u in su) and any(q["reason"] == "file-over-size-cap" for q in sctx.quarantine),
    "a whole-document source is bounded by --max-file-bytes too, not only --max-record-bytes")
+oh = os.path.join(FIX, "home-opaque")
+opq = put(".gemini/antigravity/conversations/x.pb", raw=bytes(range(256)) * 8, home=oh)
+octx = mod.Ctx(oh, time.time(), dict(mod.LIMITS), ["*/x.pb"], b"k" * 32)
+_opened = []
+_orig_open = octx.open_source
+octx.open_source = lambda path, expect=None: (_opened.append(path), _orig_open(path, expect))[1]
+ost = next(x for x in mod.build_stores(octx, []) if x.id == "antigravity/conversations")
+mod._assess(octx, ost)
+ok(opq not in _opened, "an --exclude-path'd opaque-store file is never opened to sample it")
 
 cctx = mod.Ctx(rx_home, time.time(), dict(mod.LIMITS), [], b"k" * 32)
 cstore = mod.Store("export/chatgpt/0", "openai", "openai.chatgpt-export", rx_home, "zip", "acct-x", kind="export")
