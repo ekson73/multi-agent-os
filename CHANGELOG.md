@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — `goal-recovery` 0.3.0: `ci` and `tests` on the inference ladder
+
+- `skills/goal-recovery/SKILL.md` 0.2.0 → 0.3.0. Two sources inserted **below `ticket`** (ranks 4 and 5): `ci` (passing check/pipeline status) and `tests` (test names and assertions). Both are deterministic-but-partial evidence, so the goal they recover is a lower bound and `confidence` is capped by coverage breadth.
+- **Consumer-visible precedence shift**: `objectives_ntree`, `ash_journal`, `git_branch`, `git_last_commit` and `transcript` move from ranks 4–8 to 6–10.
+- `templates/handoff-as-prompt.schema.json`: `recovered_from[].source` enum gains `ci` and `tests` (additive; existing envelopes stay valid). Ref EKO-103 #119.
+
 ### Security
 - Hygiene: removed third-party personal data from transcript-corrector examples; removed personal email.
   Review round: `author.email` dropped from the plugin manifest (no URL in an email field); the
