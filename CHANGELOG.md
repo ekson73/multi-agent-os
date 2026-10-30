@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matches hyphenated names and windows up to 6 tokens; `correct.sh --phonetic <path>` loads a
   private phonetic catalog.
 
+### Added — `protocols/agent-comm-protocol.md` (ACP) compact bot↔bot messaging
+
+- New `protocols/agent-comm-protocol.md` (ACP v1.0.0, Status: Proposed): a compact,
+  self-explaining, verb-closed envelope for bot↔bot traffic in a shared channel, so
+  several persona-agents in one group do not drown or confuse the humans and never
+  answer for the human. One `acp` envelope per turn (addressed `@to`/`@from`, ordered
+  by `re`), a CLOSED verb set (ASK · ACK · INFO · RESULT · BLOCKED · NEEDS-OPERATOR ·
+  CLAIM · YIELD · DONE), `RESULT`/`DONE` bound to source-measured evidence, and a
+  `NEEDS-OPERATOR`-only path to the human. Anti-small-talk gate (no payload → not sent)
+  and a PII/secret gate. DRY: reuses `response-compression`, `pii-masking`, `sentinel`,
+  `exit-hygiene`, `agent-delegation`; reimplements none.
+- Review round: reserved `@operator` recipient (no bot answers it) with a paired prose line,
+  required payload keys and receiver validation, a quoting grammar that cannot forge fields,
+  CLAIM/YIELD/DONE ownership by channel order, and `@from` checked against the attested author.
+
 ### Fixed — Prisma structural_route A2b fail-open (issue #506)
 
 - `skills/decompose-abstract-to-measurable/scripts/structural_route.py`: the `declared is None` branch returned the engine band UNCHANGED (`under_specified`, `inconclusive.flag=false`, no `allowed_use`), so omitting `meta.structural_form` earned a *cleaner* pass than declaring `additive` — the A2 evasion-by-omission the code claimed to close, reopened by a second path. Now fail-closed by default: an undeclared form is `REVIEW (unrouted)` with `human_review` and `inconclusive.flag=true`; if H35 diagnostics derive relational/gestalt it is `BLOCKED` (an additive tree still cannot represent it); the historical v1.0.0 passthrough is preserved only behind the explicit `--legacy-unrouted` flag. Tests 9 → 11 (added fail-closed-default, legacy opt-in, A2b-omission-blocked); `break_suite.py` gains the A2b case (HOLD); step-5b table in `SKILL.md` documents the undeclared-form row. No regression: aggregate 10/10, e3_kappa 12/12.
