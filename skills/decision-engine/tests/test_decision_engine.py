@@ -653,6 +653,22 @@ def test_a_recommendation_written_in_the_row_is_used():
     assert v["recommendation_basis"] == "evidence:recomendacao-registrada"
 
 
+def test_the_short_rec_letter_form_is_a_written_recommendation():
+    # Real row H-0073 (2026-10-30): "Rec. A: ...; alt. B: ...". Before, this fell to
+    # the type default ("Fornecer ou rotacionar", confiança nenhuma).
+    v = de.decide(_item("H-0108", "credencial",
+                        "Portão preso. Rec. A: GitHub App gratuito na vaga REVISOR (x.mjs); "
+                        "alt. B: 2ª conta na lista. Undo A: esvaziar a constante."),
+                  today=TODAY)
+    assert v["recommendation_basis"] == "evidence:recomendacao-registrada"
+    assert v["recommendation"] == "GitHub App gratuito na vaga REVISOR (x.mjs)"
+
+
+def test_a_word_ending_in_rec_is_not_a_recommendation():
+    v = de.decide(_item("H-0108", "negocio", "Ver o spec. Prec.: nada aqui"), today=TODAY)
+    assert v["recommendation_basis"] != "evidence:recomendacao-registrada"
+
+
 def test_without_evidence_the_verdict_says_so_explicitly():
     v = de.decide(_item("H-0109", "negocio", "Nomes da família do operador"), today=TODAY)
     assert v["confidence"] == "nenhuma" and v["evidence"] == []
@@ -751,3 +767,49 @@ def test_guarded_title_uses_shared_evidence_clock_through_real_session_pipe(
     assert piped["source"]["hitl_scope"] == "session"
     assert piped["source"]["hitl_session_resolved"] is True
     assert all("approved" not in v and "resolved" not in v for v in piped["verdicts"])
+
+
+@pytest.mark.parametrize("text,structured,basis", [
+    ("Rec. A: manter pendente; alt. B: rever fixture.", False,
+     "evidence:recomendacao-registrada"),
+    ("Ver spec. Prec.: nada aqui", False, "type-default:type-generic"),
+    ("Rec. A: manter pendente; alt. B: rever fixture.", True, "evidence"),
+])
+def test_guarded_title_keeps_written_recommendation_semantics_through_real_pipe(
+        tmp_path, monkeypatch, text, structured, basis):
+    """New Main parser composes with R2/title transport, not only R1 input."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    session = "resync-recommendation-fixture"
+    item = _item("H-9100", "tecnico", text,
+                 title="Change permissions of the account", session_id=session)
+    if structured:
+        item["options"] = [
+            {"label": "Opção estruturada", "description": "Sem efeito",
+             "recommended": True, "evidence": "synthetic:fixture"},
+            {"label": "Alternativa", "description": "Nada muda"}]
+    compass = tmp_path / "compass.json"
+    compass.write_text("{}", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    fuse = subprocess.run(
+        [sys.executable, str(FUSE), "--hitl-only", "--compass-json", str(compass),
+         "--hitl-json", "-", "--scope", "session", "--session-id", session,
+         "--format", "json"],
+        input=json.dumps([item]), capture_output=True, text=True, timeout=60)
+    assert fuse.returncode == 0, fuse.stderr
+    extra = ("--policy", str(policy), "--today", "2031-01-01")
+    direct = json.loads(_cli([item], *extra))
+    piped = json.loads(_cli(json.loads(fuse.stdout), *extra))
+    assert direct["verdicts"] == piped["verdicts"]
+    verdict = piped["verdicts"][0]
+    assert (verdict["route"], verdict["rule"]) == ("HITL", "R2-guard")
+    assert verdict["recommendation_basis"] == basis
+    if structured:
+        assert verdict["recommendation"].startswith(item["options"][0]["label"])
+        assert verdict["options_source"] == "structured"
+    elif basis == "evidence:recomendacao-registrada":
+        assert verdict["recommendation"] == "manter pendente"
+    assert piped["source"]["hitl_scope"] == "session"
+    assert piped["source"]["hitl_session_resolved"] is True
+    assert "approved" not in verdict and "resolved" not in verdict

@@ -229,7 +229,10 @@ _UNDETERMINED_RE = re.compile(
     re.IGNORECASE | re.DOTALL)
 _COMMAND_RE = re.compile(r"\bcomando\s*:\s*(`[^`]+`)", re.IGNORECASE)
 _UNDO_RE = re.compile(r"\bundo\s*:\s*(.+?)(?:\s+\||\.\s|;\s|$)", re.IGNORECASE)
-_TEXT_REC_RE = re.compile(r"\brecomenda[cç][aã]o\s*:\s*(.+?)(?:\.\s|$)", re.IGNORECASE)
+# "Recomendação: x" or the short "Rec. A: x" (option letter optional). Ends at the
+# first ". " or "; " so a trailing "alt. B: ..." is not read as part of it.
+_TEXT_REC_RE = re.compile(r"\b(?:recomenda[cç][aã]o|rec\.)(?:\s+[A-Z])?\s*:\s*(.+?)(?:;\s|\.\s|$)",
+                          re.IGNORECASE)
 _PLAN_RE = re.compile(r"\bplano\s+pronto\b", re.IGNORECASE)
 _TREND_RE = re.compile(r"\b(destrava|trava|bloqueia|blocks|unblocks|crash|quebra)\w*",
                        re.IGNORECASE)

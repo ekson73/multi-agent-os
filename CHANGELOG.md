@@ -31,6 +31,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integrates row-evidence recommendations and GUT priority without dropping the
   human-act guard or transport contract. Real-pipe regressions cover R2 deferrals
   on both sides of an explicit `--today` date, retaining the same clock in R1/R2.
+- The current Main short written-recommendation parser composes with guarded titles
+  through the real session pipe, including negative word-boundary and structured-
+  option precedence controls.
+
+### Fixed — `decision-engine`: read the short `Rec. A:` form as a written recommendation
+
+- A ledger row written as `Rec. A: <x>; alt. B: ...` (H-0073, 2026-10-30) fell to the
+  type default (`Fornecer ou rotacionar`, `confidence: "nenhuma"`). The written-
+  recommendation trigger now also takes `Rec.` with an optional option letter, and the
+  text ends at the first `. ` or `; `, so the alternatives are not read into it.
+- Tests: two new; mutation-checked (old regex turns the first red).
 
 ### Fixed — `decision-engine`: HITL recommendation from the item's own evidence, plus GUT priority
 
