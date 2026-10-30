@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — ADR-020: design record for `github-app-pr-review` (proposed, nothing built)
+
+- `docs/adrs/ADR-020-github-app-pr-review.md`: how to generalize a pilot's independent agentic reviewer
+  (GitHub App identity, read-only agent, key in a separate job) to the owner's repositories. Decision: one
+  reusable `workflow_call` workflow pinned by SHA + thin callers; one App **per trust boundary** (the pilot keeps
+  its own; the shared `eko-revisor-agentico` App only on repos with a protected `main`), installation token scoped
+  to one repo. Names validated with `anima`; rejected alternatives and a phased rollout gated on ≥2 real green
+  reviews in the pilot. No App, secret or install is created by this change.
+
 ### Fixed — `decision-engine`: read the short `Rec. A:` form as a written recommendation
 
 - A ledger row written as `Rec. A: <x>; alt. B: ...` (H-0073, 2026-10-30) fell to the
