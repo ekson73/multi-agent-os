@@ -59,7 +59,7 @@ Delegates a task to a specialized sub-agent with automatic context preparation a
 
 Before delegating, checks:
 - Same task delegated before? → BLOCK
-- Delegation depth > 3? → BLOCK
+- No `depth_remaining` left? → BLOCK (cap and authority rules: `skills/agentic-delegation` §4.1 and §8)
 - Same agent type in chain? → WARN
 - Task similarity > 85%? → BLOCK
 

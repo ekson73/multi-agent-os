@@ -324,7 +324,7 @@ of the rows above plus native read/measure tools should appear.
 - Phase 5 requires conductor re-measurement; a worker's claim is never the acceptance.
 - One worker per **resource boundary** (repo · tracker · token) — never two on one boundary.
 - Worktree discipline always on (`skills/worktree-policy`); never commit to main.
-- Delegation depth ≤ 2; parallel ≤ 3.
+- Delegation depth ≤ 2 (`skills/agentic-delegation` §8); parallel ≤ 3.
 - Report only at a real milestone; `artifacts` is a key→pointer map, never prose.
 - A refusal **with a one-line reason** is a legitimate answer.
 - Never mutate a credential, a gate, an allowlist, or peer configuration. Never buy anything.

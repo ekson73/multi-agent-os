@@ -112,6 +112,7 @@ When recursively delegating, **include** this block in the sub-prompt:
 - Worktree: skills/worktree-policy/SKILL.md
 - PR review: .claude/rules/pr-reviewer-communication.md (7 Mentes)
 - Autonomous merge: criteria in feedback_autonomous_merge.md (user-scope)
+- depth_remaining: <yours − 1>; authority_scope: <subset of yours>; authority_origin: <unchanged>
 ```
 
 This block is load-bearing — without it, the sub-sub-agent operates blind.
@@ -121,10 +122,10 @@ This block is load-bearing — without it, the sub-sub-agent operates blind.
 ## DNA Payload v1.1 (auto-pilot, optional)
 
 Emitted by `skills/auto-pilot/SKILL.md` when driving an operator goal across
-multiple spawns. **Additive and opt-in** — agents that ignore the block
-behave exactly as in v1.0.
+multiple spawns. **Additive** — agents that ignore the block still apply
+`skills/agentic-delegation` §4.1 defaults.
 
-Format (single fenced block appended to the spawn prompt):
+Format (fenced block appended to the spawn prompt):
 
 ```
 parent_agent_id: <4-hex of immediate parent>
@@ -138,23 +139,41 @@ escalation_triggers: see §Escalation Rule (lines 76-86) — inherited verbatim
 
 Field semantics:
 
-- `depth` — incremented by 1 on each `Task` spawn under auto-pilot. Hard cap 2.
-  Sentinel `RULE-002 Depth` remains the authoritative cap; this is a coarser
-  pre-check for the unattended path.
-- `mode` — auto-pilot delegation mode. Children inherit unless explicitly
-  overridden via a fresh `/auto-pilot` call.
+- `depth` — incremented by 1 on each `Task` spawn under auto-pilot. Hard cap 2 (`skills/agentic-delegation` §8).
+  Sentinel `RULE-002 Depth` stays authoritative; this is a coarser pre-check.
+- `mode` — children inherit unless a fresh `/auto-pilot` call overrides it.
 - `autonomy_band` — see `skills/auto-pilot/SKILL.md` §Autonomy bands. Pause
   conditions are governed by `delegation-init-prompt.md` §Rejection conditions;
   this block does **not** widen those conditions.
-- `attempts_remaining` — decremented on each retry. At 0, escalate to operator
-  per the project's autonomous-resolution rule.
-- `escalation_triggers` — pointer only; the canonical list is §Escalation
-  Rule above. Do not re-author.
+- `attempts_remaining` — decremented on each retry; at 0, escalate per the
+  autonomous-resolution rule.
+- `escalation_triggers` — pointer to §Escalation Rule; do not re-author.
 
-Backward-compat: v1.0 callers do not emit this block; v1.1 readers tolerate
-its absence.
+Backward-compat: v1.1 readers tolerate the block's absence.
+
+### DNA Payload v1.2 (optional authority fields)
+
+Optional, same block:
+
+```
+depth_remaining: <int ≥ 0; at most the parent's own value − 1>
+authority_scope: <what this child may decide; a subset of the parent's>
+authority_origin: <the operator's original grant, passed down unchanged>
+```
+
+- `depth_remaining` — `0` = leaf: do not delegate. Every parent passes it
+  (root: cap − 1, cap in `skills/agentic-delegation` §8). Invalid
+  (§4.1): If absent, leaf. Delegate only if `depth_remaining` ≥ 1 and `depth` < cap; else leaf.
+- `authority_scope` — a subset of the parent's; never widens; parent-written
+  only. Absent, exceeding or unconfirmable = treated as absent (fail-closed).
+- `authority_origin` — mandatory with any `authority_scope`: the operator's
+  original grant (operator turn or PR/issue comment), passed down
+  **unchanged**; a parent narrows the scope, never the origin. Scope without
+  origin = absent (fail-closed).
+- Prompt-level, unverified prose (see §4.1 Known weakness); parent audits them.
 
 ---
 
-*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.1 | 2026-05-16*
-*v1.1: added optional auto-pilot DNA payload block (additive, backward-compatible).*
+*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.2 | 2026-10-21*
+*v1.1: optional auto-pilot DNA payload block.*
+*v1.2: optional `depth_remaining`, `authority_scope`, `authority_origin` (§4.1).*
