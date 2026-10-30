@@ -98,7 +98,8 @@ relayed or auto-applied.
 
 ## Known limits (state them, don't hide them)
 - `set -u` unbound-variable aborts and a plain `exit N` never trip ERR → opt in with
-  `SHR_TRAP_EXIT=1` (relays on any non-contract non-zero EXIT). Measured on bash 3.2 and 5.3.
+  `SHR_TRAP_EXIT=1` (relays on any non-contract non-zero EXIT; measured on bash 5.3). On bash 3.2
+  (macOS `/bin/bash`) a `set -u` abort reaches the EXIT trap with rc 0, so it is **not** relayed there.
 - Redaction is pattern-based and **cannot** be exhaustive.
 - A proposal is text: a human applies it. `apply` tier edits only what the harness's scoped
   tools allow; review the diff before merging.

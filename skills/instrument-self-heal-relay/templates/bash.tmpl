@@ -4,7 +4,7 @@
 # Adopter knobs — set BEFORE this block:
 #   SHR_CONTRACT_CODES=" 2 "  exit codes that are intentional VERDICTS (gate BLOCK…): re-exited verbatim, never relayed
 #   SHR_TIER_LOCK=propose     gate/governance scripts: the `apply` tier is unreachable (a gate must never self-edit)
-#   SHR_TRAP_EXIT=1           ALSO relay on EXIT rc!=0 — covers `set -u` aborts, which never trip ERR (measured, bash 3.2+5.3)
+#   SHR_TRAP_EXIT=1           ALSO relay on EXIT rc!=0 — covers `set -u` aborts on bash >= 4 (they never trip ERR); bash 3.2 hands EXIT rc 0 for them, so they are NOT relayed there
 #   SHR_CAPTURE_STDOUT=1      also capture stdout (default: stderr only, so a JSON-RPC/pipe stdout stays pristine)
 #   SHR_CONTRACT_NOTE="…"     one-line invariant the repair must preserve (goes into the prompt)
 # Runtime env:  MAOS_SELFHEAL=0 (off) · MAOS_SELFHEAL_MODE=relay|seed · MAOS_SELFHEAL_TIER=propose|apply

@@ -417,6 +417,9 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; XH="$SANDBOX/xdg-home"; rm -rf "$XH" "$SANDBOX/xdg-cwd"; mkdir -p "$XH" "$SANDBOX/xdg-cwd"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p35.py"
   ( cd "$SANDBOX/xdg-cwd" && env -u MAOS_SELFHEAL_SEED_DIR HOME="$XH" XDG_STATE_HOME="" MAOS_SELFHEAL_MODE=seed python3 "$SANDBOX/p35.py" >/dev/null 2>&1 )
   check "python: an EMPTY XDG_STATE_HOME falls back to ~/.local/state (no relative seed path)" "$(ls "$XH/.local/state/maos/self-heal-seeds" 2>/dev/null | grep -c NEEDS-AGENT)" "1"
+  reset_stubs; rm -rf "$SANDBOX/cdsrc" "$SANDBOX/cdother"; mkdir -p "$SANDBOX/cdsrc" "$SANDBOX/cdother"; { printf 'import os\n'; "$RENDER" --lang python; printf 'os.chdir("../cdother")\nraise RuntimeError("x")\n'; } > "$SANDBOX/cdsrc/p36.py"
+  ( cd "$SANDBOX/cdsrc" && MAOS_AI_HARNESS=kiro-cli python3 p36.py >/dev/null 2>&1 )
+  check "python: the prompt names the script resolved at init, not after a later os.chdir()" "$(grep -cE '^Script: /.*/cdsrc/p36\.py$' "$STUB_LOG".stdin.1 2>/dev/null)" "1"; restore_stubs
   check "python: ...and nothing lands in the current directory" "$(find "$SANDBOX/xdg-cwd" -type f | wc -l | tr -d ' ')" "0"; restore_stubs
   reset_stubs; { printf 'import tempfile\ndef _boom(*a, **k): raise OSError("boom")\ntempfile.mkdtemp = _boom\n'; "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
   out="$(python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
