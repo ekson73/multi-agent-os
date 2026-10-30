@@ -244,6 +244,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rewrite, or to take the repo private, is the operator's call and is out of
   scope here.
 
+### Added: `virtuous-spiral` generic parent skill (HOTL delivery cycle)
+
+- `skills/virtuous-spiral/SKILL.md` (v0.4.0): generic parent skill for a spiral, event-driven delivery cycle over a node tree (forward-1 delivers downward, backward traces each deliverable up to a motivation and prunes theater, forward-2 repeats only the missing deliverables one level up). Consolidates two proposals under one name: the floor, classes, self-evolution and child format from one, the gate for irreversible acts only (RELEASE or HOLD, closing re-read, state-id precondition, work record), the short ledger and the digest from the other.
+- An "Inviolable floor" section holds the hard limits; its integrity is checked with one `awk | sha256sum` command. From the repository root set `F` to `skills/virtuous-spiral/SKILL.md` and run that command; the hashed section text is unchanged. The approved hash is kept outside the file; a changed hash is class 2.
+- Review clarifications outside the floor: the public preamble points at the floor's opaque authorization ref and does not treat it as a ticket or message id; the trigger is a set of deliveries ending in a PR, a BRIEF or a session (one ticket or one PR stays on `ooda-loop`); forward-2 repeats only missing deliverables and a fully covered parent still climbs; the PR ratio records the round's start and end and both queries use both bounds with `--limit 1000`.
+- Review follow-up outside the floor: the inventory note labels 2026-10-08 as the pre-addition snapshot (the table lists 96); only floor numbers live in the inviolable floor, and the REPORT caps in §11 stay operational; the state-id step states a conditional write, and the PR-ratio queries state the host contract first, with the GitHub commands kept as one host's example. The inviolable floor text is unchanged.
+- Metacognition classifies an act under the irreversible gate before acting. A cost comparison does not authorize an irreversible act. A compensable merge to main stays subject to the floor rule on merge and repositories. The inviolable floor text is unchanged.
+- Action bias: the agent decides and delivers by default and records decision and reasoning afterwards; it asks only about intent or policy, personal taste, domain norms and the inviolable floor. Reversible and compensable steps never wait; only irreversible acts pass the gate. Cost ceilings have no default number: the agent declares its own estimate and only new spend is floor. Status: proposal, no cycle run yet (dogfood pending).
+- `skills/README.md` lists it (96) and adds it to the Loops & recovery family.
+
 ### Fixed — `vek-db-password` allowlist for the literal redaction marker (v1.3.0 → v1.3.1)
 
 - `.gitleaks.toml` — the scheduled Supply-Chain Sentinel full-history scan was
