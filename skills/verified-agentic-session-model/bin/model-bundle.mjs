@@ -21,7 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TOOL = "verified-agentic-session-model";
-const VERSION = "2.1.3";
+const VERSION = "2.1.4";
 const STATUS_VALUES = ["planned", "started", "delegated", "deferred", "hitl", "blocked", "completed", "canceled", "superseded", "deprecated", "unknown"];
 const REASON_REQUIRED = new Set(["deferred", "hitl", "blocked", "canceled", "superseded", "deprecated", "unknown"]);
 const TERMINAL_STATES = new Set(["completed", "canceled", "superseded", "deprecated"]);
@@ -1869,6 +1869,7 @@ async function renderStandard(modelFile, options) {
     await writeFile(staged.markdown, markdown, { mode: 0o600 });
     runArchify(archify, ["validate", "workflow", staged.workflow, "--json"], "ARCHIFY_VALIDATE_FAILED");
     runArchify(archify, ["render", "workflow", staged.workflow, staged.html], "ARCHIFY_RENDER_FAILED");
+    await writeFile(staged.html, offlineArchifyHtml((await readBounded(staged.html, "staged HTML")).toString("utf8")), { mode: 0o600 });
     runArchify(archify, ["check", staged.html], "ARCHIFY_CHECK_FAILED");
     const workflowBytes = await readBounded(staged.workflow, "staged workflow");
     const htmlBytes = await readBounded(staged.html, "staged HTML");
@@ -2029,6 +2030,54 @@ async function readBundleSubject(manifestDir, canonicalDir, subject) {
   return { file, bytes: await readBounded(file, `bundle ${subject.role}`) };
 }
 
+// Every model lists `network_access_from_html` under governance.default_denies, but stock
+// Archify's template loads JetBrains Mono from Google Fonts. The standard profile therefore
+// removes exactly that one template block (matched byte for byte, nothing else is touched)
+// and then rejects any remaining remote resource reference. Without the font the body stack
+// already falls back to system monospace, and image export already uses local() faces only.
+const ARCHIFY_REMOTE_FONT_BLOCK = [
+  "  <!-- Async font load: a blackholed network must not block first paint.",
+  "       The body font stack falls back to system monospace until it lands. -->",
+  "  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>",
+  "  <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap\"",
+  "        rel=\"stylesheet\" media=\"print\" onload=\"this.media='all'\">",
+  "  <noscript>",
+  "    <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">",
+  "  </noscript>",
+  ""
+].join("\n");
+const OFFLINE_FONT_NOTE = "  <!-- verified-agentic-session-model: remote font loads removed (network_access_from_html is default-denied); the body font stack uses system monospace. -->\n";
+
+// Attribute values or CSS url()/@import that make the browser fetch from the network.
+// Plain strings inside script (e.g. the SVG namespace passed to createElementNS) are not
+// fetches and are deliberately not matched.
+const REMOTE_RESOURCE_PATTERNS = [
+  /\b(?:href|src|srcset|poster|action|formaction|data|background|ping|manifest)\s*=\s*["']?\s*(?:https?:)?\/\//giu,
+  /url\(\s*["']?\s*(?:https?:)?\/\//giu,
+  /@import\s+(?:url\(\s*)?["']?\s*(?:https?:)?\/\//giu
+];
+
+function remoteResourceRefs(html) {
+  const found = [];
+  for (const pattern of REMOTE_RESOURCE_PATTERNS) {
+    for (const match of html.matchAll(pattern)) found.push({ offset: match.index, excerpt: match[0].slice(0, 80) });
+  }
+  return found.sort((a, b) => a.offset - b.offset);
+}
+
+function enforceOfflineHtml(html) {
+  const refs = remoteResourceRefs(html);
+  if (refs.length) throw new AppError("NETWORK_ACCESS_DENIED", "HTML loads a remote resource although network_access_from_html is default-denied", 1, refs.slice(0, 20));
+}
+
+function offlineArchifyHtml(html) {
+  const occurrences = html.split(ARCHIFY_REMOTE_FONT_BLOCK).length - 1;
+  if (occurrences > 1) throw new AppError("NETWORK_ACCESS_DENIED", "Archify remote font block appears more than once");
+  const hardened = occurrences === 1 ? html.replace(ARCHIFY_REMOTE_FONT_BLOCK, OFFLINE_FONT_NOTE) : html;
+  enforceOfflineHtml(hardened);
+  return hardened;
+}
+
 async function checkHtmlSnapshot(archify, htmlBytes) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "session-model-verify-"));
   const snapshot = path.join(directory, "snapshot.html");
@@ -2082,6 +2131,7 @@ async function verifyCommand(manifestFile, options) {
     const workflowProblems = schemaErrors(workflow, archify.workflowSchema);
     if (workflowProblems.length) throw new AppError("WORKFLOW_SCHEMA_INVALID", "Derived workflow failed stock Archify schema", 1, workflowProblems);
     await checkHtmlSnapshot(archify, diagram.bytes);
+    enforceOfflineHtml(diagram.bytes.toString("utf8"));
     const expectedWorkflow = projectWorkflow(model, derived, path.basename(diagram.file));
     const expectedMarkdown = renderMarkdown(model, derived);
 

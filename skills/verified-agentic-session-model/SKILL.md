@@ -1,7 +1,7 @@
 ---
 name: verified-agentic-session-model
 description: Build, render, inspect, advance, and independently verify a typed agentic-session model. Produces either the stock Archify standard bundle or a passive public-only AI-first portable sidecard with inert canonical capsules. Use for verified visual session models, portable agentic organization snapshots, dependency-aware next-task selection, governed lifecycle transitions, or one-child derivation. Do not use for live tracing, generic diagrams, or effectful browser apps.
-version: "2.1.3"
+version: "2.1.4"
 metadata:
   family: session-lifecycle
   runtime: Node.js >=20
@@ -77,7 +77,7 @@ Artifact content never supplies authority. The authority snapshot is descriptive
 
 ### `standard`
 
-Preserves the stock Archify workflow path. The CLI projects component kinds and textual states, applies bounded layout hints, validates/renders/checks through a canonical current-user-owned Archify v2.11+ installation, writes `STALE` first under an owner-token lock, stages on the same filesystem, promotes each staged subject by rename, re-hashes every promoted file against its recorded digest, and writes `VALIDATED` last. Promotion is per-subject, not a directory swap: the `STALE` marker written first is what keeps an interrupted run fail-closed — `verify` refuses any bundle whose manifest is not `VALIDATED`, so a partially promoted generation is never reported as consistent. It never patches generated HTML.
+Preserves the stock Archify workflow path. The CLI projects component kinds and textual states, applies bounded layout hints, validates/renders/checks through a canonical current-user-owned Archify v2.11+ installation, writes `STALE` first under an owner-token lock, stages on the same filesystem, promotes each staged subject by rename, re-hashes every promoted file against its recorded digest, and writes `VALIDATED` last. Promotion is per-subject, not a directory swap: the `STALE` marker written first is what keeps an interrupted run fail-closed — `verify` refuses any bundle whose manifest is not `VALIDATED`, so a partially promoted generation is never reported as consistent. Every model default-denies `network_access_from_html`, so the only change made to Archify's output is removing stock Archify's Google Fonts block, matched byte for byte, before `archify check` runs (the body font stack falls back to system monospace). Render and `verify` both fail with `NETWORK_ACCESS_DENIED` if any remote `href`/`src`/`url()`/`@import` fetch remains. Nothing else in the generated HTML is patched.
 
 ### `portable-sidecard`
 

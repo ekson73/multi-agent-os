@@ -787,6 +787,30 @@ test("standard profile still renders through trusted stock Archify", async (cont
   });
 });
 
+test("standard HTML honors network_access_from_html: remote font loads are removed and verify rejects any remote fetch", async (context) => {
+  if (!stockArchify) { context.skip("stock Archify unavailable"); return; }
+  await temp(async (directory) => {
+    const model = await copyModel(directory, readyFixture);
+    const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
+    assert.equal(render.status, 0, render.stderr);
+    const { manifest: manifestFile, outputs } = body(render.stdout);
+    const html = await readFile(outputs.html, "utf8");
+    assert.doesNotMatch(html, /fonts\.googleapis\.com|fonts\.gstatic\.com/u);
+    assert.doesNotMatch(html, /\b(?:href|src)\s*=\s*["']?\s*(?:https?:)?\/\//iu);
+    assert.match(html, /remote font loads removed/u);
+    // Mutation: put a remote stylesheet back, rebind the digest, and verify must refuse it.
+    const tampered = html.replace("</head>", "<link rel=\"stylesheet\" href=\"https://example.com/a.css\">\n</head>");
+    assert.notEqual(tampered, html);
+    await writeFile(outputs.html, tampered);
+    const manifest = JSON.parse(await readFile(manifestFile, "utf8"));
+    manifest.subjects.find((item) => item.role === "diagram_html").digest.value = sha(Buffer.from(tampered));
+    await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    const verify = run(["verify", manifestFile, "--archify-dir", stockArchify]);
+    assert.equal(verify.status, 1, verify.stdout);
+    assert.equal(body(verify.stderr).error.code, "NETWORK_ACCESS_DENIED");
+  });
+});
+
 test("transition scans for sensitive data both before and after applying the event", async () => {
   await temp(async (directory) => {
     const raw = "transition-base-owner@private-domain.dev";

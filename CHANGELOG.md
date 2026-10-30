@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `verified-agentic-session-model` v2.1.4: standard HTML no longer loads Google Fonts
+
+- Every session model lists `network_access_from_html` under `governance.default_denies`,
+  but the `standard` profile shipped stock Archify's template, which loads JetBrains Mono
+  from `fonts.googleapis.com` / `fonts.gstatic.com`. Opening a "local-only" bundle made an
+  external request (found by Codex review on ekson73/eko-engram#62).
+- Render now removes exactly that template block (byte-for-byte match, nothing else
+  touched) before `archify check`, and both render and `verify` fail with
+  `NETWORK_ACCESS_DENIED` on any remaining remote `href`/`src`/`url()`/`@import` fetch.
+  The body font stack already falls back to system monospace; image export already used
+  `local()` faces only.
+- Generator and manifest schema version move to 2.1.4. A regression test renders, asserts
+  no remote fetch, then re-injects a remote stylesheet and asserts `verify` refuses it.
+  Mutation-checked: removing either the render strip or the verify guard fails the test.
+
 ### Fixed — `verified-agentic-session-model` v2.1.3: misleading JSON Pointer paths in two validator checks
 
 - `semanticErrors()` scans a single combined `work = [...waves, ...work_items]` array for
