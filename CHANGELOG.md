@@ -12,15 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   but the `standard` profile shipped stock Archify's template, which loads JetBrains Mono
   from `fonts.googleapis.com` / `fonts.gstatic.com`. Opening a "local-only" bundle made an
   external request (found by Codex review on ekson73/eko-engram#62).
-- Render now removes exactly that template block (byte-for-byte match, nothing else
-  touched) before `archify check`, and both render and `verify` fail with
-  `NETWORK_ACCESS_DENIED` on any remaining remote fetch. The scan reads only active
-  contexts (start-tag attributes, `<style>`, `<script>` and inline handlers), never text
-  nodes or comments, so a label like `url(https://…)` is not a false positive. It
-  entity-decodes attributes and escape-decodes CSS, checks every `srcset` candidate,
-  refuses `srcdoc`, meta refresh, any `@import`, and script network APIs.
-  The body font stack already falls back to system monospace; image export already used
-  `local()` faces only.
+- Render now removes exactly that template block (byte-for-byte match) and inserts an exact
+  offline Content-Security-Policy right after `<meta charset="UTF-8">` (`default-src 'none'`,
+  inline script/style only, `data:`/`blob:` images and fonts). The browser enforces it, so
+  script-initiated loads are blocked without parsing JavaScript. Render and `verify` fail
+  with `NETWORK_ACCESS_DENIED` if the CSP line is missing, moved or altered, or if a static
+  remote reference remains in start-tag attributes or CSS (quote-aware tags, entity- and
+  escape-decoded values, every `srcset` candidate, `srcdoc`, meta refresh, any `@import`).
+  Text nodes, comments and script bodies are not scanned, so labels like `url(https://…)`
+  are not false positives. CI installs pinned Archify v2.11.0 so these tests cannot skip.
 - Generator and manifest schema version move to 2.1.4. A regression test renders, asserts
   no remote fetch, then re-injects a remote stylesheet and asserts `verify` refuses it.
   Mutation-checked: removing either the render strip or the verify guard fails the test.

@@ -2047,20 +2047,23 @@ const ARCHIFY_REMOTE_FONT_BLOCK = [
   ""
 ].join("\n");
 const OFFLINE_FONT_NOTE = "  <!-- verified-agentic-session-model: remote font loads removed (network_access_from_html is default-denied); the body font stack uses system monospace. -->\n";
+// The browser, not a scanner, is the primary guard: an exact CSP inserted right after the
+// charset declaration denies every network fetch (scripts and styles stay inline-only,
+// images and fonts data:/blob: only). Extra CSPs can only tighten, never loosen, a policy.
+const OFFLINE_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'";
+const CHARSET_LINE = "  <meta charset=\"UTF-8\">\n";
+const OFFLINE_CSP_LINE = `  <meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}">\n`;
 
-// The scan looks only at ACTIVE contexts: start-tag attributes, <style> bodies, and <script>
-// bodies/inline handlers. Text nodes and comments are inert, so a model label such as
-// "Investigate url(https://example.com/x)" does not trip it. Values are entity-decoded
-// (HTML) or escape-decoded (CSS) before matching, and a URL anywhere in a URL-bearing value
-// counts, not only at its start (srcset candidates, meta refresh content=...;url=...).
+// Defense in depth for static references (and meta refresh, which CSP does not cover).
+// Only start-tag attributes and CSS are read; text nodes, comments and script bodies are
+// not, so visible labels such as "url(https://example.com/x)" are never false positives.
+// Attribute values are entity-decoded, CSS is escape-decoded, and a URL anywhere in a
+// URL-bearing value counts (every srcset candidate; data: candidates are dropped first).
 const URL_ATTRIBUTES = new Set(["href", "xlink:href", "src", "srcset", "imagesrcset", "poster", "action", "formaction", "data", "background", "ping", "manifest", "cite", "longdesc", "codebase", "archive", "icon", "lowsrc", "dynsrc", "profile", "usemap"]);
-// XML namespace identifiers are names, not fetches (createElementNS, xmlns).
-const NAMESPACE_URIS = new Set(["http://www.w3.org/2000/svg", "http://www.w3.org/1999/xlink", "http://www.w3.org/1999/xhtml", "http://www.w3.org/XML/1998/namespace", "http://www.w3.org/2000/xmlns/"]);
 const REMOTE_IN_VALUE = /(?:^|[\s,;=(])\s*(?:(?:https?|ftp|wss?):)?\/\/|^\s*(?:https?|ftp|wss?):/iu;
-const NETWORK_SCRIPT_APIS = /\b(?:fetch|XMLHttpRequest|sendBeacon|WebSocket|EventSource|importScripts|Worker|SharedWorker)\s*\(|\bimport\s*\(/u;
 
 function decodeAttributeEntities(value) {
-  const named = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", colon: ":", sol: "/", sol2: "/", lpar: "(", rpar: ")", comma: ",", semi: ";", equals: "=", tab: "\t", newline: "\n" };
+  const named = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", colon: ":", sol: "/", lpar: "(", rpar: ")", comma: ",", semi: ";", equals: "=", tab: "\t", newline: "\n" };
   return value.replace(/&(?:#x([0-9a-f]+)|#([0-9]+)|([a-z][a-z0-9]*));?/giu, (whole, hex, dec, name) => {
     if (hex) return String.fromCodePoint(Number.parseInt(hex, 16));
     if (dec) return String.fromCodePoint(Number.parseInt(dec, 10));
@@ -2079,14 +2082,6 @@ function cssFetches(css) {
   return /@import\b/iu.test(decoded) || /(?:url|image-set|image|src)\s*\(\s*["']?\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded) || /["']\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded);
 }
 
-function scriptFetches(code) {
-  if (NETWORK_SCRIPT_APIS.test(code)) return true;
-  for (const match of code.matchAll(/(["'`])\s*((?:(?:https?|ftp|wss?):)?\/\/[^"'`\s]*)/giu)) {
-    if (!NAMESPACE_URIS.has(match[2])) return true;
-  }
-  return false;
-}
-
 function parseAttributes(tag) {
   const attributes = [];
   const body = tag.replace(/^<[a-zA-Z][^\s/>]*/u, "").replace(/\/?>$/u, "");
@@ -2100,29 +2095,31 @@ function remoteResourceRefs(html) {
   const found = [];
   const flag = (offset, reason, excerpt) => found.push({ offset, reason, excerpt: excerpt.slice(0, 80) });
   // Quote-aware start tags: a ">" inside a quoted attribute value does not end the tag.
-  const contexts = /<!--[\s\S]*?-->|(<script\b(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)<\/script\s*>|(<style\b(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)<\/style\s*>|<[a-zA-Z](?:"[^"]*"|'[^']*'|[^'">])*>/giu;
+  const contexts = /<!--[\s\S]*?-->|(<script\b(?:"[^"]*"|'[^']*'|[^'">])*>)[\s\S]*?<\/script\s*>|(<style\b(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)<\/style\s*>|<[a-zA-Z](?:"[^"]*"|'[^']*'|[^'">])*>/giu;
   for (const match of html.matchAll(contexts)) {
     if (match[0].startsWith("<!--")) continue;
-    const tag = match[1] ?? match[3] ?? match[0];
+    const tag = match[1] ?? match[2] ?? match[0];
     const element = tag.match(/^<([a-zA-Z][^\s/>]*)/u)[1].toLowerCase();
     const attributes = parseAttributes(tag);
     for (const { name, value } of attributes) {
       if (name === "srcdoc") flag(match.index, "srcdoc", tag);
       else if (name === "style" && cssFetches(value)) flag(match.index, "style attribute", tag);
-      else if (name.startsWith("on") && scriptFetches(value)) flag(match.index, `${name} handler`, tag);
-      else if (URL_ATTRIBUTES.has(name) && !/^\s*data:/iu.test(value) && REMOTE_IN_VALUE.test(value)) flag(match.index, name, tag);
+      else if (URL_ATTRIBUTES.has(name) && REMOTE_IN_VALUE.test(value.replace(/(?:^|(?<=[\s,]))data:\S*/giu, " "))) flag(match.index, name, tag);
     }
     if (element === "meta" && attributes.some((item) => item.name === "http-equiv" && /refresh/iu.test(item.value))) {
       const content = attributes.find((item) => item.name === "content")?.value ?? "";
       if (/url\s*=/iu.test(content)) flag(match.index, "meta refresh", tag);
     }
-    if (match[2] !== undefined && scriptFetches(match[2])) flag(match.index, "script", match[2]);
-    if (match[4] !== undefined && cssFetches(match[4])) flag(match.index, "style", match[4]);
+    if (match[3] !== undefined && cssFetches(match[3])) flag(match.index, "style", match[3]);
   }
   return found;
 }
 
 function enforceOfflineHtml(html) {
+  const charsetAt = html.indexOf(CHARSET_LINE);
+  if (charsetAt === -1 || html.indexOf(CHARSET_LINE, charsetAt + 1) !== -1 || !html.startsWith(OFFLINE_CSP_LINE, charsetAt + CHARSET_LINE.length)) {
+    throw new AppError("NETWORK_ACCESS_DENIED", "HTML lacks the exact offline Content-Security-Policy immediately after its charset declaration");
+  }
   const refs = remoteResourceRefs(html);
   if (refs.length) throw new AppError("NETWORK_ACCESS_DENIED", "HTML loads a remote resource although network_access_from_html is default-denied", 1, refs.slice(0, 20));
 }
@@ -2130,7 +2127,9 @@ function enforceOfflineHtml(html) {
 function offlineArchifyHtml(html) {
   const occurrences = html.split(ARCHIFY_REMOTE_FONT_BLOCK).length - 1;
   if (occurrences > 1) throw new AppError("NETWORK_ACCESS_DENIED", "Archify remote font block appears more than once");
-  const hardened = occurrences === 1 ? html.replace(ARCHIFY_REMOTE_FONT_BLOCK, OFFLINE_FONT_NOTE) : html;
+  let hardened = occurrences === 1 ? html.replace(ARCHIFY_REMOTE_FONT_BLOCK, OFFLINE_FONT_NOTE) : html;
+  if (hardened.split(CHARSET_LINE).length !== 2) throw new AppError("NETWORK_ACCESS_DENIED", "Archify HTML does not carry exactly one charset declaration to anchor the offline CSP");
+  hardened = hardened.replace(CHARSET_LINE, `${CHARSET_LINE}${OFFLINE_CSP_LINE}`);
   enforceOfflineHtml(hardened);
   return hardened;
 }
