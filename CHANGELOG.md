@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The person-agent language rule is generic: `Responde no idioma configurado do usuário.` (`MAOS_USER_LOCALE`, falling back to the language the user writes in).
 - Installation config replaces hard-coded values: `MAOS_JIRA_KEY_PREFIXES` / `MAOS_LINEAR_KEY_PREFIXES` (ticket routing in `plugin-scripts/gaac/delegate.sh`), `MAOS_PERSONAL_GH_OWNERS` / `MAOS_WORK_GH_OWNERS` / `MAOS_PERSONAL_SSH_ALIAS` (`seed_active_world`), `MAOS_LAYER_PURITY_PATTERNS` / `MAOS_LAYER_PURITY_PATTERNS_FILE` (`bin/check-layer-purity`, CI reads the `LAYER_PURITY_PATTERNS` repository variable), `MAOS_TOOLKIT_DIR` (`bin/sync-agentic-tools.sh`), `$SCM_WRITE_ACCOUNT` (provider matrix) and `~/.config/maos/`.
 - **Upgrade note:** without that config, ticket keys resolve to `auto` and `active_world` resolves to `unknown` (fail-closed). Prefix and owner lists accept spaces or commas. Layer purity with no patterns configured warns locally and scans only its neutral default, fails in CI, and on a pull request from a fork emits `::warning::` and skips. Set the variables locally, and the `LAYER_PURITY_PATTERNS` repository variable for CI, to keep the previous routing and org-pattern behaviour.
+### Changed — `goal-recovery` 0.3.0: `ci` and `tests` on the inference ladder
+
+- `skills/goal-recovery/SKILL.md` 0.2.0 → 0.3.0. Two sources inserted **below `ticket`** (ranks 4 and 5): `ci` (passing check/pipeline status) and `tests` (test names and assertions). Both are deterministic-but-partial evidence, so the goal they recover is a lower bound and `confidence` is capped by coverage breadth.
+- **Consumer-visible precedence shift**: `objectives_ntree`, `ash_journal`, `git_branch`, `git_last_commit` and `transcript` move from ranks 4–8 to 6–10.
+- `templates/handoff-as-prompt.schema.json`: `recovered_from[].source` enum gains `ci` and `tests` (additive; existing envelopes stay valid). Ref EKO-103 #119.
+
 ### Security
 - Hygiene: removed third-party personal data from transcript-corrector examples; removed personal email.
   Review round: `author.email` dropped from the plugin manifest (no URL in an email field); the
@@ -508,6 +514,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GIT_INDEX_FILE`, object dirs, …) so `-C repo` is authoritative and a caller's environment
   cannot silently redirect the verifier at another repository. Two regression tests added.
 
+### Added — postflight 0.11.0: P0 GATE + P3.7 MANIFEST for multi-agent close-out
+
+- New SSOT `skills/postflight/references/close-out-manifest-protocol.md`: a fail-closed
+  **P0 GATE** (every delegate delivered / failed / dropped before closing; unknown state
+  blocks; orphans become seed risks + HITL items) and a **P3.7 MANIFEST** (one self-locating
+  close-out file: delegates gate · instruction N-tree with status synced 1:1 to the todo-list ·
+  HITL decisions recommended-first · roadmap · artifact index · recovery triple
+  `[session_id, link, command]` · self-location). References the hunt / seed / ticket-sync /
+  broadcast SSOTs instead of restating them.
+- New executor `bin/close-out-manifest.sh` (`check` · `persist` · `clip`): structural check of
+  the manifest; durable copy of scratch reports only after a secret scan and a PII scan, each
+  proven to detect a positive control assembled at runtime (blind scanner ⇒ rc 3, dry-run
+  default, idempotent); clipboard copy verified by `cmp` read-back (rc 4 ⇒ paste-MCP fallback,
+  never a fake success). `persist` scans and promotes only the bytes it staged privately (no read-twice TOCTOU), refuses binary files, scans raw + CRLF-normalised + line-joined views, and isolates the scanner from inherited config, ignore files and in-content allow directives. No residue on any exit path: one private temp dir plus registered rename temps, removed by a single EXIT/INT/TERM/HUP trap; a failed cleanup is rc 6; clipboard read-back streams into `cmp`.
+- Fusion with the independent `session-handover` prototype (protocol 0.2.0, executor 0.2.0): operator-authorised `PARTIAL` gate, recovery triple coherence (command carries the id, URL link, optional transcript must exist), broken/ephemeral indexed paths refused, read-only `anchor` subcommand (branch@HEAD, dirty files, worktrees), typed open items and verified/unverified facts, a timestamped `.bak` before a changed target is replaced, and an opt-in `check --strict` (after-action review, resume check, not done). Default behaviour unchanged in cost.
+- Review round on PR #478: fields read per section; empty content sections refused; `manifest_path` must exist and match the checked file; `PARTIAL` needs a `PARTIAL` title; missing/non-regular sources and basename collisions refused (rc 5); exclusive `mktemp` rename temps and backups; domestic Brazilian phone formats and checksum-valid bare CPFs in the PII scan; `--strict` sections may not be empty; `manifest_path` may not resolve into a temp root; basenames keep every byte (trailing newline); non-UTF-8 path bytes become U+FFFD so the JSON stays valid; control characters escaped in JSON output; a half-set clipboard override is rc 4; unexpected faults reported log-only (line + rc, no content).
+- Final correction round on PR #478: section regexes brace their variables (ShellCheck SC1087 clean at `-S error`); an incomplete `.bak` is removed by the exit trap; the macOS per-user temp (`/var/folders/*/T`) is ephemeral even when `$TMPDIR` points elsewhere; `persist` refuses a `--dest` under a temp/scratch root (spelled or through a symlink, rc 1); the protocol no longer denies the checksum-valid bare-CPF match.
+- Verifier follow-up on PR #478: `persist` expands a quoted `~` in `--dest` once, so the temp-root gate and the write use the same path (a quoted `~/x` was checked as `$HOME/x` and written to a literal `./~/x`); repeated slashes are normalised before the temp-root check and `canon` never returns `//x` for a child of `/` (`//tmp/x`, `//private/tmp/x` and a symlink to `/tmp` are refused); INT/TERM/HUP are deferred while the `.bak` is created and registered, so a signal in that window leaves no empty backup; the scratch rule matches a path component named `scratchpad` (`~/scratchpad-archive` is durable); the protocol-coherence test (F5) is case-insensitive and targets the unqualified denial.
+- Tests: `bin/tests/close-out-manifest.test.sh` (104 assertions, bash 3.2-safe); wired into
+  `tests/validate-plugin.sh`.
+- `skills/postflight/SKILL.md` 0.10.1 → 0.11.0: Core Rule, responsibilities table, algorithm
+  steps 0.5 / 3.7, anti-patterns 19-20, related artifacts.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
@@ -628,6 +657,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Copilot round on the same head: `--store` and any companion SQLite query are operator-only
   (never run by the concierge's `wacli:*` path or the delegate); admission gets a new-account
   exception so `accounts add` probes `accounts list` instead of a not-yet-existing account.
+
+
+### Added
+- `skills/tutorial-forge/SKILL.md` (v0.1.0) — forge de tutoriais multi-capítulo parametrizáveis (analogias-first, leigo-friendly)
+- `skills/source-curator/SKILL.md` (v0.1.0) — curadoria adversarial de fontes NotebookLM (A/B/C/D grading, baseline-aware invariant)
+- `skills/notebooklm-artifact-orchestrator/SKILL.md` (v0.1.0) — orquestração de 6 studio artifacts por notebook (contrato verificado contra `nlm 0.15.3`)
+- `agents/tutorial-specialist.md` (v0.3.0) — agente orquestrador parametrizável que despacha 4 subagentes separados por `role=` (pesquisador-critico, redator-tutor, revisor-pedagogico, produtor-multimidia), cada um via `delegate-governance` e o schema `Task` (`subagent_type`/`description`/`prompt`); ramo file-only para `markdown`/`html`; Phase 0 cria ou exige um notebook por capítulo; ingere o `tutorial.md` aprovado antes dos artefatos
+- `protocols/tutorial-delegation.md` (v0.2.0) — contrato de 3 handoffs estritos (Pesquisador → Redator → Revisor) com JSON schemas e validação; `excerpt` e títulos seguem `language`
+- Rodada de review: `source-curator` passa o payload como dado (`payload=$(<file)`), nunca como código de shell; emite `ledger.json` (Handoff 1) com `ledger_out=`; dedup semântico com `Task`. Quiz usa `--difficulty` inteiro 1-5.
 
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 
