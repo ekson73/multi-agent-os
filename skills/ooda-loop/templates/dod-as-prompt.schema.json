@@ -11,10 +11,36 @@
     "method": {"const": "session.dod_derivation"},
     "params": {
       "type": "object",
-      "required": ["for_goal", "context_lock", "measurement_spec", "acceptance", "kpis", "termination_predicate"],
+      "required": ["for_goal", "context_lock", "measurement_spec", "acceptance", "kpis", "termination_predicate", "confidence", "recovered_from", "inconclusive"],
       "additionalProperties": true,
+      "allOf": [{"if": {"not": {"properties": {"inconclusive": {"properties": {"flag": {"const": true}}, "required": ["flag"]}}, "required": ["inconclusive"]}}, "then": {"properties": {"for_goal": {"minLength": 1}}}}],
       "properties": {
-        "for_goal": {"type": "string", "minLength": 1, "description": "the {{goal}} this DoD measures — MUST equal the driving handoff-as-prompt.params.goal (L8 traceability). A DoD divorced from its goal is a SpecError."},
+        "for_goal": {"type": "string", "description": "the {{goal}} this DoD measures — MUST equal the driving handoff-as-prompt.params.goal (L8 traceability). A DoD divorced from its goal is a SpecError. Non-empty unless inconclusive.flag=true (DEFER) — enforced by the allOf below and by validate_envelope.py."},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "PROVENANCE GATE (mirrors handoff-as-prompt.params.confidence). Aggregate confidence [0,1] that this DoD correctly measures for_goal. Below conf_inconclusive (default 0.60) MUST set inconclusive.flag=true. Without this gate a DoD fabricated from nothing validated with exit 0 — the anti-fabrication bar the sibling handoff already carries."},
+        "recovered_from": {
+          "type": "array",
+          "description": "PROVENANCE GATE (mirrors handoff-as-prompt.params.recovered_from). The audit trail of which sources were ACTUALLY read to DERIVE this DoD (the recovered goal + the state measured). Ordered strongest-first. An empty array with confidence>0 is a SpecError — a confident DoD must cite where it came from (anti-theater grounding).",
+          "items": {
+            "type": "object",
+            "required": ["source", "read"],
+            "additionalProperties": true,
+            "properties": {
+              "source": {"type": "string", "enum": ["handoff_as_prompt", "postflight_seed", "braindump", "ticket", "objectives_ntree", "ash_journal", "git_branch", "git_last_commit", "transcript", "work_compass_cpt", "operator_prompt", "measurement_spec", "free_text"]},
+              "read": {"type": "boolean", "description": "true = this source existed and was read; false = probed-but-absent (still auditable)"},
+              "ref": {"type": "string", "description": "path/id/sha of the source, or 'absent'"}
+            }
+          }
+        },
+        "inconclusive": {
+          "type": "object",
+          "description": "PROVENANCE/HITL GATE (mirrors handoff-as-prompt.params.inconclusive). flag=true => the DoD DERIVATION is not trustworthy enough to drive a loop autonomously (low confidence / no source anchor / ambiguous goal) => escalate to HITL. Distinct from params.evaluation.inconclusive, which is about SCORING current progress once the DoD exists.",
+          "required": ["flag", "reasons"],
+          "additionalProperties": false,
+          "properties": {
+            "flag": {"type": "boolean"},
+            "reasons": {"type": "array", "items": {"type": "string", "enum": ["low_confidence", "conflicting_hypotheses", "no_context_anchor", "ambiguous_scope", "stale_state", "no_goal_anchor"]}}
+          }
+        },
         "context_lock": {
           "type": "object",
           "description": "= Prisma measurement-spec meta.context_lock (Step-0 hard gate — a context-free DoD is refused). Sourced from the handoff-as-prompt: context<-context, purpose<-objectives.originating, stakeholder/targets<-scope+motivations. A construct is only measurable relative to this (Harnad grounding).",
@@ -76,5 +102,5 @@
       }
     }
   },
-  "$comment": "Idempotency (validate_envelope.py --digest): the DoD DEFINITION (context_lock + measurement_spec structure + termination_predicate) is canonicalized (leaf VALUES/confidence + evaluation stripped) so the same {goal,context} yields the same DoD-shape digest across runs. Exit: 0 valid, 2 unreadable, 3 SpecError. SpecError cases: absent required key; empty for_goal; measurement_spec missing meta.context_lock (Prisma Step-0). Deep leaf/anchor validation + the authoritative D/T/J + inconclusive verdict are delegated to Prisma's two scripts, run in order: skills/decompose-abstract-to-measurable/scripts/structural_route.py (fail-closed form-gate — additive_unverified/relational/gestalt caps the score to assistive-only + human_review) THEN skills/decompose-abstract-to-measurable/scripts/aggregate_spec.py (roll-up). ooda-loop's ACT gate consults BOTH: a capped structural status is treated as inconclusive -> HITL."
+  "$comment": "Idempotency (validate_envelope.py --digest): the DoD DEFINITION (context_lock + measurement_spec structure + termination_predicate + recovered_from provenance) is canonicalized (leaf VALUES/confidence + evaluation stripped) so the same {goal,context} yields the same DoD-shape digest across runs. Exit: 0 valid, 2 unreadable, 3 SpecError. PROVENANCE GATE (mirrors the handoff): params.confidence + params.recovered_from + params.inconclusive are REQUIRED, and recovered_from empty while confidence>0 is refused — closing the hole where a DoD fabricated from nothing validated with exit 0. SpecError cases: absent required key; empty for_goal without inconclusive.flag=true; recovered_from empty while confidence>0; confidence<conf_inconclusive while inconclusive.flag=false; measurement_spec missing meta.context_lock (Prisma Step-0). Deep leaf/anchor validation + the authoritative D/T/J + inconclusive verdict are delegated to Prisma's two scripts, run in order: skills/decompose-abstract-to-measurable/scripts/structural_route.py (fail-closed form-gate — additive_unverified/relational/gestalt caps the score to assistive-only + human_review) THEN skills/decompose-abstract-to-measurable/scripts/aggregate_spec.py (roll-up). ooda-loop's ACT gate consults BOTH: a capped structural status is treated as inconclusive -> HITL."
 }
