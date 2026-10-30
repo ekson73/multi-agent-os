@@ -2052,6 +2052,9 @@ const OFFLINE_FONT_NOTE = "  <!-- verified-agentic-session-model: remote font lo
 // images and fonts data:/blob: only). Extra CSPs can only tighten, never loosen, a policy.
 const OFFLINE_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'";
 const CHARSET_LINE = "  <meta charset=\"UTF-8\">\n";
+// The CSP must be live metadata, not text inside a comment or raw-text element: only the
+// doctype and the <html> start tag may precede "<head>", the charset and the CSP line.
+const OFFLINE_HEAD_PREFIX = /^<!DOCTYPE html>\n<html(?: [a-z-]+="[^"<>]*")*>\n<head>\n$/u;
 const OFFLINE_CSP_LINE = `  <meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}">\n`;
 
 // Defense in depth for static references (and meta refresh, which CSP does not cover).
@@ -2062,18 +2065,23 @@ const OFFLINE_CSP_LINE = `  <meta http-equiv="Content-Security-Policy" content="
 const URL_ATTRIBUTES = new Set(["href", "xlink:href", "src", "srcset", "imagesrcset", "poster", "action", "formaction", "data", "background", "ping", "manifest", "cite", "longdesc", "codebase", "archive", "icon", "lowsrc", "dynsrc", "profile", "usemap"]);
 const REMOTE_IN_VALUE = /(?:^|[\s,;=(])\s*(?:(?:https?|ftp|wss?):)?\/\/|^\s*(?:https?|ftp|wss?):/iu;
 
+// Out-of-range or surrogate code points decode to U+FFFD instead of throwing RangeError.
+function safeCodePoint(n) {
+  return Number.isInteger(n) && n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : "\ufffd";
+}
+
 function decodeAttributeEntities(value) {
   const named = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", colon: ":", sol: "/", lpar: "(", rpar: ")", comma: ",", semi: ";", equals: "=", tab: "\t", newline: "\n" };
   return value.replace(/&(?:#x([0-9a-f]+)|#([0-9]+)|([a-z][a-z0-9]*));?/giu, (whole, hex, dec, name) => {
-    if (hex) return String.fromCodePoint(Number.parseInt(hex, 16));
-    if (dec) return String.fromCodePoint(Number.parseInt(dec, 10));
+    if (hex) return safeCodePoint(Number.parseInt(hex, 16));
+    if (dec) return safeCodePoint(Number.parseInt(dec, 10));
     return Object.hasOwn(named, name.toLowerCase()) ? named[name.toLowerCase()] : whole;
   });
 }
 
 function decodeCss(css) {
   return css.replace(/\/\*[\s\S]*?\*\//gu, " ")
-    .replace(/\\([0-9a-f]{1,6})\s?/giu, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/\\([0-9a-f]{1,6})\s?/giu, (_, hex) => safeCodePoint(Number.parseInt(hex, 16)))
     .replace(/\\(.)/gu, "$1");
 }
 
@@ -2094,9 +2102,13 @@ function parseAttributes(tag) {
 function remoteResourceRefs(html) {
   const found = [];
   const flag = (offset, reason, excerpt) => found.push({ offset, reason, excerpt: excerpt.slice(0, 80) });
-  // Quote-aware start tags: a ">" inside a quoted attribute value does not end the tag.
-  const contexts = /<!--[\s\S]*?-->|(<script\b(?:"[^"]*"|'[^']*'|[^'">])*>)[\s\S]*?<\/script\s*>|(<style\b(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)<\/style\s*>|<[a-zA-Z](?:"[^"]*"|'[^']*'|[^'">])*>/giu;
+  // Start tags are tokenized quote-aware only after "=", so an apostrophe inside an unquoted
+  // value cannot open a fake quoted string. Any "<letter" not covered by a token fails closed.
+  const START = `(?:[^>=]|=\\s*(?:"[^"]*"|'[^']*'|[^\\s"'>][^\\s>]*|(?=>)))*>`;
+  const contexts = new RegExp(`<!--[\\s\\S]*?-->|(<script\\b${START})[\\s\\S]*?<\\/script\\s*>|(<style\\b${START})([\\s\\S]*?)<\\/style\\s*>|<[a-zA-Z]${START}`, "giu");
+  const covered = [];
   for (const match of html.matchAll(contexts)) {
+    covered.push([match.index, match.index + match[0].length]);
     if (match[0].startsWith("<!--")) continue;
     const tag = match[1] ?? match[2] ?? match[0];
     const element = tag.match(/^<([a-zA-Z][^\s/>]*)/u)[1].toLowerCase();
@@ -2112,13 +2124,18 @@ function remoteResourceRefs(html) {
     }
     if (match[3] !== undefined && cssFetches(match[3])) flag(match.index, "style", match[3]);
   }
+  let span = 0;
+  for (const start of html.matchAll(/<[a-zA-Z]/gu)) {
+    while (span < covered.length && covered[span][1] <= start.index) span += 1;
+    if (span >= covered.length || covered[span][0] > start.index) flag(start.index, "untokenizable tag", html.slice(start.index, start.index + 80));
+  }
   return found;
 }
 
 function enforceOfflineHtml(html) {
   const charsetAt = html.indexOf(CHARSET_LINE);
-  if (charsetAt === -1 || html.indexOf(CHARSET_LINE, charsetAt + 1) !== -1 || !html.startsWith(OFFLINE_CSP_LINE, charsetAt + CHARSET_LINE.length)) {
-    throw new AppError("NETWORK_ACCESS_DENIED", "HTML lacks the exact offline Content-Security-Policy immediately after its charset declaration");
+  if (charsetAt === -1 || html.indexOf(CHARSET_LINE, charsetAt + 1) !== -1 || !OFFLINE_HEAD_PREFIX.test(html.slice(0, charsetAt)) || !html.startsWith(OFFLINE_CSP_LINE, charsetAt + CHARSET_LINE.length)) {
+    throw new AppError("NETWORK_ACCESS_DENIED", "HTML lacks the exact offline Content-Security-Policy as live head metadata right after its charset declaration");
   }
   const refs = remoteResourceRefs(html);
   if (refs.length) throw new AppError("NETWORK_ACCESS_DENIED", "HTML loads a remote resource although network_access_from_html is default-denied", 1, refs.slice(0, 20));
