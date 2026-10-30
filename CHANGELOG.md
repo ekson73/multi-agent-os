@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `decision-engine`: explicit human-authority acts in technical items
+
+- `R2-guard` now keeps account permissions/settings, MFA changes, provider-safety
+  acceptance and real-personal-data use visible as HITL even with a technical type.
+  Action/object matching preserves synthetic parsing and recognized local mock/test
+  implementation descriptions, including sensitive feature phrases. Real/production
+  or unrecognised targets and separate sensitive requests retain the HITL gate.
+  R0/default policy and R1 precedence remain unchanged; routing never grants consent.
+- Human-act negation must directly qualify the sensitive action; an adverbial
+  modifier does not suppress HITL, and a separate affirmative action stays guarded.
+- Evaluate local intent per existing source field without benign title contamination,
+  retaining real/production/unknown-target context across fields. Guard recognized
+  PT/EN gerunds and rhetorical proposals; genuine operational negations remain DIY.
+- Account/user permission relations accept PT/EN articles after prepositions,
+  including `ao`/`aos`, `para`/`pra`, while keeping negation and local-test boundaries.
+- Recognizes bounded target-first `grant`/`granting` user/account access, including
+  ordinary articles, while retaining direct-negation, local-mock and real-context
+  boundaries. Real direct/session-pipe regressions cover both target/object orders.
+- Accepts `my` in the existing account/permissions and MFA object prefixes, including
+  recognized gerunds, while preserving direct-negation, bounded local-mock and
+  real-context rules. Direct and real-pipe regressions cover decidir/title/titulo.
+- Synopsis JSON preserves the existing `title`/`titulo`, structured `options`
+  (including evidence/confidence) and `idade` fields without type coercion or raw
+  metadata overrides of canonical fields/scope. Direct and real session-scoped CLI
+  pipe regressions cover attached/orphan items, recommendation evidence and controls.
+- Real CLI and session-scoped synopsis pipe regressions cover both policies,
+  technical aliases, boundaries and precedence. Refs #555, parent PR #556.
+- Integrates row-evidence recommendations and GUT priority without dropping the
+  human-act guard or transport contract. Real-pipe regressions cover R2 deferrals
+  on both sides of an explicit `--today` date, retaining the same clock in R1/R2.
+- The current Main-branch short written-recommendation parser composes with guarded titles
+  through the real session pipe, including negative word-boundary and structured-
+  option precedence controls.
+- The three newer real-pipe tests use the existing optional-sibling availability
+  guard: execute when synopsis is present, skip only when it is absent.
+
 ### Changed — ADR-020 §5: pluggable engine with a per-boundary fallback queue (proposed, nothing built)
 
 - The reviewer keeps one App per trust boundary and one reusable workflow; the model CLI becomes a pluggable

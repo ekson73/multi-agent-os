@@ -52,7 +52,7 @@ item, who should act and what the recommended answer is.
 |---|---|---|
 | `R0-leaked-secret` | `credencial` sobre segredo/PII já vazado, exposto ou comprometido (rotação planejada NÃO conta) | `DIY`, `denied: true` (sem rotação) |
 | `R1-human-type` | tipo é um dos 5 do SSOT | `HITL` com recomendação |
-| `R2-guard` | item técnico que cita produção/irreversível, gasto ou envio | `HITL` |
+| `R2-guard` | item técnico que cita produção/irreversível, gasto, envio ou ato explícito de conta/segurança/uso de dados pessoais reais | `HITL` |
 | `R3-technical` | tipo técnico (`tecnico`, `tatico`, `operacional`, ...) | `DIY` |
 | `R4-unknown` | tipo ausente ou desconhecido | `COMPUTE` (classificar e recalcular) |
 
@@ -65,6 +65,32 @@ A política `R0` vem do operador: vazamento já existente é ignorado, sem pedir
 Para voltar ao comportamento de escalar, passe `--policy` com
 `{"leaked_secret": "escalate"}`. Política inválida (chave ou valor desconhecido, JSON
 quebrado) sai com exit `2`; nunca é adivinhada.
+
+O guard `R2` reconhece ação + objeto: mudar permissões/configurações da conta,
+ativar/desativar MFA, aceitar verificação de segurança do provedor ou usar dados
+pessoais reais. `conta` ou `dados` isolados não bastam: parsing de conta sintética,
+fixtures de dados sintéticos e formas explícitas reconhecidas de implementação local
+de testes/mocks continuam técnicos, mesmo descrevendo a funcionalidade de MFA/permissões.
+O ato deve ser apenas a descrição da funcionalidade: alvo real, produção, outro pedido
+sensível ou alvo não reconhecido como sintético continuam HITL. Uma palavra `mock`
+ou `teste` solta não retira o gate. É proteção lexical limitada, não classificação
+universal de HUMAN_DOMAIN.
+O pedido é avaliado por campo (`decidir`, `titulo`, `title`, incluindo o fallback
+legado): título descritivo benigno não vira sufixo da ação local. Escopo real,
+produção, alvo indefinido ou outro pedido sensível em qualquer campo mantêm o gate.
+As quatro classes reconhecem também gerúndios PT/EN, sem pretensão de flexão universal.
+A negação operacional só neutraliza o ato quando ligada diretamente ao verbo;
+urgência e propostas retóricas `why not` / `por que não` não declinam a ação.
+Perguntas técnicas sem pedido sensível continuam técnicas.
+As relações de permissão aceitam artigos PT/EN após a preposição e contrações como
+`ao`/`aos`/`à`/`às`, além de `para`/`pra`: o objeto continua restrito a conta/usuário.
+A concessão EN também aceita a ordem alvo → acesso (`Grant user access`,
+`Grant an account access`), com `grant`/`granting`, sem ampliar para palavras de
+segurança isoladas; as mesmas exclusões de negação direta e implementação local valem.
+Nas relações já reconhecidas de conta/permissões e MFA, o determinante EN `my`
+também é aceito antes do objeto; isso não amplia a lista de atos nem as exclusões.
+Antes de agir, preserve a confirmação exigida pelo efeito e pela autoridade da ação,
+independentemente de `route`; nenhum veredito concede consentimento.
 
 Evidência do próprio item (R1 e R2). Sem opção estruturada, o motor lê o texto
 `decidir` da linha e usa o primeiro fato que achar, nesta ordem:
@@ -102,6 +128,11 @@ FUSE="$MAOS_DIR/skills/synopsis-panel/bin/synopsis-fuse.py"
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format json \
   | python3 "$DE" - --format tree --sort gut   # ou --format json (envelope decision-engine/verdict/v1)
 ```
+
+Resolva `DE` e `FUSE` na mesma árvore/revisão revisada. Os campos que o envelope
+preserva estão no [contrato dos itens JSON do synopsis-panel](../synopsis-panel/SKILL.md#contrato-dos-itens-json).
+Títulos e opções devem produzir a mesma rota e recomendação na entrada direta e no
+pipe; o escopo continua sendo o recorte explícito do digest, sem conceder consentimento.
 
 Saída JSON:
 

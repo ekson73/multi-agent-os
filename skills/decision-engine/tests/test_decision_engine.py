@@ -13,6 +13,160 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "bin" / "decision_engine.py"
 FUSE = ROOT.parent / "synopsis-panel" / "bin" / "synopsis-fuse.py"
 
+GERUND_PAIRS = (
+    ("Changing real account permissions for user X",
+     "Without changing real account permissions for user X"),
+    ("Disabling MFA for the account", "Not disabling MFA for the account"),
+    ("Alterando permissões da conta", "Não alterando permissões da conta"),
+    ("Desativando MFA da conta", "Não desativando MFA da conta"),
+    ("Accepting the provider safety check", "Not accepting the provider safety check"),
+    ("Aceitando a verificação de segurança do provedor",
+     "Não aceitando a verificação de segurança do provedor"),
+    ("Using real personal data", "Not using real personal data"),
+    ("Usando dados pessoais reais", "Não usando dados pessoais reais"),
+)
+METADATA_VALUES = (
+    ("MFA tests", "DIY"),
+    ("Testes de MFA", "DIY"),
+    ("Account permission tests", "DIY"),
+    ("real account", "HITL"),
+    ("conta real", "HITL"),
+    ("target account", "HITL"),
+    ("in the account", "HITL"),
+    ("produção", "HITL"),
+    ("Disable MFA on the account", "HITL"),
+    ("Usar dados pessoais reais", "HITL"),
+)
+
+LOCAL_IMPLEMENTATIONS = (
+    "Implementar testes locais para desativar MFA em conta sintética",
+    "Implement a local mock to change account permissions",
+    "Criar mock local para alterar permissões da conta",
+    "Criar fixture sintética para desativar autenticação multifator",
+)
+DIRECT_NEGATIONS = (
+    "Não desativar MFA da conta",
+    "Do not change real account permissions",
+    "Sem alterar permissões reais da conta",
+    "Without changing real account permissions",
+)
+MIXED_REAL_ACTS = (
+    "Implementar testes locais para desativar MFA em conta real",
+    "Implement a local mock to change account permissions in a real account",
+    "Implement a local mock to change real account permissions",
+    "Implementar testes locais para alterar permissões reais da conta",
+    "Implement a local mock to change account permissions in production",
+    "Implementar testes locais para desativar MFA na conta alvo",
+    "Mock de teste: desativar MFA da conta",
+    "Implement a local mock to use real personal data",
+    "Implementar testes locais para desativar MFA em conta sintética; desativar MFA",
+    "Without delay disable MFA on the account",
+    "Sem demora desativar MFA da conta",
+    "Without hesitation change real account permissions",
+    "Sem hesitar alterar permissões da conta real",
+    "Não desativar MFA; alterar permissões da conta real",
+    "Without changing real account permissions, disable MFA on the account",
+    "Por que não desativar MFA da conta?",
+    "Why not change account permissions?",
+)
+
+ARTICLE_PERMISSION_ACTS = (
+    "Change permissions of the account",
+    "Grant access to the account",
+    "Grant access to the user",
+    "Revoke privileges for a user",
+    "Modify settings on an account",
+    "Conceder acesso ao usuário",
+    "Conceder acesso aos usuários",
+    "Conceder acesso à conta",
+    "Conceder acesso às contas",
+    "Alterar permissões de uma conta",
+    "Alterar permissões em uma conta",
+    "Alterar permissões para a conta",
+    "Alterar permissões pra uma conta",
+    "Conceder acesso para o usuário",
+    "Conceder acesso pra os usuários",
+)
+ARTICLE_CONTROLS = (
+    "Escolher parser local",
+    "Do not change permissions of the account",
+    "Without granting access to the account",
+    "Não conceder acesso ao usuário",
+    "Sem alterar permissões para a conta",
+    "Criar mock local para alterar permissões de uma conta",
+    "Implement a local mock to change permissions of the account",
+    "Escolher parser para o relatório de permissões da conta",
+)
+
+
+TARGET_FIRST_ACCESS_ACTS = (
+    "Grant user access",
+    "Grant a user access",
+    "Grant the users access",
+    "Grant an account access",
+    "Granting user access",
+    "Granting the account access",
+    "Why not grant user access?",
+    "Without delay grant user access",
+    "Implement a local mock to grant user access in a real account",
+)
+TARGET_FIRST_ACCESS_CONTROLS = (
+    "Do not grant user access",
+    "Without granting user access",
+    "Implement a local mock to grant user access",
+    "Implement a local mock to grant the account access",
+    "Implement a local mock to grant user access in a synthetic account",
+    "Implement a user access parser",
+)
+
+
+POSSESSIVE_HUMAN_ACTS = (
+    "Disable my MFA",
+    "Change my account permissions",
+    "Disabling my MFA",
+    "Changing my account permissions",
+    "Why not disable my MFA?",
+    "Without delay change my account permissions",
+    "Implement a local mock to disable my MFA in a real account",
+)
+POSSESSIVE_TECHNICAL_CONTROLS = (
+    "Do not disable my MFA",
+    "Do not change my account permissions",
+    "Without changing my account permissions",
+    "Implement a local mock to disable my MFA",
+    "Implement a local mock to change my account permissions",
+)
+
+
+HUMAN_ACTS = (
+    "Alterar permissões da conta do provedor",
+    "Desativar a autenticação multifator da conta",
+    "Aceitar a verificação de segurança do provedor",
+    "Usar dados pessoais reais do cliente na análise",
+    "Conceder permissão da conta",
+    "Change provider account permissions",
+    "Disable multi-factor authentication",
+    "Accept the provider safety check",
+    "Use real personal data",
+    "Usar dados reais do cliente",
+    "Alterar permissões de conta",
+    "Alterar permissões na conta",
+    "Conceder permissão à conta",
+) + ARTICLE_PERMISSION_ACTS + TARGET_FIRST_ACCESS_ACTS + POSSESSIVE_HUMAN_ACTS + MIXED_REAL_ACTS
+TECHNICAL_CONTROLS = (
+    "Escolher biblioteca de parsing",
+    "Fazer parsing de conta sintética",
+    "Implementar biblioteca de autenticação local sem conta real",
+    "Analisar fixture de dados pessoais sintéticos",
+    "Usar dados pessoais sintéticos",
+    "Usar dados sintéticos do cliente",
+    "Implementar biblioteca local sem alterar permissões da conta",
+    "Não desativar autenticação multifator",
+    "Do not disable MFA",
+    "Why does the local MFA mock fail?",
+    "Por que o teste local de MFA falha?",
+) + ARTICLE_CONTROLS + TARGET_FIRST_ACCESS_CONTROLS + POSSESSIVE_TECHNICAL_CONTROLS + LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS
+
 
 def _load():
     spec = importlib.util.spec_from_file_location("decision_engine", SCRIPT)
@@ -242,6 +396,239 @@ def test_tree_output_shows_the_recommendation_basis():
     assert "[base: type-default" in _cli([_item("H-2002", "gasto")], "--format", "tree")
 
 
+@pytest.mark.parametrize("tipo", [*de.TECH_TYPES, "TÉCNICO"])
+@pytest.mark.parametrize("override", [False, True])
+def test_explicit_human_acts_stay_visible_but_technical_work_stays_diy(
+        tmp_path, tipo, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    payload = [_item(f"H-{3000 + i}", tipo, text)
+               for i, text in enumerate(HUMAN_ACTS + TECHNICAL_CONTROLS)]
+    verdicts = json.loads(_cli(payload, *extra))["verdicts"]
+    assert len(verdicts) == len(payload)
+    for i, v in enumerate(verdicts):
+        expected = ("HITL", "R2-guard") if i < len(HUMAN_ACTS) else ("DIY", "R3-technical")
+        assert (v["route"], v["rule"]) == expected, payload[i]
+        assert v["denied"] is False
+        assert "approved" not in v and "resolved" not in v
+        if v["route"] == "HITL":
+            assert v["recommendation"] and v["alternatives"]
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_human_act_guard_keeps_rule_precedence_and_existing_guards(tmp_path, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    payload = [
+        _item("H-4000", "credencial", "Token exposto; " + HUMAN_ACTS[0]),
+        _item("H-4001", "negocio", HUMAN_ACTS[0]),
+        _item("H-4002", "desconhecido", HUMAN_ACTS[0]),
+        _item("H-4003", "tecnico", "Apagar tabela em produção"),
+        _item("H-4004", "tecnico", "Comprar licença por R$ 500"),
+        _item("H-4005", "tecnico", "Enviar mensagem ao cliente"),
+    ]
+    verdicts = json.loads(_cli(payload, *extra))["verdicts"]
+    first = ("HITL", "R1-human-type", False) if override else ("DIY", "R0-leaked-secret", True)
+    assert [(v["route"], v["rule"], v["denied"]) for v in verdicts] == [
+        first, ("HITL", "R1-human-type", False), ("COMPUTE", "R4-unknown", False),
+        *(("HITL", "R2-guard", False) for _ in range(3))]
+    assert all("approved" not in v and "resolved" not in v for v in verdicts)
+
+
+@pytest.mark.parametrize("field", ["titulo", "title"])
+def test_human_act_guard_reads_the_existing_title_fields(field):
+    out = json.loads(_cli(_item("H-4100", "tecnico", "", **{field: HUMAN_ACTS[0]})))
+    assert out["verdicts"][0]["rule"] == "R2-guard"
+
+
+@pytest.mark.skipif(not FUSE.is_file(), reason="synopsis-panel not installed")
+@pytest.mark.parametrize("override", [False, True])
+def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
+        tmp_path, monkeypatch, override):
+    """Both real CLIs, synthetic input only, no collector or live ledger."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    compass = tmp_path / "compass.json"
+    compass.write_text("{}", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    payload = [
+        _item(f"H-{5000 + i}", "tecnico", text, session_id="guard-fixture")
+        for i, text in enumerate(HUMAN_ACTS[:4] + TECHNICAL_CONTROLS[:4])]
+    payload += [
+        _item("H-5100", "credencial", "Token exposto", session_id="guard-fixture"),
+        _item("H-5101", "tecnico", HUMAN_ACTS[0], session_id="other-fixture"),
+    ]
+    payload += [
+        _item(f"H-{5200 + i}", "tecnico", text, session_id="guard-fixture")
+        for i, text in enumerate(LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS + MIXED_REAL_ACTS)]
+    for i, (positive, negative) in enumerate(GERUND_PAIRS):
+        payload += [
+            _item(f"H-{6100 + 2 * i}", "tecnico", positive, session_id="guard-fixture"),
+            _item(f"H-{6101 + 2 * i}", "tecnico", negative, session_id="guard-fixture")]
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    fuse = subprocess.run(
+        [sys.executable, str(FUSE), "--hitl-only", "--compass-json", str(compass),
+         "--hitl-json", "-", "--scope", "session", "--session-id", "guard-fixture",
+         "--format", "json"],
+        input=json.dumps(payload), capture_output=True, text=True, timeout=60)
+    assert fuse.returncode == 0, fuse.stderr
+    envelope = json.loads(fuse.stdout)
+    assert envelope["schema"] == "synopsis-panel/v1"
+    out = json.loads(_cli(envelope, *(("--policy", str(policy)) if override else ())))
+    routes = {v["id"]: (v["route"], v["denied"]) for v in out["verdicts"]}
+    assert routes == {
+        **{f"H-{5000 + i}": ("HITL", False) for i in range(4)},
+        **{f"H-{5004 + i}": ("DIY", False) for i in range(4)},
+        "H-5100": ("HITL", False) if override else ("DIY", True),
+        **{f"H-{5200 + i}": ("DIY", False)
+           for i in range(len(LOCAL_IMPLEMENTATIONS) + len(DIRECT_NEGATIONS))},
+        **{f"H-{5200 + len(LOCAL_IMPLEMENTATIONS) + len(DIRECT_NEGATIONS) + i}": ("HITL", False)
+           for i in range(len(MIXED_REAL_ACTS))},
+        **{f"H-{6100 + 2 * i}": ("HITL", False) for i in range(len(GERUND_PAIRS))},
+        **{f"H-{6101 + 2 * i}": ("DIY", False) for i in range(len(GERUND_PAIRS))},
+    }
+    assert out["source"]["hitl_scope"] == "session"
+    assert out["source"]["hitl_session_resolved"] is True
+    assert out["source"]["hitl_ledger_total"] == len(payload)
+    assert not out["source"].get("hitl_scope_unresolved")
+    assert all("approved" not in v and "resolved" not in v for v in out["verdicts"])
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("positive,negative", GERUND_PAIRS)
+@pytest.mark.parametrize("override", [False, True])
+def test_recognized_gerund_is_guarded_and_its_negation_is_load_bearing(
+        tmp_path, positive, negative, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    out = json.loads(_cli([_item("H-7000", "tecnico", positive),
+                           _item("H-7001", "tecnico", negative)], *extra))
+    assert [(v["route"], v["rule"]) for v in out["verdicts"]] == [
+        ("HITL", "R2-guard"), ("DIY", "R3-technical")]
+    assert all(v["denied"] is False and "approved" not in v and "resolved" not in v
+               for v in out["verdicts"])
+
+
+@pytest.mark.parametrize("field", ["title", "titulo"])
+@pytest.mark.parametrize("metadata,route", METADATA_VALUES)
+@pytest.mark.parametrize("override", [False, True])
+def test_local_action_keeps_benign_metadata_but_honors_global_sensitive_context(
+        tmp_path, field, metadata, route, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    out = json.loads(_cli(_item("H-7100", "tecnico", LOCAL_IMPLEMENTATIONS[0],
+                               **{field: metadata}), *extra))
+    v = out["verdicts"][0]
+    assert v["route"] == route
+    assert v["rule"] == ("R3-technical" if route == "DIY" else "R2-guard")
+    assert v["denied"] is False and "approved" not in v and "resolved" not in v
+
+
+@pytest.mark.parametrize("field", ["title", "titulo"])
+@pytest.mark.parametrize("override", [False, True])
+def test_local_action_in_legacy_title_without_decidir_still_works(tmp_path, field, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    out = json.loads(_cli({"id": "H-7200", "tipo": "tecnico",
+                          field: LOCAL_IMPLEMENTATIONS[1]}, *extra))
+    assert out["verdicts"][0]["route"] == "DIY"
+
+
+@pytest.mark.skipif(not FUSE.is_file(), reason="synopsis-panel not installed")
+@pytest.mark.parametrize("attached", [False, True])
+def test_supported_metadata_and_guard_boundaries_survive_real_session_pipe(
+        tmp_path, monkeypatch, attached):
+    """The normalized consumer sees the same decisions as the direct real CLI."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    session = "metadata-fixture"
+    payload, expected_routes = [], {}
+    boundary_cases = (
+        [(text, "HITL") for text in
+         ARTICLE_PERMISSION_ACTS + TARGET_FIRST_ACCESS_ACTS + POSSESSIVE_HUMAN_ACTS + HUMAN_ACTS[:4]]
+        + [("Disable MFA", "HITL")]
+        + [(text, "DIY") for text in
+           ARTICLE_CONTROLS + TARGET_FIRST_ACCESS_CONTROLS + POSSESSIVE_TECHNICAL_CONTROLS + LOCAL_IMPLEMENTATIONS])
+    for field in ("decidir", "title", "titulo"):
+        for text, route in boundary_cases:
+            hid = f"H-{8000 + len(payload)}"
+            item = _item(hid, "tecnico", "Escolher parser local", session_id=session)
+            item[field] = text
+            payload.append(item)
+            expected_routes[hid] = route
+    for evidence in (None, "", " \t ", 123, {}, ["synthetic-ref"], "synthetic:pricing-v1"):
+        hid = f"H-{8000 + len(payload)}"
+        payload.append(_item(
+            hid, "gasto", "Comparar planos sintéticos", session_id=session,
+            idade="3 d", options=[
+                {"label": "Plano B", "description": "Sem mudança"},
+                {"label": "Plano A", "description": "Alternativa sintética",
+                 "recommended": True, "evidence": evidence, "confidence": 0.9}],
+            approved=True, resolved=True, scope="all", type="system",
+            meta={"hitl_scope": "all"}, session=["other-fixture"],
+            glyph="raw", flag="raw", human="raw"))
+        expected_routes[hid] = "HITL"
+    unknown = _item("H-8900", "nao_classificado", "Classificar alternativa",
+                    title={"synthetic": "metadata"}, titulo=["synthetic"],
+                    session_id=session)
+    payload.append(unknown)
+    expected_routes[unknown["id"]] = "COMPUTE"
+    selected = list(payload)
+    payload.append(_item("H-8999", "tecnico", "Disable MFA", session_id="other-fixture"))
+    compass = {"meta": {"scope": "session"}, "by_domain": {}}
+    if attached:
+        compass["by_domain"]["synthetic"] = [
+            {"id": f"node-{i}", "title": "Synthetic node", "refs": {"hitl": item["id"]}}
+            for i, item in enumerate(payload)]
+    compass_file = tmp_path / "compass.json"
+    compass_file.write_text(json.dumps(compass), encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    fuse = subprocess.run(
+        [sys.executable, str(FUSE), "--compass-json", str(compass_file),
+         "--hitl-json", "-", "--scope", "session", "--session-id", session,
+         *([] if attached else ["--hitl-only"]), "--format", "json"],
+        input=json.dumps(payload), capture_output=True, text=True, timeout=60)
+    assert fuse.returncode == 0, fuse.stderr
+    envelope = json.loads(fuse.stdout)
+    normalized = de.collect_items(envelope)
+    assert [item["id"] for item in normalized] == [item["id"] for item in selected]
+    for original, normalized_item in zip(selected, normalized):
+        assert normalized_item["tipo"] == original["tipo"]
+        assert normalized_item["sev"] == "ALTA"
+        for key in ("title", "titulo", "options", "idade"):
+            if key in original:
+                assert normalized_item[key] == original[key]
+        assert not {"approved", "resolved", "scope", "type", "meta", "session"} & normalized_item.keys()
+        assert normalized_item["glyph"] != "raw" and normalized_item["flag"] != "raw"
+        assert normalized_item["human"] != "raw"
+    direct = json.loads(_cli(selected, "--policy", str(policy)))
+    piped = json.loads(_cli(envelope, "--policy", str(policy)))
+    assert piped["verdicts"] == direct["verdicts"]
+    assert {v["id"]: v["route"] for v in piped["verdicts"]} == expected_routes
+    for item, verdict in zip(selected, piped["verdicts"]):
+        if "options" in item:
+            evidenced = isinstance(item["options"][1]["evidence"], str) and bool(
+                item["options"][1]["evidence"].strip())
+            assert verdict["options_source"] == "structured"
+            assert verdict["recommendation_basis"] == (
+                "evidence" if evidenced else "type-default:structured")
+            assert verdict["recommendation"].startswith("Plano A" if evidenced else "Plano B")
+        assert "approved" not in verdict and "resolved" not in verdict
+    assert piped["source"]["hitl_scope"] == "session"
+    assert piped["source"]["hitl_session_resolved"] is True
+    assert envelope["meta"]["hitl_session_ids"] == [session]
+    assert piped["source"]["hitl_ledger_total"] == len(payload)
+    assert envelope["meta"]["hitl_attached"] == (len(selected) if attached else 0)
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+
 # ── R9: recommendation from the item's own evidence + GUT priority ─────────────────
 import datetime as _dt
 
@@ -383,3 +770,91 @@ def test_negated_evidence_is_not_evidence(text):
 
 def test_negated_blocking_word_does_not_raise_the_trend():
     assert de.decide(_item("H-0207", "negocio", "não trava nada"), today=TODAY)["priority"]["t"] == 3
+
+
+@pytest.mark.skipif(not FUSE.is_file(), reason="synopsis-panel not installed")
+@pytest.mark.parametrize("today,deferred", [("2029-01-01", True), ("2031-01-01", False)])
+def test_guarded_title_uses_shared_evidence_clock_through_real_session_pipe(
+        tmp_path, monkeypatch, today, deferred):
+    """Merge seam: R2 titles keep both row evidence/GUT and the explicit clock."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    session = "merged-evidence-fixture"
+    payload = [
+        _item("H-9001", "tecnico", "ADIADO; revisar em 2030-01-15",
+              title="Disable MFA", prazo="2030-01-15", risk="R3", session_id=session),
+        _item("H-9002", "tecnico", "Escolher parser local", session_id=session),
+        _item("H-9003", "nao_classificado", "Classificar alternativa", session_id=session)]
+    compass = tmp_path / "compass.json"
+    compass.write_text("{}", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    fuse = subprocess.run(
+        [sys.executable, str(FUSE), "--hitl-only", "--compass-json", str(compass),
+         "--hitl-json", "-", "--scope", "session", "--session-id", session,
+         "--format", "json"],
+        input=json.dumps(payload), capture_output=True, text=True, timeout=60)
+    assert fuse.returncode == 0, fuse.stderr
+    extra = ("--policy", str(policy), "--today", today)
+    direct = json.loads(_cli(payload, *extra))
+    piped = json.loads(_cli(json.loads(fuse.stdout), *extra))
+    assert direct["verdicts"] == piped["verdicts"]
+    guarded, technical, unknown = piped["verdicts"]
+    assert (guarded["route"], guarded["rule"]) == ("HITL", "R2-guard")
+    assert guarded["recommendation_basis"] == (
+        "evidence:adiado" if deferred else "type-default:type-generic")
+    assert guarded["confidence"] == ("alta" if deferred else "nenhuma")
+    assert guarded["priority"] == {
+        "g": 5, "u": 1 if deferred else 5, "t": 1 if deferred else 3,
+        "score": 5 if deferred else 75, "method": "GUT"}
+    assert technical["route"] == "DIY" and unknown["route"] == "COMPUTE"
+    assert piped["source"]["hitl_scope"] == "session"
+    assert piped["source"]["hitl_session_resolved"] is True
+    assert all("approved" not in v and "resolved" not in v for v in piped["verdicts"])
+
+
+@pytest.mark.skipif(not FUSE.is_file(), reason="synopsis-panel not installed")
+@pytest.mark.parametrize("text,structured,basis", [
+    ("Rec. A: manter pendente; alt. B: rever fixture.", False,
+     "evidence:recomendacao-registrada"),
+    ("Ver spec. Prec.: nada aqui", False, "type-default:type-generic"),
+    ("Rec. A: manter pendente; alt. B: rever fixture.", True, "evidence"),
+])
+def test_guarded_title_keeps_written_recommendation_semantics_through_real_pipe(
+        tmp_path, monkeypatch, text, structured, basis):
+    """New Main parser composes with R2/title transport, not only R1 input."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    session = "resync-recommendation-fixture"
+    item = _item("H-9100", "tecnico", text,
+                 title="Change permissions of the account", session_id=session)
+    if structured:
+        item["options"] = [
+            {"label": "Opção estruturada", "description": "Sem efeito",
+             "recommended": True, "evidence": "synthetic:fixture"},
+            {"label": "Alternativa", "description": "Nada muda"}]
+    compass = tmp_path / "compass.json"
+    compass.write_text("{}", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    fuse = subprocess.run(
+        [sys.executable, str(FUSE), "--hitl-only", "--compass-json", str(compass),
+         "--hitl-json", "-", "--scope", "session", "--session-id", session,
+         "--format", "json"],
+        input=json.dumps([item]), capture_output=True, text=True, timeout=60)
+    assert fuse.returncode == 0, fuse.stderr
+    extra = ("--policy", str(policy), "--today", "2031-01-01")
+    direct = json.loads(_cli([item], *extra))
+    piped = json.loads(_cli(json.loads(fuse.stdout), *extra))
+    assert direct["verdicts"] == piped["verdicts"]
+    verdict = piped["verdicts"][0]
+    assert (verdict["route"], verdict["rule"]) == ("HITL", "R2-guard")
+    assert verdict["recommendation_basis"] == basis
+    if structured:
+        assert verdict["recommendation"].startswith(item["options"][0]["label"])
+        assert verdict["options_source"] == "structured"
+    elif basis == "evidence:recomendacao-registrada":
+        assert verdict["recommendation"] == "manter pendente"
+    assert piped["source"]["hitl_scope"] == "session"
+    assert piped["source"]["hitl_session_resolved"] is True
+    assert "approved" not in verdict and "resolved" not in verdict

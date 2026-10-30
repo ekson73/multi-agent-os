@@ -243,6 +243,9 @@ echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \
 O envelope do engine carrega o `source` do digest (`hitl_scope`,
 `hitl_scope_unresolved`, `hitl_ledger_total`): escopo não resolvido continua sendo dito
 como tal, nunca como fila vazia.
+O renderer e o engine devem vir da mesma árvore/revisão revisada; o
+[contrato dos itens JSON](../skills/synopsis-panel/SKILL.md#contrato-dos-itens-json)
+preserva os títulos do guard e as opções/evidências sem tratar recomendação como consentimento.
 
 Antes do passo 2, ligue `SESSION_ID` e `SCOPE` ao que o digest mostrado usou: o
 `--session-id` dele e o `--scope` dele (vazio = o default da sessão). Use

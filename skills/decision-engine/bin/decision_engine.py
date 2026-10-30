@@ -21,9 +21,9 @@ Rules, evaluated in this order (first match wins):
                     leaks, no rotation". Overridable with --policy.
   R1 human-type     tipo in {credencial, gasto, irreversivel, envio, negocio}
                     -> HITL with recommendation + alternatives.
-  R2 guard          technical item whose text names an irreversible-in-production,
-                    spend or external-send act -> HITL (a mislabelled type never
-                    downgrades a human gate).
+  R2 guard          technical item naming production/spend/send or an explicit
+                    account/security/real-personal-data act -> HITL. This lexical
+                    guard is advisory, not a general authorization check.
   R3 technical      tipo in the technical aliases -> DIY (the agent decides and
                     records; technical decisions are not HITL).
   R4 unknown        anything else (missing/unrecognised tipo) -> COMPUTE: the agent
@@ -65,7 +65,58 @@ _GUARD_RE = re.compile(
     r"enviar|envio|mandar|send|publicar|postar|post|e-?mail|whatsapp|telegram|"
     r"slack|discord|sms)\b", re.IGNORECASE)
 
+# Action + sensitive object, not words such as "conta" or "dados" alone.
+# Fold accents at the call site; local implementation and synthetic parsing
+# remain technical unless the text actually requests one of these acts.
+_HUMAN_ACT_RE = re.compile(
+    r"\b(?:(?:alter(?:ar|ando)|mud(?:ar|ando)|modific(?:ar|ando)|conced(?:er|endo)|"
+    r"revog(?:ar|ando)|chang(?:e|ing)|modify(?:ing)?|grant(?:ing)?|revok(?:e|ing))\s+"
+    r"(?:(?:a|as|o|os|the|my)\s+)?(?:(?:permiss(?:ao|oes)|privilegios?|acesso|configurac(?:ao|oes)|"
+    r"permissions?|privileges?|access|settings?)(?:\s+(?:real|reais))?\s+"
+    r"(?:d[ao]s?|de|n[ao]s?|em|aos?|as?|para|pra|of|on|to|for)\s+"
+    r"(?:(?:a|as|o|os|um|uma|uns|umas|the|an)\s+)?"
+    r"(?:contas?|accounts?|usuarios?|users?)|(?:(?:real|live)\s+)?(?:provider\s+)?"
+    r"account\s+(?:permissions?|settings?))|"
+    r"grant(?:ing)?\s+(?:(?:a|an|the)\s+)?(?:users?|accounts?)\s+access|"
+    r"(?:ativ(?:ar|ando)|desativ(?:ar|ando)|habilit(?:ar|ando)|desabilit(?:ar|ando)|"
+    r"redefin(?:ir|indo)|enabl(?:e|ing)|disabl(?:e|ing)|reset(?:ting)?)\s+"
+    r"(?:(?:a|o|the|my)\s+)?(?:mfa|2fa|autenticacao\s+(?:multifator|de dois fatores)|"
+    r"multi[- ]factor authentication|two[- ]factor authentication)|"
+    r"(?:aceit(?:ar|ando)|aprov(?:ar|ando)|confirm(?:ar|ando)|autoriz(?:ar|ando)|"
+    r"accept(?:ing)?|approv(?:e|ing)|confirm(?:ing)?|authoriz(?:e|ing))\s+"
+    r"(?:(?:a|o|the)\s+)?(?:(?:verificacao|checagem) de seguranca d[oa] "
+    r"(?:provedor|plataforma)|provider[- ](?:safety|security) (?:check|verification))|"
+    r"(?:us(?:ar|ando)|utiliz(?:ar|ando)|process(?:ar|ando)|colet(?:ar|ando)|"
+    r"analis(?:ar|ando)|us(?:e|ing)|process(?:ing)?|collect(?:ing)?|analyz(?:e|ing))\s+"
+    r"(?:(?:os|the)\s+)?(?:dados pessoais reais|dados reais d[oa]s? clientes?|pii real|"
+    r"real (?:pii|personal data|customer data)))\b")
+
+# Only a directly attributed local implementation, not a stray "mock" label.
+# An unknown target or another request after the feature description stays HITL.
+_LOCAL_IMPL_PREFIX_RE = re.compile(
+    r"^(?:implementar|criar|escrever|implement|create|write)\s+"
+    r"(?:(?:um|uma|a|an|the)\s+)?"
+    r"(?:(?:testes?|mocks?|fixtures?)\s+(?:local|locais|sintetic[oa]s?)|"
+    r"(?:local|synthetic)\s+(?:tests?|mocks?|fixtures?))\s+(?:para|to)\s+$")
+_SYNTHETIC_TARGET_RE = re.compile(
+    r"\s*(?:(?:em|in|on)\s+(?:(?:uma?|a|an|the)\s+)?"
+    r"(?:contas?\s+sintetic[oa]s?|synthetic\s+accounts?|"
+    r"fixtures?\s+(?:sintetic[oa]s?|local|locais)|"
+    r"(?:synthetic|local)\s+fixtures?))?\s*[.!]?\s*")
+_REAL_OBJECT_RE = re.compile(r"\b(?:real|reais|live)\b")
+# Explicit real/unknown target metadata also constrains a local action field.
+_TARGET_CONTEXT_RE = re.compile(
+    r"\b(?:(?:em|na|no|in|on|for)\s+(?:(?:uma?|a|an|the)\s+)?"
+    r"(?:contas?|accounts?)(?!\s+sintetic[oa]s?\b)|"
+    r"contas?\s+(?:alvo|d[aoe]\s+(?:cliente|provedor))|"
+    r"(?:target|customer|provider)\s+accounts?)\b")
+
 _NEG_RE = re.compile(r"\b(n[aã]o|nunca|sem|not|never|no|without)\s+(\w+\s+)?$", re.IGNORECASE)
+# The new human-act guard only accepts a negator adjacent to the action.
+# Legacy exposure negation above keeps its existing policy semantics.
+_ACT_NEG_RE = re.compile(r"\b(?:nao|nunca|sem|not|never|no|without)\s*$")
+# A structured rhetorical proposal is not an operational prohibition.
+_PROPOSAL_RE = re.compile(r"\b(?:why\s+not|por\s+que\s+nao)\s*$")
 
 
 def reports_leak(text: str) -> bool:
@@ -86,6 +137,22 @@ def _fold(text: str) -> str:
     """Lower-case and strip accents, so 'irreversível' == 'irreversivel'."""
     norm = unicodedata.normalize("NFKD", text or "")
     return "".join(c for c in norm if not unicodedata.combining(c)).strip().lower()
+
+
+def _human_authority_act(text: str, context: str = "") -> bool:
+    folded = _fold(text)
+    global_text = _fold(context) if context else folded
+    for m in _HUMAN_ACT_RE.finditer(folded):
+        prefix = folded[:m.start()]
+        if _ACT_NEG_RE.search(prefix) and not _PROPOSAL_RE.search(prefix):
+            continue
+        if (_LOCAL_IMPL_PREFIX_RE.fullmatch(prefix)
+                and _SYNTHETIC_TARGET_RE.fullmatch(folded[m.end():])
+                and not _REAL_OBJECT_RE.search(global_text)
+                and not _TARGET_CONTEXT_RE.search(global_text)):
+            continue
+        return True
+    return False
 
 
 def _load_card_options(fuse_path: pathlib.Path = _FUSE_PATH):
@@ -345,9 +412,12 @@ def _route(item: dict, policy: dict | None, today: dt.date) -> dict:
         out.update(_hitl_verdict(item, "R1-human-type",
                                  f"tipo '{tipo}' é um dos 5 tipos HITL do SSOT", today))
         return out
-    if tipo in TECH_TYPES and (_GUARD_RE.search(text) or _MONEY_RE.search(text)):
+    if tipo in TECH_TYPES and (_GUARD_RE.search(text) or _MONEY_RE.search(text)
+                               or any(_human_authority_act(str(item.get(k, "")), text)
+                                      for k in ("decidir", "titulo", "title"))):
         out.update(_hitl_verdict(item, "R2-guard",
-                                 "item técnico cita ato irreversível/produção, gasto ou envio", today))
+                                 "item técnico cita ato irreversível/produção, gasto, envio "
+                                 "ou ato de conta/segurança/dados pessoais reais", today))
         return out
     if tipo in TECH_TYPES:
         out.update(route="DIY", rule="R3-technical", denied=False,

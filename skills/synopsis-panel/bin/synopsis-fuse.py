@@ -727,6 +727,9 @@ def fuse(compass: dict, hitl: list[dict], *, hitl_only: bool, pending_only: bool
 def _hitl_norm(h: dict) -> dict:
     sev = _sev_word(h.get("sev", ""))
     return {
+        # Downstream routing/options consume these fields with their original
+        # types. An allowlist keeps raw metadata out of canonical scope/flags.
+        **{k: h[k] for k in ("title", "titulo", "options", "idade") if k in h},
         "id": h.get("id", ""),
         "sev": sev,
         "tipo": h.get("tipo", ""),

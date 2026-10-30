@@ -182,6 +182,18 @@ No envelope JSON os mesmos fatos vêm em `meta.hitl_scope`, `meta.hitl_scope_rea
 `meta.hitl_scope_unresolved` e `meta.hitl_ledger_total` (o total **antes** do recorte,
 para "0 mostrados" nunca ser lido como "0 existentes").
 
+### Contrato dos itens JSON
+
+Além dos campos normalizados do ledger, cada item preserva `title`, `titulo`,
+`idade` e `options`, quando presentes, sem converter seus tipos. O `decision-engine`
+consome os títulos para o guard e reusa `options`: cada opção admite `label`,
+`description`, `recommended`, `evidence` e `confidence`. Só `evidence` string não vazia
+habilita a recomendação evidenciada; `opcoes` e evidência avulsa não são aliases.
+Metadados extras não substituem os campos canônicos nem o escopo/proveniência
+calculados pelo renderer. Opções e recomendações são dados consultivos, nunca
+consentimento, aprovação ou resolução do gate.
+
+
 ### Procedência do ledger (qual arquivo foi lido)
 
 Todo render nomeia o ledger que leu, e avisa quando ele diverge da versão rastreada:
