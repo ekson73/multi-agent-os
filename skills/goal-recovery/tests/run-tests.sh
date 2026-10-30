@@ -145,6 +145,28 @@ if "$PY" "$VALIDATE" "$DOD" >/dev/null 2>&1; then
 else
   bad "dod: valid example with provenance should still validate"
 fi
+gate_test_on "$DOD" "dod: empty for_goal without inconclusive.flag"                    'o["params"]["for_goal"]="  "'
+# DEFER waiver: empty for_goal WITH inconclusive.flag=true is valid (mirrors the handoff).
+TMPD="$(mktemp)"
+"$PY" - "$DOD" "$TMPD" <<'PY'
+import json, sys
+o = json.load(open(sys.argv[1])); o["params"]["for_goal"] = ""
+o["params"]["inconclusive"] = {"flag": True, "reasons": ["no_goal_anchor"]}
+json.dump(o, open(sys.argv[2], "w"))
+PY
+if "$PY" "$VALIDATE" "$TMPD" --type dod >/dev/null 2>&1; then
+  ok "dod: empty for_goal WITH inconclusive.flag=true DEFERS (waiver honored)"
+else
+  bad "dod: empty for_goal with inconclusive.flag=true should validate (DEFER waiver)"
+fi
+rm -f "$TMPD"
+# The renderer must emit the provenance fields the gate now requires (its self-gate would refuse otherwise).
+RENDER="$SKILLS/ooda-loop/bin/render_dod_as_prompt.py"
+if "$PY" "$RENDER" --spec "$DOD" --for-goal "regression goal" >/dev/null 2>&1; then
+  ok "render_dod_as_prompt.py output passes the provenance gate"
+else
+  bad "render_dod_as_prompt.py output is refused by the provenance gate"
+fi
 
 echo "-- $pass passed, $fail failed --"
 [ "$fail" -eq 0 ]

@@ -13,8 +13,9 @@
       "type": "object",
       "required": ["for_goal", "context_lock", "measurement_spec", "acceptance", "kpis", "termination_predicate", "confidence", "recovered_from", "inconclusive"],
       "additionalProperties": true,
+      "allOf": [{"if": {"not": {"properties": {"inconclusive": {"properties": {"flag": {"const": true}}, "required": ["flag"]}}, "required": ["inconclusive"]}}, "then": {"properties": {"for_goal": {"minLength": 1}}}}],
       "properties": {
-        "for_goal": {"type": "string", "minLength": 1, "description": "the {{goal}} this DoD measures — MUST equal the driving handoff-as-prompt.params.goal (L8 traceability). A DoD divorced from its goal is a SpecError."},
+        "for_goal": {"type": "string", "description": "the {{goal}} this DoD measures — MUST equal the driving handoff-as-prompt.params.goal (L8 traceability). A DoD divorced from its goal is a SpecError. Non-empty unless inconclusive.flag=true (DEFER) — enforced by the allOf below and by validate_envelope.py."},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "PROVENANCE GATE (mirrors handoff-as-prompt.params.confidence). Aggregate confidence [0,1] that this DoD correctly measures for_goal. Below conf_inconclusive (default 0.60) MUST set inconclusive.flag=true. Without this gate a DoD fabricated from nothing validated with exit 0 — the anti-fabrication bar the sibling handoff already carries."},
         "recovered_from": {
           "type": "array",

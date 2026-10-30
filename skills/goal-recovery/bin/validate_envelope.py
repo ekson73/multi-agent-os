@@ -219,10 +219,9 @@ def validate_dod(obj, conf_thresh=DEFAULT_CONF_INCONCLUSIVE):
         errs.append(f"dod.params: confidence {conf} < conf_inconclusive {conf_thresh} requires inconclusive.flag=true (never drive a loop on a low-confidence DoD)")
 
     for_goal = p.get("for_goal", "")
+    # Empty for_goal is a SpecError UNLESS inconclusive.flag=true (DEFER to HITL), same as the handoff.
     if isinstance(for_goal, str) and for_goal.strip() == "" and not flag:
         errs.append("dod.params.for_goal: must be non-empty (a DoD divorced from its goal is a SpecError; an empty for_goal requires inconclusive.flag=true to DEFER)")
-    elif isinstance(for_goal, str) and for_goal.strip() == "":
-        errs.append("dod.params.for_goal: must be non-empty (a DoD divorced from its goal is a SpecError)")
 
     tp = p.get("termination_predicate", "")
     if isinstance(tp, str) and tp.strip() == "":
