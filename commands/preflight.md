@@ -21,7 +21,7 @@ mutations in a worktree. Thin entry point over the [`preflight` skill](../skills
 | Action | Description |
 |--------|-------------|
 | *(none)* / `check` | R1+R2: detect branch/upstream/divergence/worktree-locks (read-only) + safe-heal from origin. |
-| `ticket` | R0 on-demand — anchor the ticket (seed › branch › commit), walk the N-Tree (parent-chain + siblings, capability-detected), flag the session node, classify `session_type=<mode>/<work>`, and if no ticket → HITL create-proposal (delegates to `ticket-as-prompt`). DEFER if no tracker MCP. |
+| `ticket` | R0 on-demand — anchor the ticket (seed › branch › commit), walk the N-Tree (parent-chain + siblings, capability-detected), flag the session node, classify `session_type=<mode>/<work>`, then apply R0.d before implementation: search/reuse or authorized creation; unavailable provider or unresolved routing requires the durable pending-ticket adapter and bounded deferral, not untracked implementation. |
 | `detect` | R1 only — read-only branch/upstream/ahead-behind/locked-elsewhere/tree-state report. |
 | `heal` | R2 only — safe heal from origin (`fetch`→classify→ff-only \| rebase-autostash \| DEFER). |
 | `worktree <intent>` | R3 — derive a branch + worktree from `<intent>` (per discovered conventions) and create it. |

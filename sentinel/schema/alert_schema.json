@@ -120,9 +120,9 @@
               "repeated_task": "Analyze requirements for module X"
             },
             {
-              "current_depth": 4,
-              "max_allowed": 3,
-              "delegation_chain": ["Orch", "PM", "Analyst", "Dev", "QA"]
+              "current_depth": 3,
+              "max_allowed": 2,
+              "delegation_chain": ["Orch", "PM", "Analyst", "Dev"]
             },
             {
               "retry_count": 7,

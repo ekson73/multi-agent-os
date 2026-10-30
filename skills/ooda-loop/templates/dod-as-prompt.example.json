@@ -3,6 +3,14 @@
   "method": "session.dod_derivation",
   "params": {
     "for_goal": "Realize the operator's recurring goal-loop contract (recover the session goal -> derive a measurable DoD via Prisma -> drive to quiescence) as reusable agentic-tool(s).",
+    "confidence": 0.9,
+    "recovered_from": [
+      {"source": "handoff_as_prompt", "read": true, "ref": "handoff-as-prompt.example.json params.goal"},
+      {"source": "operator_prompt", "read": true, "ref": "/enhance Ultrathink directive 2026-07-12"},
+      {"source": "git_branch", "read": true, "ref": "feat/ooda-loop-goal-recovery"},
+      {"source": "ticket", "read": false, "ref": "absent"}
+    ],
+    "inconclusive": {"flag": false, "reasons": []},
     "context_lock": {
       "context": "/enhance Ultrathink build in multi-agent-os worktree feat/ooda-loop-goal-recovery; the operator's 3-step goal-loop contract turned into tooling.",
       "purpose": "close the family's missing recover-from-context step + wire the recover->measure->converge contract as a reusable preset.",

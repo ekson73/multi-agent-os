@@ -5,15 +5,16 @@ description: >-
   Transmute ONE source of ANY kind (text · prompt · draft · braindump · doc · code ·
   agentic-tool · email · report) through a menu of transformations (comprehend · analyze ·
   critique · meta-critique · validate · red-team · fix · enhance · expand · refine ·
-  sanitize · harmonize · compliance) and CAST it into a chosen target type (same-as-source default ·
-  prompt · agentic-tool · audience-recast · artifact md/pdf/html/confluence/gamma/canva · ledger · ticket)
-  emitted to one-or-more sinks (stdout · clipboard · vault/obsidian · path · git-repo ·
-  agentic-tool · jira · linear · atlassian · bitbucket · github · confluence · gamma · canva). Source-agnostic generalization of the fixed-pair siblings — a thin
-  router that COMPOSES in-repo primitives (refine-braindump-to-prompt,
-  agentic-tool-forge, content-recast, converge, red-team, audit, pii-masking) and
-  reimplements nothing. Soul-name: Proteus. Triggers: "transmute", "/transmute",
-  "transform this source into X", "cast this into Y", "source-agnostic pipeline",
-  "turn this artifact into <type> at <location>".
+  sanitize · harmonize · compliance) and CAST it into a chosen target type (same-as-source
+  default · prompt · agentic-tool · audience-recast · artifact
+  md/pdf/html/confluence/gamma/canva · ledger · ticket) emitted to one-or-more sinks
+  (stdout · clipboard · vault/obsidian · path · git-repo · jira · linear · atlassian ·
+  bitbucket · github · confluence · gamma · canva). Source-agnostic generalization of the
+  fixed-pair siblings — a thin router that COMPOSES in-repo primitives
+  (refine-braindump-to-prompt, agentic-tool-forge, content-recast, converge, red-team,
+  audit, pii-masking); reimplements nothing. Soul-name: Proteus. Triggers: "transmute",
+  "/transmute", "transform this source into X", "cast this into Y", "source-agnostic
+  pipeline", "turn this artifact into <type> at <location>".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -359,7 +360,7 @@ Exactly ONE terminal marker per turn — the `/goal` Stop-hook contract:
 - **Principles by-reference**: `--principles` never inlines the corpus; unknown principle → `STOP-ERROR` listing valid 40+ principals (GIT-WORKTREES-MANDATORY, GIT-PR-SUBMIT, IDEMPOTENT, SSOT, DRY, CLEAN-CODE, ANTI-OVER-ENG, ANTI-THEATER, LGPD-COMPLIANCE, etc). Dynamic runtime params beyond this list are computed per delegated primitive, never invented.
 - **Worktree discipline always on** for any `git-repo`/`agentic-tool` sink
   (`skills/worktree-policy`); never commit to main. `iketrans`/`vek-ai-toolkit`/`akasha` are `git-repo:` kinds, same gate.
-- **Delegation depth ≤ 2; parallel fan-out ≤ 3**; DNA-geracional transcribed to every
+- **Delegation depth ≤ 2 (`skills/agentic-delegation` §8); parallel fan-out ≤ 3**; DNA-geracional transcribed to every
   delegate ("delegar não isenta a responsabilidade recebida").
 - **Sanitize-first on dirty sources** (stop-bleeding-before-root-cause); gitleaks+PII
   gate is unconditional pre-emit.

@@ -3,17 +3,18 @@ name: walkthrough-concierge
 version: "1.0.0"
 prompt_version: "1.0.0"
 description: |
-  Concierge / onboarding / guide / router / governance-anchor for the ASH-lite Agentic Session
-  Harness — session journals, the walkthrough (decisions + reasoning + drift vs SPECs), and the
-  decision-audit (decisions[] · sources · spec_alignment). Use when a human or agent wants to
-  LEARN ASH, ONBOARD onto it, find WHICH ASH tool to use for an intent (audit my decisions? why
-  did the agent diverge from a SPEC? capture a decision? read a session timeline?), get a
-  RUNBOOK, AUDIT a project's ASH usage/coverage, or re-find a CANONICAL ASH decision that drifted.
-  It ROUTES + TEACHES + ANCHORS — it never reimplements a CLI/hook/schema and never wraps an
-  existing tool. 6 modes: explain (default — teach ASH + landscape), onboard (guided ramp),
-  guide (intent → right agentic-* tool + invocation), audit (read-only ASH coverage/compliance),
-  anchor (surface canonical ASH decisions, flag drift), dashboard (ASCII coverage-map). Vendor-
-  neutral (AAIF cross-vendor). Sibling of maos-concierge / specdd-concierge / atlassian-concierge.
+  Concierge / onboarding / guide / router / governance-anchor for the ASH-lite Agentic
+  Session Harness — session journals, the walkthrough (decisions + reasoning + drift vs
+  SPECs), the decision-audit (decisions[] · sources · spec_alignment). For a human or agent
+  wanting to LEARN ASH, ONBOARD onto it, find WHICH ASH tool to use for an intent (audit my
+  decisions? why did the agent diverge from a SPEC? capture a decision? read a session
+  timeline?), get a RUNBOOK, AUDIT a project's ASH usage/coverage, or re-find a CANONICAL
+  ASH decision drifted. ROUTES + TEACHES + ANCHORS; never reimplements a CLI/hook/schema,
+  never wraps an existing tool. 6 modes: explain (default: teach ASH + landscape), onboard
+  (guided ramp), guide (intent → right agentic-* tool + invocation), audit (read-only ASH
+  coverage/compliance), anchor (surface canonical ASH decisions, flag drift), dashboard
+  (ASCII coverage-map). Vendor-neutral (AAIF cross-vendor). Sibling of maos-concierge /
+  specdd-concierge / atlassian-concierge.
 allowed-tools: Read, Glob, Grep, Bash
 evals:
   should_trigger:
@@ -150,7 +151,7 @@ Render an **ASCII/markdown coverage-map** (default): capture-health (decisions[]
 - Companions: [`awareness-registry.md`](./awareness-registry.md) · [`canon.md`](./canon.md)
 - ASH tools (cross-ref, never reimplement): `agentic-decide` · `agentic-decisions` · `agentic-walkthrough` · `agentic-reindex` · `agentic-fix-dangling-symlinks.sh` · `skills/agentic-session-harness/hooks/{link,resume,stop-fallback,decide-merge,lib}.sh` · `decision-capture` skill
 - Schema SSOT: `skills/agentic-session-harness/SPEC.md` (L1 frozen-17, in-repo) · Layer-2 §17 decision-audit overlay = external corporate toolkit (not in this community repo)
-- Sibling concierges (cross-vendor pattern): `maos-concierge` · `claude-code-concierge` (the Claude-Code platform) · `specdd-concierge` · `atlassian-concierge` (+ org-specific concierges in a consuming org's private toolkit)
+- Sibling concierges (cross-vendor pattern): `maos-concierge` · `claude-concierge` (the Claude product surfaces) · `specdd-concierge` · `atlassian-concierge` (+ org-specific concierges in a consuming org's private toolkit)
 
 ## Changelog
 - 2026-05-30 — v1.0.0 — Bootstrap. Concierge/onboarding/guide/router/anchor over the ASH-lite harness (journals · walkthrough · decision-audit). 6 modes + Landscape Decision Matrix + governance layer + AWARENESS-REGISTRY + CANON. ROUTES+TEACHES+ANCHORS, reimplements NOTHING. Built vkl-first (ADR-017 R6 dogfood-gate); Layer-1 promotion candidate post ≥2 cycles. dashboard.html (D1) + references/socratic-33q.md = planned follow-ups. Origin: operator /enhance Round#2 (Deliverable C) — sibling of maos-concierge/specdd-concierge.

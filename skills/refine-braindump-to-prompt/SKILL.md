@@ -590,7 +590,7 @@ the prompt itself (the operator names the target).
   *if this were dropped, would the acceptable output change?* Yes → constraint, keep. No → meta,
   drop. (`/enhance` wrappers and pep-talk fail this test; those still drop.)
 - Worktree discipline always on (`skills/worktree-policy`); never commit to main.
-- Delegation depth ≤ 2; parallel fan-out ≤ 3 per round.
+- Delegation depth ≤ 2 (`skills/agentic-delegation` §8); parallel fan-out ≤ 3 per round.
 - Exactly ONE STOP marker per turn.
 - External research is time-boxed and cited — never fabricate prior art.
 - HUMAN_DOMAIN + non-negotiable guardrails (secrets/PII, force-push protected, prod/irreversible,

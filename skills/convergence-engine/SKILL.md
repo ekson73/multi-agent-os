@@ -2,19 +2,19 @@
 name: convergence-engine
 version: "1.0.0"
 description: |
-  Iterative multi-agent quality-convergence engine: a deterministic harness that
-  bounds and verifies probabilistic cognition to lift a result toward (but not past)
-  the human-multi-pass quality ceiling, then defers the residue to HITL. Routes one of
-  three regimes by verifiability — REFINE (self-improve loop), SELECT (best-of-N /
-  debate→converge), DEFER (HITL) — under a non-negotiable master condition
-  (verifier > generator, verifier independent) and a closed-form economic stop
-  (bounded by an economic stop whose round count is dominated by the retained-gap fraction ρ — see Economic stop). Composes existing primitives; builds no new engine.
-  Use when a result must be driven to high quality through bounded iterative review
-  rather than a single pass, when multiple proposals must be reconciled, or when an
-  autonomy_score must be lifted across the HIGH gate before escalating to a human.
-  Triggers: "converge to high quality", "iterate until good enough", "best-of-N",
-  "refine this until it passes", "lift the score before asking me", "convergence engine",
-  "drive this result to convergence", "engine de convergência".
+  Iterative multi-agent quality-convergence engine: a deterministic harness that bounds and
+  verifies probabilistic cognition, lifting a result toward (but not past) the
+  human-multi-pass quality ceiling, then defers the residue to HITL. Routes one of three
+  regimes by verifiability — REFINE (self-improve loop), SELECT (best-of-N /
+  debate→converge), DEFER (HITL) — under a non-negotiable master condition (verifier >
+  generator, verifier independent) and a closed-form economic stop whose round count is
+  dominated by the retained-gap fraction ρ (see Economic stop). Composes existing
+  primitives; builds no new engine. Triggers: a result must be driven to high quality
+  through bounded iterative review rather than a single pass; multiple proposals must be
+  reconciled; an autonomy_score must be lifted across the HIGH gate before escalating to a
+  human; "converge to high quality", "iterate until good enough", "best-of-N", "refine this
+  until it passes", "lift the score before asking me", "convergence engine", "drive this
+  result to convergence", "engine de convergência".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -136,7 +136,7 @@ The engine is a **router + bounds** over these — itself an instance of *native
 
 ## Return-Gate application (self-resolve before asking)
 
-Before returning [options · decisions · questions] to the operator: (1) **rank** by recommendation; (2) **impact-score** each (6-factor autonomy gate); (3) **diverse-validate** (`persona-pipeline` + the multi-axis panel); (4) **gate** — top item HIGH (≥0.85) ∧ reversible ∧ ¬HUMAN_DOMAIN → **decide + act + report** (skip the ask); else **score-uplift** (`cascade-resolver`, ≤ n*) → regenerate ranked items → **re-loop bounded**; (5) **exit** — HIGH self-resolution → act; OR genuine residue → **ask** (tool-over-prose, recommended-first). **Escapes (do NOT suppress the ask)**: HUMAN_DOMAIN · a genuine operator-preference the agent lacks + can't self-verify · irreversible/high-blast · duly-justified.
+Before returning [options · decisions · questions] to the operator: (1) **rank** by recommendation; (2) **impact-score** each (6-factor autonomy gate); (3) **diverse-validate** (`persona-pipeline` + the multi-axis panel); (4) **gate** — top item HIGH (≥0.85) ∧ reversible ∧ ¬HUMAN_DOMAIN ∧ inside the invoker's authority scope (`skills/agentic-delegation` §4.1; out of scope = advice only) → **decide + act + report** (skip the ask); else **score-uplift** (`cascade-resolver`, ≤ n*) → regenerate ranked items → **re-loop bounded**; (5) **exit** — HIGH self-resolution → act; OR genuine residue → **ask** (tool-over-prose, recommended-first). **Escapes (do NOT suppress the ask)**: HUMAN_DOMAIN · a genuine operator-preference the agent lacks + can't self-verify · irreversible/high-blast · duly-justified.
 
 ## Viability bar (settled)
 

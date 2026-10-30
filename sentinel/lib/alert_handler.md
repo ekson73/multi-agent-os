@@ -1519,7 +1519,7 @@ async def main_example():
         agent_type="dev",
         task_description="Create unit tests for auth module",
         session_id="session_2026-01-06_d4e5f6",
-        chain_depth=3
+        chain_depth=2
     )
 
     # 3. Criar alerta usando template
@@ -1529,7 +1529,7 @@ async def main_example():
         {
             "task": "Spawn dev agent for testing",
             "agent_type": "dev",
-            "chain": "Orchestrator → Dev → Dev → Dev"
+            "chain": "Orchestrator → Dev → Dev"
         }
     )
 

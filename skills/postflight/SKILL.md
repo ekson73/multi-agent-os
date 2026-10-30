@@ -1,24 +1,27 @@
 ---
 name: postflight
 description: |
-  Use at the END of a session/action — especially before the operator compacts or
-  clears the conversation — to close the workspace out cleanly and hand the work off.
-  Responsibilities: (P1 SWEEP) a boy-scout exit-hygiene sweep that persists/fixes
-  loose ends across git, docs, ADRs, changelogs, memories, rules and tickets; (P2 DEBRIEF)
-  calculate the session map (objectives N-Tree, gaps, pendings, undecided, next actions
-  by Eisenhower); (P2.5 TICKET-SYNC) reconcile the backlog with the session — bounded
-  gap->ticket triage + an idempotent continuation ticket — delegated to a capability-detected
-  ticketing primitive; (P3 HANDOFF) emit an ai-agnostic continuation seed (carrying the DNA
+  For the END of a session/action — especially before the operator compacts or clears the
+  conversation — to close the workspace out cleanly and hand the work off.
+  Responsibilities: (P1 SWEEP) boy-scout exit-hygiene sweep that persists/fixes loose ends
+  across git, docs, ADRs, changelogs, memories, rules, tickets; (P2 DEBRIEF) calculate the
+  session map (objectives N-Tree, gaps, pendings, undecided, next actions by Eisenhower);
+  (P2.5 TICKET-SYNC) reconcile the backlog with the session — bounded gap->ticket triage +
+  an idempotent continuation ticket — delegated to a capability-detected ticketing
+  primitive; (P3 HANDOFF) emit an ai-agnostic continuation seed (carrying the DNA
   Geracional) a fresh amnesic agent can resume from; (P3.5 SPAWN, optional, default-ON) launch
-  a fresh, pre-seeded `claude` continuation session so the work continues across the
-  compact/clear boundary; (P3.6 BROADCAST, opt-in) inject a bounded, structured, idempotent
-  continuation **back-pointer marker** (to the P2.5 ticket + P3 seed) into work artifacts
-  (commit trailer · PR body · caller-named docs) so a fresh amnesic agent that lands on the
-  artifact discovers the pending work — a structured back-pointer, never a free-form TODO
-  (reconciled with exit-hygiene by ADR-010). The end-of-session counterpart to the `preflight` skill. Reads
-  whatever governance is present at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/
-  memories) and adapts.
-version: 0.10.1
+  a pre-seeded `claude` continuation session so work continues across the compact/clear
+  boundary; (P3.6 BROADCAST, opt-in) inject a bounded, structured, idempotent continuation
+  **back-pointer marker** (to the P2.5 ticket + P3 seed) into work artifacts (commit
+  trailer · PR body · caller-named docs) so an agent that lands on the artifact discovers the
+  pending work — never a free-form TODO (reconciled with exit-hygiene by ADR-010). For
+  sessions that delegated work: (P0 GATE) wait for every delegate to reach a terminal state
+  (fail-closed); (P3.7 MANIFEST) write one self-locating close-out manifest (instruction tree ·
+  HITL decisions · roadmap + artifact index · verified recovery triple), persisted durably and
+  copied to the clipboard with read-back verification. The end-of-session counterpart to the
+  `preflight` skill. Reads whatever governance is present at invocation
+  (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories), adapts.
+version: 0.11.0
 triggers:
   - postflight
   - run postflight
@@ -33,8 +36,10 @@ triggers:
   - spawn the next session
   - sync the backlog
   - file the loose ends as tickets
+  - close out the multi-agent session
+  - wait for all delegates then close
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
   scope: AAIF cross-vendor
   family: worktree-lifecycle
   lifecycle-stage: operate
@@ -82,8 +87,8 @@ turns that volatile state into durable, hand-off-able artifacts **before** the l
 ## Core Rule
 
 ```
-SWEEP (P1) → DEBRIEF (P2) → TICKET-SYNC (P2.5) → HANDOFF (P3) → [SPAWN (P3.5, optional, default-ON)] → [BROADCAST (P3.6, opt-in)]
-Each step is SAFE-or-DEFER. Never clobber. Never block. HANDOFF requires SWEEP+DEBRIEF (DoR).
+[GATE (P0, if delegates)] → SWEEP (P1) → DEBRIEF (P2) → TICKET-SYNC (P2.5) → HANDOFF (P3) → [SPAWN (P3.5, optional, default-ON)] → [BROADCAST (P3.6, opt-in)] → [MANIFEST (P3.7, if delegates or ephemeral reports)]
+Each step is SAFE-or-DEFER. Never clobber. Never block — except the P0 GATE, which is fail-closed by design. HANDOFF requires SWEEP+DEBRIEF (DoR).
 DEBRIEF hunts the COMPLETE 10-item taxonomy (references/close-out-hunt-checklist.md): fails · errors ·
 warnings · risks · mitigations · gaps · pendings · decisions-not-taken · unasked-Qs · unanswered-Qs.
 TICKET-SYNC needs the P2 atoms + runs BEFORE the seed (so the continuation ticket lands in it);
@@ -92,19 +97,23 @@ SPAWN requires the P3 seed (DoR) + passes the spawn guardrails; opt out with --n
 BROADCAST is OPT-IN (--broadcast[=conservative|all]); it needs the P3 seed + the P2.5 continuation
 ticket, points a structured back-pointer marker AT them (never free-form; ADR-010), is idempotent,
 --dry-run by default, and NOOP when there is no pendency to point at. Default-ON only in `signoff`.
+GATE + MANIFEST (references/close-out-manifest-protocol.md): P0 is fail-closed — a delegate in an unknown
+state blocks the close; P3.7 must pass `bin/close-out-manifest.sh check`, persists scratch reports only
+after secret+PII scans with a runtime positive control, and the clipboard counts only on a cmp read-back.
 The environment MUST be left better, safer, and more traceable than it was found.
 ```
 
-## The Responsibilities (P1–P3.5)
+## The Responsibilities (P0–P3.7)
 
 | # | Responsibility | How (safe-or-DEFER) | Composes |
 |---|---|---|---|
 | **P1** | **SWEEP** — operationalize the exit-hygiene checklist: no loose ends, no banana peels | for each axis {git · docs · ADRs · changelogs · memories · rules · tickets/backlogs · worktrees/branches · stale metrics}: *survey* gaps/opportunities → classify by Eisenhower → **act** (persist/fix/version/commit/push/close) **or register** a tracked follow-up. Read-before-discard is mandatory. | `protocols/exit-hygiene.md`, `skills/sync-to-git`, `skills/quiesce`, `commands/worktree.md`, `bin/reap-sessions.sh`, `bin/dogfood-mark` |
 | **P2** | **DEBRIEF** — calculate the session map + run the complete close-out hunt | compose `morning-briefing` (its 7-section state: done · in-flight · blockers · decisions · next-action) then **synthesize on top** the objectives N-Tree (originating/primary/secondary/auxiliary × sequential/parallel/recursive — `originating` = *why we started at all* (the causal root; **plural when the session absorbed an external graft**, e.g. a handoff seed from a different prior session) vs `primary` = *the top deliverable now* (may have migrated to a derived sub-objective); **collapse to 3 tiers when `originating == primary` trivially** — a single-thread session gets no 4th-tier ceremony) + the **COMPLETE 10-item close-out HUNT** (`references/close-out-hunt-checklist.md` — fails · errors · warnings · risks+mitigations · gaps · pendings · decisions-not-taken · unasked-Qs · unanswered-Qs; each atom dispositioned fix-now / ticket / seed-field / drop-with-note — no silent drop), next-actions ranked by Eisenhower (non-blocked first). Then **render the glance-and-know locus** — D2 status line + D3 ntree + D4 conv — via `bin/locus.sh` (the compact projection of this debrief; grammar SSOT `references/locus-spec.md`), **and the end-of-action scorecard** — `bin/scorecard.py --model N` where `N` is chosen by `bin/scorecard-select-model.sh` (dynamic context-based decision table; round-robin preserved as `--mode round-robin` fallback; see "The End-of-Action Scorecard" below). | `skills/morning-briefing`, `bin/locus.sh`, `bin/scorecard.py`, `bin/scorecard-select-model.sh` |
-| **P2.5** | **TICKET-SYNC** — reconcile the backlog with the session | *(a)* triage each P2 atom (gaps · pendings · undecided · unasked-Qs · out-of-scope) → anti-theater filter → dedup → Eisenhower Q1-Q4 → file under the **cap (≤3 tickets + 1 batch housekeeping ticket)**; *(b)* create/reuse the **idempotent continuation ticket** (search-before-create; body mirrors the seed; provider-relative linkage); *(c)* enrich the anchored ticket. **All ops delegated** to a capability-detected ticketing primitive (no custom state — the tracker is the state). Bounded-autonomous; HITL only for HUMAN_DOMAIN / unknown-provider. **No tracker ⇒ DEFER(ticket), never block.** | `skills/postflight/references/ticket-sync-protocol.md` (SSOT) + a capability-detected ticketing skill (ref: `ticket-as-prompt`) |
+| **P2.5** | **TICKET-SYNC** — reconcile the backlog with the session | *(a)* triage each P2 atom (gaps · pendings · undecided · unasked-Qs · out-of-scope) → anti-theater filter → dedup → Eisenhower Q1-Q4 → file under the **cap (≤3 tickets + 1 batch housekeeping ticket)**; *(b)* create/reuse the **idempotent continuation ticket** (search-before-create; body mirrors authorized, audience-safe seed fields; provider-relative linkage); *(c)* enrich the anchored ticket. **All ops delegated** to a capability-detected ticketing primitive (tracker is canonical; durable outbox only while pending). Bounded-autonomous; HITL only for HUMAN_DOMAIN / unknown-provider. **No tracker ⇒ durable pending-ticket outbox + DEFER(ticket); never block safe exit, never waive the next implementation gate.** | `skills/postflight/references/ticket-sync-protocol.md` (SSOT) + a capability-detected ticketing skill (ref: `ticket-as-prompt`) |
 | **P3** | **HANDOFF** — emit the continuation seed | a minimal-sufficient, ai-agnostic seed (structured agent-register envelope + human mirror) a fresh amnesic agent can resume from (the seed carries the D1 `locus` field `<status>·<anchor>·<slug>[·#seq]`, the `session_type`, the `dna` block, the `continuation_ticket` from P2.5, and `tickets_created`); **persist to the canonical reload path (`kind=rich-synthesis`, upgrade-in-place)** + print to screen + best-effort clipboard. DoR = P1+P2+P2.5 done. | this skill (the elevation over `morning-briefing` recap) + `skills/session-fission` (seed shape) + `references/continuation-seed-contract.md` v1.4.0 |
 | **P3.5** | **SPAWN** *(optional, default-ON)* — launch the next session, pre-seeded | hand the P3 seed to `bin/spawn-continuation.sh`, which launches a fresh **named** detached `claude` session (tmux/cmux) — the name IS the D1 locus (`<status> · <anchor> · <slug> · #<short>`, e.g. `🟡 · VKS-123 · payment-retry · #a1b2c3d4`; pass the ticket via `--ticket` so it anchors, keep the `--slug` to the 2-4-word work essence — locus dedupes anchor-repeated tokens; emoji-first experiment, `POSTFLIGHT_NAME_STYLE=legacy` restores the ascii `<ticket>-<slug>-#<short>`) — with the seed injected as durable system context — so the work *continues itself* across the compact/clear boundary instead of waiting on a manual paste — the spawn also submits a positional **kickoff prompt** (pointing at the persisted seed file) so the new session STARTS WORKING instead of idling at the REPL (opt out: `--no-kickoff` / `POSTFLIGHT_KICKOFF=0`). DoR = P3 seed. Opt out: `--no-spawn`. | `bin/spawn-continuation.sh` (consumes the P3 seed; reuses `session-fission`'s reseed idea) |
 | **P3.6** | **BROADCAST** *(opt-in)* — make the tracked continuation discoverable at the point of future contact | ONLY when a pendency remains: inject a **bounded, structured, idempotent back-pointer marker** (to the P2.5 continuation ticket + P3 seed) into work artifacts via `bin/continuation-broadcast.sh` — `--scope conservative` (default) = the exit **commit trailer** (`Continue-Here: <key> · seed:<path>`) + the open **PR body** (idempotent upsert via `gh`); `--scope all` ALSO stamps **caller-named `--file` docs/changelogs** (ADRs REFUSED). The marker is a **structured back-pointer, not a free-form TODO** (reconciled with exit-hygiene by ADR-010): sentinel-delimited + machine-readable + idempotent (upsert, never accumulate) + metadata-only (sanitized) + `--dry-run` default + kill-switch (`MAOS_BROADCAST=0`). DoR = P3 seed and/or the P2.5 ticket. **NOOP when nothing pending.** OFF by default on `postflight` (`--broadcast` to enable); default-ON in `signoff`. | `bin/continuation-broadcast.sh` + `references/continuation-broadcast-protocol.md` (SSOT) + `docs/adrs/ADR-010-continuation-broadcast.md` (consumes the P3 seed + P2.5 ticket — reinvents neither) |
+| **P0 / P3.7** | **GATE + MANIFEST** *(multi-agent sessions)* — close only after every delegate is terminal; leave one map of everything | P0: list every delegate and wait (bounded by its time-box) until delivered / failed / dropped — unknown ⇒ do not close; orphans become seed risks + HITL items. P3.7: write ONE manifest (delegates gate · instruction N-tree with status synced 1:1 to the todo-list · HITL decisions recommended-first · roadmap · artifact index · recovery triple `[session_id, link, command]` verified to resolve, plus `anchor` lines per repo · self-location; operator-authorised `PARTIAL` only; `check --strict` opt-in adds after-action review · resume check · not-done) → `persist` scratch reports durably (secret+PII scan, runtime positive control, dry-run default) → `check` → `clip` (cmp read-back; rc 4 ⇒ paste-MCP fallback). NOOP for a single-agent session with nothing ephemeral. | `references/close-out-manifest-protocol.md` (SSOT) + `bin/close-out-manifest.sh` (consumes the hunt, seed, P2.5 ticket and P3.6 markers — reinvents none) |
 
 **SWEEP never clobbers**: a dirty tree, a divergence-with-conflict, a held `.git/index.lock`,
 or an untracked file you did not create → **DEFER** (report/register, do not act). Deleting or
@@ -137,6 +146,9 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
 
 ```
 0. Governance discovery (above) — derive the repo's exit + handoff conventions.
+0.5 P0 GATE (only if this session delegated work — SSOT references/close-out-manifest-protocol.md):
+   list every delegate, wait (bounded by its time-box) until each is delivered / failed / dropped;
+   unknown state ⇒ do NOT close (fail-closed); unconfirmed-stopped ⇒ orphan → seed risk + HITL item.
 1. P1 SWEEP:
    - git: status clean? worktrees only main? stale branches? unpushed commits? uncommitted
      edits in main checkout? → commit-via-worktree / push / open PR or DEFER per workflow.
@@ -168,7 +180,8 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
      **DELEGATE `close`** to the capability-detected ticketing primitive (it runs the close
      verify-gate + writes the audit comment). The *creation* of loose-end follow-ups is P2.5's
      job (not here) — P1 owns ticket **close**, P2.5 owns ticket **create/enrich**.
-   - Classify every surfaced item by Eisenhower; act on Q1/Q2, register Q3, note/drop Q4.
+   - Classify every surfaced item by Eisenhower; act on Q1/Q2, register Q3, batch actionable Q4;
+     drop Q4 only if non-actionable or explicitly cancelled with an audit reason.
 2. P2 DEBRIEF: invoke `morning-briefing` for the 7-section state, then synthesize ON TOP the
    objectives N-Tree + Eisenhower next-actions (non-blocked first) + the **COMPLETE 10-item
    close-out HUNT** (SSOT `references/close-out-hunt-checklist.md`): survey fails · errors ·
@@ -193,11 +206,11 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
    (a) triage the P2 atoms (gaps · pendings · undecided · unasked-Qs · out-of-scope) →
    anti-theater filter → dedup (delegate `auto` op) → Eisenhower → file under the cap
    (≤3 individual + 1 batch housekeeping ticket); (b) create/reuse the **idempotent
-   continuation ticket** (delegate `auto`: search-before-create; body mirrors the seed;
+   continuation ticket** (delegate `auto`: search-before-create; body is an audience-safe projection of the seed;
    provider-relative "relates-to"/child-of linkage); (c) enrich the anchored ticket
    (delegate `enrich`). Route by repo CLASS (corporate→Jira · personal→Linear ·
    community→GH) via governance discovery — never a hardcoded org. No ticketing capability
-   ⇒ DEFER(ticket) (record in `tickets_created`), then continue. Record the continuation key
+   ⇒ DEFER(ticket) (persist the pending-ticket outbox and record in `tickets_created`), then continue safe exit. Record the continuation key
    for P3.5.
 3. P3 HANDOFF: synthesize the continuation seed (below) from P1+P2+P2.5 → PERSIST to the canonical
    reload path (upgrade-in-place, `kind=rich-synthesis`, preserve any merged `compact_summary`,
@@ -228,7 +241,12 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
    under `--scope all` — into **caller-named docs** (`--file`; ADRs refused). Structured back-pointer,
    never a free-form TODO; idempotent; metadata-only (sanitized); NOOP when nothing pending. OFF by
    default on postflight; default-ON in `signoff`.
-4. Emit a concise exit summary (swept items, tickets closed/created/continuation, deferred
+3.7 P3.7 MANIFEST (if delegates or ephemeral reports — SSOT references/close-out-manifest-protocol.md):
+   `bin/close-out-manifest.sh persist --dest <durable> --src <report>... --apply` (secret+PII scan, refuse
+   on hit, rc 3 if a scan is blind) → write the manifest (7 required sections) → `check --manifest <f>`
+   must exit 0 → `clip --file <f>` (rc 0 verified; rc 4 ⇒ paste-MCP create + read-back, say which path
+   succeeded).
+4. Emit a concise exit summary (manifest path + clipboard verdict, tickets closed/created/continuation, deferred
    items, seed location, spawned session, broadcast markers).
 ```
 
@@ -284,7 +302,7 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
 
 Output: **PERSIST to the canonical reload path + print to screen + best-effort clipboard**
 (auto-detect `pbcopy`/`wl-copy`/`xclip`/`xsel`/`clip.exe`), sanitized (never copy secrets/file-bodies
-— metadata only). The seed is designed so the next agent runs `/maos:preflight` (orient) then resumes
+— metadata only; when P3.7 MANIFEST runs, the clipboard is no longer best-effort: it counts only on a `cmp` read-back via `bin/close-out-manifest.sh clip`). The seed is designed so the next agent runs `/maos:preflight` (orient) then resumes
 from the first non-blocked next-action — and, when **P3.5 SPAWN** fires, that next agent is *launched
 already holding the seed*, closing the loop `preflight → work → postflight → (spawn) → preflight …`.
 
@@ -404,6 +422,8 @@ postflight P1: branch=main tree=DIRTY → SWEEP DEFERRED (uncommitted tracked ch
 16. ❌ **Free-form BROADCAST** — injecting a "TODO next session" marker instead of the structured back-pointer block (defeats the exit-hygiene reconciliation, ADR-010; the executor only emits the structured, idempotent form).
 17. ❌ **BROADCAST into an ADR** or mid-content of a doc — ADRs are refused; the executor upserts the sentinel region only, into caller-named files under `--scope all`.
 18. ❌ **BROADCAST with no pendency** — a marker on a fully-closed session is noise (NOOP when nothing pending); and never a **non-idempotent** placement (the sentinel upsert prevents accumulation — entropy is exponential).
+19. ❌ **Closing over a running delegate** — the P0 GATE is fail-closed; an unknown state is not delivered (`references/close-out-manifest-protocol.md`).
+20. ❌ **Clipboard theater** — reporting the handoff as copied without a byte-identical read-back (`bin/close-out-manifest.sh clip` rc 0, or the paste-MCP fallback confirmed).
 
 ## Related Multi-Agent OS Artifacts
 
@@ -418,9 +438,10 @@ postflight P1: branch=main tree=DIRTY → SWEEP DEFERRED (uncommitted tracked ch
 - `bin/spawn-continuation.sh` — the **P3.5 SPAWN** primitive: launches the named, pre-seeded `claude` continuation session (tmux/cmux) with the 7 guardrails; consumes the P3 seed.
 - `bin/continuation-broadcast.sh` + `skills/postflight/references/continuation-broadcast-protocol.md` (SSOT) + `docs/adrs/ADR-010-continuation-broadcast.md` — the **P3.6 BROADCAST** executor + spec + reconciliation: a bounded, structured, idempotent back-pointer marker (commit trailer · PR body · caller-named docs) that makes the tracked continuation discoverable at the point of future contact (opt-in; structured back-pointer, never a free-form TODO). `bin/tests/continuation-broadcast.test.sh` is its safety-contract suite.
 - `skills/postflight/references/close-out-hunt-checklist.md` — the **P2 DEBRIEF** complete 10-item HUNT SSOT (fails · errors · warnings · risks+mitigations · gaps · pendings · decisions-not-taken · unasked-Qs · unanswered-Qs) + the fix-now/ticket/seed/drop disposition rubric.
+- `skills/postflight/references/close-out-manifest-protocol.md` + `bin/close-out-manifest.sh` — the **P0 GATE + P3.7 MANIFEST** SSOT + executor for multi-agent sessions (fail-closed delegate gate · one self-locating manifest · durable persist behind secret+PII scans with a runtime positive control · cmp-verified clipboard). `bin/tests/close-out-manifest.test.sh` is its safety-contract suite.
 - `commands/signoff.md` + `skills/signoff/SKILL.md` — the operator-facing **sign-off / encerramento** verb (`/maos:signoff`) that composes `[quiesce →] postflight full --broadcast --spawn` under an OODA framing; the one place BROADCAST is default-ON.
 - `commands/worktree.md` (surfaces `reap`) · `bin/reap-sessions.sh` (the safe executor P1 SWEEP delegates stale/orphan worktree+branch pruning to — dry-run default, never-clobber) · `bin/dogfood-mark` — worktree cleanup + dogfood-cycle ledger.
-- `commands/postflight.md` → `/maos:postflight` (ergonomic entry point; surfaces `--spawn`/`--no-spawn`/`--dry-run`).
+- `/maos:postflight` — the skill is invoked directly (the thin `commands/postflight.md` wrapper was removed in #407, since skills are already `/`-invokable); `--spawn`/`--no-spawn`/`--dry-run` are passed as arguments.
 - `plugin-scripts/governance/postflight-precompact.sh` — PreCompact hook (deterministic seed snapshot; never blocks; **never spawns**).
 
 ## License

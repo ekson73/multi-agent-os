@@ -6,6 +6,775 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — `goal-recovery` 0.3.0: `ci` and `tests` on the inference ladder
+
+- `skills/goal-recovery/SKILL.md` 0.2.0 → 0.3.0. Two sources inserted **below `ticket`** (ranks 4 and 5): `ci` (passing check/pipeline status) and `tests` (test names and assertions). Both are deterministic-but-partial evidence, so the goal they recover is a lower bound and `confidence` is capped by coverage breadth.
+- **Consumer-visible precedence shift**: `objectives_ntree`, `ash_journal`, `git_branch`, `git_last_commit` and `transcript` move from ranks 4–8 to 6–10.
+- `templates/handoff-as-prompt.schema.json`: `recovered_from[].source` enum gains `ci` and `tests` (additive; existing envelopes stay valid). Ref EKO-103 #119.
+
+### Security
+- Hygiene: removed third-party personal data from transcript-corrector examples; removed personal email.
+  Review round: `author.email` dropped from the plugin manifest (no URL in an email field); the
+  scoped PII check now lints the same suffixes it name-scans (TOML included), follows `--skill-dir`,
+  matches hyphenated names and windows up to 6 tokens; `correct.sh --phonetic <path>` loads a
+  private phonetic catalog.
+
+### Added — `protocols/agent-comm-protocol.md` (ACP) compact bot↔bot messaging
+
+- New `protocols/agent-comm-protocol.md` (ACP v1.0.0, Status: Proposed): a compact,
+  self-explaining, verb-closed envelope for bot↔bot traffic in a shared channel, so
+  several persona-agents in one group do not drown or confuse the humans and never
+  answer for the human. One `acp` envelope per turn (addressed `@to`/`@from`, ordered
+  by `re`), a CLOSED verb set (ASK · ACK · INFO · RESULT · BLOCKED · NEEDS-OPERATOR ·
+  CLAIM · YIELD · DONE), `RESULT`/`DONE` bound to source-measured evidence, and a
+  `NEEDS-OPERATOR`-only path to the human. Anti-small-talk gate (no payload → not sent)
+  and a PII/secret gate. DRY: reuses `response-compression`, `pii-masking`, `sentinel`,
+  `exit-hygiene`, `agent-delegation`; reimplements none.
+- Review round: reserved `@operator` recipient (no bot answers it) with a paired prose line,
+  required payload keys and receiver validation, a quoting grammar that cannot forge fields,
+  CLAIM/YIELD/DONE ownership by channel order, and `@from` checked against the attested author.
+
+### Fixed — Prisma structural_route A2b fail-open (issue #506)
+
+- `skills/decompose-abstract-to-measurable/scripts/structural_route.py`: the `declared is None` branch returned the engine band UNCHANGED (`under_specified`, `inconclusive.flag=false`, no `allowed_use`), so omitting `meta.structural_form` earned a *cleaner* pass than declaring `additive` — the A2 evasion-by-omission the code claimed to close, reopened by a second path. Now fail-closed by default: an undeclared form is `REVIEW (unrouted)` with `human_review` and `inconclusive.flag=true`; if H35 diagnostics derive relational/gestalt it is `BLOCKED` (an additive tree still cannot represent it); the historical v1.0.0 passthrough is preserved only behind the explicit `--legacy-unrouted` flag. Tests 9 → 11 (added fail-closed-default, legacy opt-in, A2b-omission-blocked); `break_suite.py` gains the A2b case (HOLD); step-5b table in `SKILL.md` documents the undeclared-form row. No regression: aggregate 10/10, e3_kappa 12/12.
+
+### Changed — `/hitl-digest`: alias `--this-session-only` e o escopo de sessão (eko-backlog#231)
+
+- `commands/hitl-digest.md`: the operator's own spelling `/maos:hitl-digest --this-session-only` is now a first-class flag, documented in the usage block, in the parameters table and in the deterministic execution block. It is an **alias of `--scope session`** for the HITL ledger slice: only the items whose provenance (the ledger's `Sessão` column) names the invoking conversation — in **every** mode, including the general panel with `--with-pendencies`.
+- `skills/synopsis-panel/bin/synopsis-fuse.py`: new `--this-session-only` flag. It only ever narrows, so it **contradicts `--scope all`**: both flags together are refused with a usage error (exit 2) instead of being resolved silently in favour of the widening. `--scope session` now has the same effect in the general panel (it previously narrowed only the pure digest), so the alias is a real alias and not a second spelling of something else. The general panel keeps the whole ledger by default — the historical behaviour is unchanged.
+- The zero case stays honest: a session slice that shows nothing out of a full ledger says **how many** items the ledger holds and **why** none of them is this conversation's ("0 of N ledger items are this conversation's"), and an unresolved identity still says it is not an empty queue. "0 shown" can never be read as "0 exist". The same line now reaches the `ask-user-question` preamble, so the spec-mandated "nenhuma decisão pendente" line never stands alone next to a full ledger.
+- Regression tests in `skills/synopsis-panel/tests/test_hitl_session_scope.py`: the alias equals `--scope session` (pure digest and general panel), the contradiction is refused with exit 2, and the "N open in the ledger, 0 shown" case states the reason in the render and in the JSON envelope.
+
+### Fixed — complete live HITL authorization context and local digest clock
+
+- AskUserQuestion questions now preserve the complete decision text, including trailing monetary limits and business conditions; only the durable preamble title remains clipped by display columns. Addresses the post-merge finding on #535 without changing approval gates, options, session ownership or machine/deferred output.
+- The digest header code uses the machine's local date and time, including local-day rollover; machine-envelope timestamps remain UTC. Deterministic subprocess fixtures isolate their `TZ` without changing the parent environment.
+
+### Fixed — concierge route availability and community-neutral guidance
+
+- Claude concierge companions now identify OpenClaw's concierge as an optional,
+  external dependency: detect it before routing and report unavailable when absent.
+  Replaced the nonexistent `recap` route with existing `morning-briefing --mode=recap`;
+  session close remains `postflight`.
+- Generalized the community-content prohibition and removed organization-specific
+  default routing from the MAOS concierge. World-specific external routing stays
+  opt-in and capability-detected; safety gates, sovereignty boundaries and historical
+  verification/snapshot dates are unchanged. No integration was installed or added.
+- Review follow-up: removed the unbundled `auto-orchestrator` route from the Code
+  lifecycle table and aligned the MAOS genesis companion's external-router guidance,
+  retaining its original date with a dated correction annotation.
+
+### Fixed — `/hitl-digest` AskUserQuestion mode (bot review of #535)
+- Single structured option padded with `Manter pendente`; unknown `sev` no longer crashes the overflow line; option labels de-duplicated after clipping; empty queue emits `ask_user_question: null` + `no_decisions: true`; ledger provenance (dirty/behind/warning) carried into the envelope and preamble; SKILL example now pipes `--compass-json -`.
+- Follow-up review: decimal commas remain part of options; emitted labels remain unique even when a suffix collides; blank/non-text evidence cannot recommend; Unicode record titles use display columns; long warnings and harness metadata wrap without losing content. AUQ cards now use the already session-filtered raw ledger so attached gates survive `--hitl-only` without exposing other sessions.
+- Merged the upstream session-scope fix (#543/#544). Legacy-format goldens run with explicit `--scope all`; the JSON golden gains upstream scope metadata and tree/HTML goldens drop the misleading pendency `scope=all` on a pure HITL digest, exactly as upstream already does. Mermaid and all remaining bytes stay unchanged; AUQ does not change the existing renderers.
+- Local review follow-up: unresolved session scope keeps `no_decisions: false`; the tool payload remains null with an explicit reason. The skill uses a runnable consumer value and relative command links, expired questions explicitly select the deferred text consumer, and generic credential instructions name the approved store rather than a vendor.
+- Live AUQ cards retain digest/session scope even without `--hitl-only` (including the with-pendencies invocation); explicit `--scope all` alone widens. Deferred and machine consumers retain baseline panel scope and renderer parity.
+
+### Added — `/hitl-digest --format ask-user-question` (consumer-gated)
+
+- `skills/synopsis-panel/bin/synopsis-fuse.py`: new `ask-user-question` format with `--consumer human-live|human-deferred|machine`, `--session-id`, `--now`, `--harness`, `--repo`. For a `human-live` consumer it emits an AskUserQuestion-ready payload (≤3 questions, a 4th only for ⏫; header = `H-NNNN`; options from structured input, then the options the ledger row lists, then type dispositions; `(recomendado)` only with an evidence pointer) plus the durable text preamble (digest code, `aberta no AskUserQuestion` record lines, `⏭`, harness line). `human-deferred` gets the existing tree and `machine` the existing JSON envelope. Existing formats are unchanged (byte-identical goldens in `tests/test_synopsis_hitl_auq.py`).
+
+### Added — `context-budget`: measure the always-loaded context, source by source
+
+- **NEW `bin/context-budget`** (read-only, idempotent, `--json`): ranks each source of the context
+  Claude Code loads before the first reply — rules, CLAUDE.md chain, MEMORY.md, skill/agent
+  listings, deferred MCP tool names, MCP server instructions, hook injections — in bytes and
+  estimated tokens (`bytes/4`, labelled estimate). Two modes: `transcript` (measured from the
+  session `.jsonl` attachments before the first assistant record) and `disk` (files measured,
+  listings estimated, MCP/hooks `not_measured`). Hook stdout/stderr is never counted or printed;
+  only injected text (`content`, including newline-joined lists, or `additionalContext` of `async_hook_response`).
+  Disk mode counts user and project `.claude/rules/` (cwd and ancestors, nested dirs) and
+  merges `enabledPlugins` user < project < local; secret-looking keys (incl. suffixed names
+  like `*_PASSPHRASE`, `AUTHORIZATION`) are redacted.
+  Plugin installs are picked by scope (local > project > user, project/local only when
+  `projectPath` is cwd or an ancestor), and `.claude-plugin/plugin.json` component paths are
+  honored (custom `skills` add to `skills/`; custom `commands`/`agents` replace the defaults;
+  paths escaping the plugin root are ignored and counted).
+  Malformed non-string, non-null install scopes are skipped and counted; glob discovery treats
+  home, project and plugin directory names literally, including wildcard metacharacters.
+  Skill/agent/command listings also scan project-scope `.claude/{skills,agents,commands}`
+  (cwd and ancestors), deduped by realpath.
+  Agent/command estimates reuse the canonical entry classifier, excluding ALL-CAPS documents
+  and skill-owned sub-documents while retaining genuine nested commands.
+  Source labels abbreviate home only at a complete path boundary; original machine paths and byte counts stay unchanged.
+- **NEW `commands/context-budget.md`** thin wrapper; **NEW `bin/tests/context-budget.test.sh`**
+  (82 assertions, fake `$HOME`, read-only check); temporary-directory allocation fails closed before fixture setup.
+- Why: baseline for the context-reduction plan. Reuse check: `auto-shard` (CLAUDE.md >40KB only),
+  `memory-curator-sweep.sh` (index cap only) and `claude-code-concierge` measure no per-source
+  budget, so this is a new tool; it does not touch the `claude-concierge` work in flight.
+### Fixed — preserve HITL ownership across native OMP recovery
+
+- `synopsis-fuse.py` now follows only explicit `parentSession` references in native
+  OMP session headers when resolving the default session scope. A worker reads its
+  adjacent root JSONL, not its own process header. This keeps gates recorded under
+  the original session visible after recovery under a new ID without rewriting provenance.
+- Explicit identity overrides remain exact. UUID-only parents resolve a unique native
+  file with that exact UUID in the same collection and continue through its header.
+  A missing parent file proves that parent only; multiple candidates, cycles, ambiguous
+  references and header/filename conflicts fail closed. No prompt-cache key, cwd/title
+  inference, other-collection search or session index is used.
+- Regression coverage exercises both native layouts, two-/five-hop UUID recovery,
+  missing parents, cycles, ambiguous parent files, conflicting headers, ignored cache
+  keys and override isolation through the pure CLI path.
+
+### Fixed — the HITL digest shows THIS conversation's gates by default, and the whole ledger only when asked
+
+- **The defect.** `hitl/punch-list.md` is ONE global queue — every conversation's gates
+  live in the same file — and the pure digest rendered all of it. Measured on
+  2026-10-26: `synopsis-fuse.py --hitl-only --compass-json -` against the live ledger
+  returned **19 global items** for a conversation that owned **2** of them. A digest
+  that answers "what needs me now" answered with everyone else's queue, and the agent
+  reading it could not tell whose gates it was looking at.
+- **The fix.** The HITL ledger scope is now applied **before** counting, prioritising and
+  rendering, so every number in the output describes the slice that was actually shown.
+  In `--hitl-only` mode the default is `session` — the items whose ownership the ledger
+  itself records, in the ledger's own **`Sessão`** column (the writer's contract: the id
+  of the conversation that opened the item, or `-` when there is none). Only an explicit
+  `--scope all` widens to the whole ledger, legacy items included; every other `--scope`
+  value is a *pendency* scope and never widens. The general panel (without
+  `--hitl-only`) is unchanged — it is a landscape, not a digest — and the work-compass
+  pendency scope is untouched.
+- **Provenance is the ledger's, never the chat's.** An item with no provenance (a `-`,
+  an empty cell, or a ledger written before the column existed) is **legacy**: it belongs
+  to no known conversation, so it enters the global scope and never the session scope.
+  Mentioning an item's ID in a conversation does not make it yours, and the engine does
+  not treat a same-cwd, same-title or same-operator conversation as the same one.
+- **Identity is the invoking conversation, and it fails closed.** Resolution order:
+  `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` →
+  `CLAUDE_SESSION_ID` → native `PI_SESSION_FILE` headers and their explicit
+  `parentSession` chain. A worker uses the adjacent native root JSONL, not its own
+  process header. A UUID-only parent resolves only a unique matching native file in
+  the same collection; a missing parent file proves that parent only. Explicit
+  CLI/environment overrides stay exact and do not expand ancestry. `PI_SESSION_ID`
+  is deliberately NOT consulted: it is per process, not the invoking conversation.
+  When no identity resolves, the render shows
+  **nothing** and states why — it never falls back to "all" and never claims the queue
+  is empty, because "I do not know whose this is" is not "there is nothing". Every render
+  names the scope it applied; the JSON envelope carries `meta.hitl_scope`,
+  `meta.hitl_scope_reason`, `meta.hitl_session_ids`, `meta.hitl_session_resolved`,
+  `meta.hitl_session_source`, `meta.hitl_scope_unresolved` and `meta.hitl_ledger_total`
+  (the size *before* the narrowing, so "0 shown" is never read as "0 exist").
+- **Ids are compared exactly.** A session id is an opaque token: only surrounding
+  whitespace is stripped, and `A` is not `a`. The JSON path reads the writer's single
+  `session_id` field. The `Sessão` column is located by the header, so its position in
+  the table cannot shift the other columns.
+- **Tests.** `skills/synopsis-panel/tests/test_hitl_session_scope.py` (real ledgers in
+  the writer's table format and real CLI subprocesses, no mocks): the default narrows to
+  the calling conversation, an explicit `--scope all` widens, a pendency scope never
+  widens, a legacy item stays out of the session scope, a chat mention does not grant
+  ownership, an unresolved identity shows nothing and says why, the general panel keeps
+  the whole ledger, the pure path never invokes the collector, the id match is exact, and
+  an identity that is only separators or a marker is not an identity.
+
+### Changed — `claude-code-concierge` becomes `claude-concierge` (all Claude product surfaces)
+
+- **Scope widened** from Claude Code only to six surfaces: claude.ai web, desktop, Claude Code
+  (CLI/IDE), Projects, bots/agents (Claude in Slack, Claude in Chrome, Agent SDK, Managed Agents)
+  and Duet. Each surface has its own `references/surfaces/<surface>.md`, sourced from official
+  docs on 2026-10-26; unsourced facts are marked NOT VERIFIED.
+- **Progressive disclosure:** the SKILL.md body is a lean router (surface → reference → route);
+  the old AWARENESS-REGISTRY moved to `references/surfaces/code.md`.
+- **Compatibility:** `skills/claude-code-concierge/` stays as a thin deprecated alias. No slash
+  command wrapper was added (repo policy from #407: skills are already `/`-invokable).
+- Cross-references in sibling concierges, the lifecycle protocol and `skills/README.md` now name
+  `claude-concierge`.
+
+### Fixed — `synopsis-panel` now names the HITL ledger it read, and warns when that is not the tracked one
+
+- **The defect.** `find_hitl_md()` in `skills/synopsis-panel/bin/synopsis-fuse.py`
+  resolved the **working-tree** copy of `hitl/punch-list.md` and said nothing about
+  which file it had opened. Measured on 2026-10-26: a vault **21 commits behind its
+  upstream**, with a dirty ledger, rendered **16 open items** — the *same count* as the
+  tracked copy, with three already-closed items (`H-0034`, `H-0038`, `H-0047`) shown and
+  three real ones (`H-0044`, `H-0051`, `H-0052`) hidden, one of them the most serious in
+  the queue. The matching total is what hid the error, so an agent measured a stale queue
+  **without knowing**, three times in one session.
+- **The fix, and what was deliberately not done.** The default is unchanged: the engine
+  still reads the working-tree file. Preferring the tracked version would silently parse a
+  *different* file than the one on disk and break the legitimate case — a human editing the
+  ledger on purpose — which is worse than the defect in a read-only tool used by humans and
+  agents alike. So the engine never swaps the file; it **names** it and **warns**. Every
+  render (`tree`, `mermaid`, `html`) prints the absolute ledger path, and prints a warning
+  when that file is modified against `HEAD` or its repo is behind its upstream, with the
+  exact command to read the tracked version. The JSON envelope carries the same facts in
+  `meta.hitl_source`, `meta.hitl_source_kind`, `meta.hitl_source_dirty`,
+  `meta.hitl_source_behind` and `meta.hitl_warning`. A clean, up-to-date ledger emits no
+  warning at all. New `ledger_provenance()` runs only read-only git queries and degrades to
+  a bare path when git, the repo or the upstream is unavailable — an absent signal is
+  reported as unknown, never as "clean".
+- **Tests.** `skills/synopsis-panel/tests/` (12 cases, real git fixtures, no mocks, following
+  the `skills/pii-masking/tests/` convention). They cover both halves of the contract — a
+  divergent ledger warns, a clean one does not — and are validated by mutation: removing the
+  warning fails 4, removing the path fails 3, restoring passes 12.
+- **Docs.** `skills/synopsis-panel/SKILL.md` gains a "Procedência do ledger" section, and its
+  `--hitl-only` example gains the `--compass-json -` it was missing: without it the script
+  invokes the live `work-compass` collectors and takes minutes, which reads as a hang.
+  `commands/hitl-digest.md` documents reading the header before citing the queue.
+
+### Security — remove production-estate reconnaissance detail from the public HEAD
+
+- This repo is **public**. Seven documentation files recorded an AWS account
+  identifier, the name of a client production EKS cluster, its region, its
+  kubecontext name, and counts of its namespaces, kustomizations and
+  HelmReleases. None of those values authenticates anyone, so this is a
+  **reconnaissance exposure, not a credential leak** — an account identifier
+  cannot be rotated, which is precisely why it should never have been written
+  down in public. The combination (account identifier + `AdministratorAccess`
+  label + named production cluster) is finished target-selection material.
+- `docs/insights/agent-tools-resources-inventory.md` — §9 "Live Connections"
+  and the §1 tool table now state *capability* ("SSO profile configured",
+  "Reachable", "Context configured") and point at the operator's private IaC
+  repo and secret manager for the concrete identifiers, following the
+  vendor-neutral pointer pattern already used in
+  `protocols/delegation/provider-matrix.md` §Secrets. Estate counts are dropped
+  outright: they described one client's production footprint and serve no
+  reader of a public framework repo.
+- Six further files referenced the same cluster name as a private IaC *repo*
+  name; each now reads `<private-iac-repo>` or "the private IaC repo", which
+  preserves the sentence's meaning exactly:
+  `docs/adoption/codegraph-2026-06-18.md`,
+  `docs/insights/aws-sm-naming-convention.md`,
+  `docs/insights/eisenhower-dependency-prioritization.md`,
+  `docs/insights/multi-agent-swarm-governance-v2.md`,
+  `docs/insights/secret-management-strategy.md`.
+- **History is deliberately not rewritten.** The values remain in every prior
+  commit, in any existing clone, and in GitHub's fork/PR caches. A rewrite
+  would feel like a fix without being one, and it is not reversible. Whether to
+  rewrite, or to take the repo private, is the operator's call and is out of
+  scope here.
+
+### Added: `virtuous-spiral` generic parent skill (HOTL delivery cycle)
+
+- `skills/virtuous-spiral/SKILL.md` (v0.4.0): generic parent skill for a spiral, event-driven delivery cycle over a node tree (forward-1 delivers downward, backward traces each deliverable up to a motivation and prunes theater, forward-2 repeats only the missing deliverables one level up). Consolidates two proposals under one name: the floor, classes, self-evolution and child format from one, the gate for irreversible acts only (RELEASE or HOLD, closing re-read, state-id precondition, work record), the short ledger and the digest from the other.
+- An "Inviolable floor" section holds the hard limits; its integrity is checked with one `awk | sha256sum` command. From the repository root set `F` to `skills/virtuous-spiral/SKILL.md` and run that command; the hashed section text is unchanged. The approved hash is kept outside the file; a changed hash is class 2.
+- Review clarifications outside the floor: the public preamble points at the floor's opaque authorization ref and does not treat it as a ticket or message id; the trigger is a set of deliveries ending in a PR, a BRIEF or a session (one ticket or one PR stays on `ooda-loop`); forward-2 repeats only missing deliverables and a fully covered parent still climbs; the PR ratio records the round's start and end and both queries use both bounds with `--limit 1000`.
+- Review follow-up outside the floor: the inventory note labels 2026-10-08 as the pre-addition snapshot (the table lists 96); only floor numbers live in the inviolable floor, and the REPORT caps in §11 stay operational; the state-id step states a conditional write, and the PR-ratio queries state the host contract first, with the GitHub commands kept as one host's example. The inviolable floor text is unchanged.
+- Metacognition classifies an act under the irreversible gate before acting. A cost comparison does not authorize an irreversible act. A compensable merge to main stays subject to the floor rule on merge and repositories. The inviolable floor text is unchanged.
+- Action bias: the agent decides and delivers by default and records decision and reasoning afterwards; it asks only about intent or policy, personal taste, domain norms and the inviolable floor. Reversible and compensable steps never wait; only irreversible acts pass the gate. Cost ceilings have no default number: the agent declares its own estimate and only new spend is floor. Status: proposal, no cycle run yet (dogfood pending).
+- `skills/README.md` lists it (96) and adds it to the Loops & recovery family.
+
+### Fixed — `vek-db-password` allowlist for the literal redaction marker (v1.3.0 → v1.3.1)
+
+- `.gitleaks.toml` — the scheduled Supply-Chain Sentinel full-history scan was
+  failing on two `vek-db-password` findings whose extracted value is the
+  literal placeholder `<REDACTED>`. The rule-scoped allowlist now exempts a
+  value that **is** that marker (`regexTarget = "secret"`, anchored
+  `^<REDACTED[^>]*>$`), alongside the existing Secrets Manager reference-URI
+  exemption. A path or whole-file exemption is not used: the same document
+  still holds a real credential that must keep firing until it is rotated, and
+  that finding is not fingerprinted in `.gitleaksignore`. A value that merely
+  contains the marker stays detectable. Contract test covers the marker, the
+  historical `${…:<REDACTED>}` shape, and four near-miss real secrets.
+
+### Changed — `ratchet-loop` 0.2.0 (C2 instrumented) + top-20 description redundancy cut
+
+- `skills/ratchet-loop/SKILL.md` 0.1.0 → 0.2.0. C2 ("premises refuted per round") claimed to be a counter but nothing recorded a refutation, so it read whatever the conductor remembered — the unmeasured claim its own `ANTI-THEATER` gate fails. Adds **§Phase 6 — the `REFUTACAO` marker**: a five-field `|`-separated line (`REFUTACAO|premise|who asserted|who refuted|the measurement`) written into the round's work-ledger item `decision` field in the **same** round, a copy-ready `jq` counting command over the item files, and the obligation to mutation-check that command before reading a `0` as a real `0` (a command returning 0 because nothing matched and one returning 0 because it is broken look identical). `|` over JSON because `decision` is free text with a 2,000-character ceiling that a human also reads: greppable with no parser, no schema registration, no escaping that breaks on a hand edit.
+- **Alternative rejected, recorded in the asset**: reanimating the session harness's `spec_alignment` field to carry refutations — measured dead since 2026-06 with 0 `divergent` values, so reviving it is a schema-and-pipeline change in a dependency `ratchet-loop` does not own, to feed one counter. Also rejected: counting refutations by regex over prose, which returned 17 candidates on a corpus with no agreed marker — a candidate list, not a metric.
+- **Top-20 largest skill `description` fields trimmed of redundancy**: 25,245 → 24,434 bytes (−811 B, −3.21%) across `bot-finding-arbiter`, `council-gate`, `maos-concierge`, `postflight`, `atomize-and-route`, `morning-briefing`, `red-team`, `ratchet-loop`, `enhance-pipeline`, `convergence-engine`, `opendesign-concierge`, `transmute`, `goal-recovery`, `reveng`, `agentic-tool-pipeline`, `reactivate`, `work-drain`, `walkthrough-concierge`, `sprint-carryover`, `derive-system-from-goal`. The `description` is a skill's discovery trigger, so the cut is gated on a **set diff of distinct trigger terms per skill**: 0 terms removed across all 20, 8 added. Only four quoted trigger phrases were dropped, each one whose tokens another retained quoted phrase in the same list already covered (`"should this go to the human"`, `"session recap"`, `"sprint rollover"`, `"method"`).
+- **Measured refutation of the byte target.** A 50% cut is unreachable by arithmetic, not by effort: the sum of each description's distinct trigger terms plus one byte of glue each is 15,829 B against 25,245 B, capping any non-shrinking cut at 37.3% *with zero prose at all*. Restricted further to redundancy only — repeated trigger lists, an idea stated twice, a non-additive example, `Use when you need to…` preamble — the realistic ceiling is single-digit percent, which is what landed.
+- **Measured defect in the catalog-size regex.** `^description:\s*(.*?)(?=^\w+:|\Z)` does not stop at `allowed-tools:`, because `\w` excludes the hyphen, so that key is counted as description text. Corrected to `(?=^[\w-]+:\s|\Z)`, the host catalog measures **160,509 B over 363 skills** (avg 442 B), not 165,446 B — 4,937 B (3.0%) of inflation across 79 skills.
+
+### Added — `ratchet-loop` thin round-scored productivity loop
+
+- `skills/ratchet-loop/SKILL.md` (v0.1.0): a **round**-scored productivity loop under HOTL autonomy with an inviolable HITL floor (credential · spend · irreversible · prod/PII · peer config). Six phases over one intent tree in **both** directions — RECOVER (backward, leaf→project; 5why + 5w2h on the node in work) → MEASURE (four counters, at source; an unmeasurable counter ships `NOT VERIFIED`) → DECIDE (forward, smallest node set that moves a counter, Eisenhower over it; never delegated) → EXECUTE (one worker per resource boundary; the conductor does not execute) → VERIFY (evaluator verdict **and** conductor re-measurement; a worker's claim is never the acceptance) → INTROSPECT (two gates: **Repair** on a premise refuted at source, obliging a same-round fix of *every* surface repeating it; **Evolution** on a measured gain, generalized with the measured cause attached).
+- **Net-new is exactly three rows**: the bidirectional round contract (N1), the four-counter productivity gate incl. *premises refuted per round* which nothing else counts (N2), and a falsifiable introspection trigger with the same-round all-surface repair obligation (N3). Everything else delegates: the SKILL.md carries a line-by-line **non-reimplementation table** naming the owner of each part across 18 existing assets (`work-compass`, `pulse`, `eisenhower-matrix`, `ooda-loop`, `gap-loop`, `quiesce`, `convergence-engine`, `decision-capture`, `agentic-session-harness`, `corpus-firing-audit`, `praxis-audit`, `rule-quality-tests`, `dogfood-ledger`, `ttl-policy`, `status-map`, `audit`, `agentic-tool-pipeline`, `agentic-tool-trainer`).
+- A round that moves none of the four counters is reported **BUSY**, not virtuous; two consecutive rounds with zero acceptances is an exit clause alongside convergence, 24 rounds and 12 hours. The skill is named for the mechanism (a ratchet clicks forward and cannot slip) rather than the claim, keeping "ciclo virtuoso"/"virtuous cycle"/"HOTL" in its triggers so the identity never asserts the outcome the counters exist to test.
+- Carries `§How a rule enters this asset`: a cause measured at source may be written as fact; a cause **inferred from tool output is a `HYPOTHESIS`** and ships labelled. The section names the empirical breach that produced it — a round asserted a ~40k-token fixed overhead that a delegated measurement put at ~18k, and reported a gateway down while it was answering; both were inferences presented as measurements.
+- Forged through `agentic-tool-pipeline` (Stage-0 → bare INTENT → `agentic-tool-forge`; Stage-1 measured no duplicate in the corpus; Stage-2/3 converged **type = skill**, rejecting command/rule/agent); named via `anima` agent-register, rejecting `virtuous-cycle`, `hotl-loop` and `cvp-hotl`. Seven design corrections recorded as D1–D7. `dogfood_status: pending-first-cycle` — zero real cycles; promotion is `dogfood-ledger`'s call.
+- `skills/README.md` lists it (95 tracked skills) and adds it to the **Loops & recovery** family.
+
+### Added — `/hitl-digest` thin command
+
+- `commands/hitl-digest.md`: thin `/hitl-digest` slash command over the `synopsis-panel` engine (`synopsis-fuse.py --hitl-only`). Renders the HITL DIGEST on demand — only the human-attention gates (credential, spend, irreversible, external-send, business), ⏫ high-severity and 👤 human-domain first. Reimplements nothing: it delegates rendering to `synopsis-fuse.py` and the ledger to the external `punch-list.md` SSOT; read-only. The engine path resolves from `CLAUDE_PLUGIN_ROOT` (with a git-root fallback), and the pure digest short-circuits aggregation with an empty compass so it never blocks on `work-compass`.
+
+### Changed — git-cycle-sentinel 0.1.1 (dogfood cycle-1 + cycle-2 real)
+
+- `skills/git-cycle-sentinel/SKILL.md` bumped 0.1.0 → 0.1.1 after dogfood cycle-1 (dry-run, decision-vs-norm) and cycle-2 (real execution in a throwaway `/tmp` git sandbox, 7/7 assertions PASS). Two previously-decorative guards made functional: **§A6** host-alias parse now strips any scp-style `[user@]host:` prefix (incl. a userless alias like `github.com-ekson73:`) so the alias never glues onto the owner, and RECUSA (STOP-ERROR) when the slug is not `owner/repo`; **§A7** idempotency probe scopes `git log --grep="idmp:<key>"` to the branch's unmerged range `origin/<base>..HEAD` (never whole reachable history) so a reused key on a merged-and-deleted branch cannot false-positive. Repo-awareness table corrected: `multi-agent-os gpgsign` re-measured `true` (read live, not the frozen cell). `dogfood_status → dogfood-cycle-2-real-7of7-pass-promotable`.
+
+### Changed — canonical execution ticket body
+
+- The spec–backlog–ticket reconciler single issue template now includes explicit in/out scope, constraints and gates, a verification method with planned versus observed evidence, and an actionable next step. It serves both informal spec-as-prompt and ticket-as-spec usage while the source specification retains authority.
+
+### Added — portable spec–backlog–ticket reconciliation skill
+
+- `skills/spec-backlog-ticket-reconciler/SKILL.md` discovers authoritative specification artifacts and reconciles pending outcomes against complete local/GitHub/Jira/Linear inventories, with collision gates, dry-run approval, mandatory campaign-level independent adversarial review before H11/H10/H7 or other red-team-triggered writes (HOLD if HIGH and no verifier), and post-write read-back. Standalone installations without the sibling red-team skill are plan-only/HOLD for writes. Its single canonical issue body is in `templates/issue-body.md`; no provider-specific writer or assumed framework layout.
+- Guarded reconciliation now requires one independent refuter for MEDIUM campaigns without a hard trigger, re-approval after material source/destination changes, and endpoint-documented atomic write protection for automatic full-body edits; otherwise it HOLDs the edit and returns a proposed manual merge diff. Safe native field-only/append operations remain eligible when they preserve unrelated content.
+- The reconciler now declares its cross-vendor spec-lifecycle metadata, model/agent invocation surface (no slash wrapper), BEING priority, qualitative sunset, references, MIT license and pending dogfood status; write gates are unchanged.
+- `skills/README.md` lists this reconciler (94 tracked skills after syncing with `main`).
+- The reconciler is marked experimental and unqualified (`qualification: experimental-unqualified`) until its evaluation records a PASS; the bundled EVAL-REPORT verdict remains FLAG.
+- Hardened the reconciler against three review findings: (1) an ingestion-time trust boundary at Passo 3 treats every retrieved spec/tracker body, comment and title as untrusted data (no embedded instruction is executed, disclosed, or forwarded raw to the verifier) — closing the window before the later H10 gate; (2) replace-style field updates (title, milestone, labels-as-set) now require the same atomic precondition or single-writer coordination as body edits, since `gh issue edit --title` offers no conditional write — only genuinely additive field ops stay exception-eligible; (3) the disclosure gate (authorize + minimize + redact) now applies to every verifier handoff regardless of criticality, not only HIGH/hard-trigger, so a MEDIUM refuter on a separate model/provider cannot receive unauthorized private source detail. Decision table grows to twenty-three rows (REQ-20 injection-inert, REQ-21 field-replace HOLD).
+
+### Added — `fleet-campaign` (Classis): converge N resources to one declared config state
+
+- Review round: a zero-repo account and an alerts `404` count only after a positive control on
+  the same credential (otherwise `unverified`); `--dry-run` keeps the P0 decision record in the
+  report and writes nothing durable.
+- New skill `skills/fleet-campaign` (v0.1.0, `latent` until two dogfood cycles) + the
+  `/fleet-campaign` command wrapper. Forged through `agentic-tool-pipeline`; the Stage-1 DRY probe
+  over the existing corpus found no member deriving a work register from a **live provider
+  measurement of N resources** — `work-drain` derives from trackers, `repo-custody-transfer` is
+  N=1 host-to-host, `ooda-loop` is the generic round — so this is an addition, not a sister of an
+  existing SSOT. Named via `anima`: system-name `fleet-campaign`, soul-name **Classis**; rejected
+  `fleet-convergence` (collides semantically with `converge`/`convergence-engine`) and `census`
+  (names only the measuring half).
+- Carries the six-phase M.O. that survived a real 48-member / 2-credential-boundary / 3-round
+  campaign: DISAMBIGUATE the product name into independent surfaces classed by what is LOST when
+  each is off → RECON every member at source this round with the probe printed per column → ORIENT
+  on authority facts → SHARD one worker per credential boundary → VERIFY every worker claim at
+  source before accepting it → RE-DERIVE the register each round and close on an empty
+  re-measurement.
+- Carries fourteen generalized laws, each stated provider-agnostically **and** evidenced by its
+  measured instance: SURFACE-DECOMPOSITION · AUTHORITY-REF · FALSE-NEGATIVE-READ · TIER-NOT-CONFIG
+  · HOST-FLOOR-OUTRANKS-POLICY · FORK-INHERITS · INVENTORY-DECAYS · CLAIM-IS-NOT-EVIDENCE ·
+  ONE-WORKER-PER-CREDENTIAL · OWN-BY-RESOURCE-BOUNDARY · ROLLUP-IS-NOT-THE-GATE ·
+  BLOCKED-IS-NOT-MISSING-APPROVAL · GATE-MAY-LIVE-IN-CODE · EXTERNAL-LOOPS-DO-NOT-CONVERGE.
+- New section **How a law enters this table**: a law enters only with a **measured** cause; a cause
+  inferred from tool output is a hypothesis, marked as such or left out. The section carries the
+  correction that proved the rule — `ROLLUP-IS-NOT-THE-GATE` first shipped with an inferred cause
+  ("a check run that registers and never concludes", read off truncated check names) and a
+  measurement refuted it: the real contributors were **non-required apps out of quota** plus
+  skipped jobs, with no unconcluded run present. The effect survived, the cause did not, and only
+  the measured cause yields the actionable form (`gh pr checks <n> --required`, exit 0).
+- `AUTHORITY-REF` now carries both directions: the default ref **varies between members of the same
+  branching family**, and a config left on a non-default branch is a **silent landmine** — inert
+  until someone flips the default.
+- Hard limits that `§0 BEING > Rules` never waives: turning off a loss-bearing surface
+  (detection/alerting/audit/backup), irreversible deletion, production, PII or a secret value, a
+  peer's or another org's config, a cost delta, a non-ours fork's divergence, and a declared state
+  with no read-back probe. An unanswered escalation is re-stated every round until decided.
+- `skills/fleet-campaign/references/worked-example.md` holds the concrete probe set and matrix from
+  the campaign behind the laws, redacted for an open-source repo: client-org members appear only as
+  `C1…C6`, with no host, account, ARN, secret name, person or client content.
+- Registered in `skills/README.md` (new "Fleet & bulk convergence" family) and `commands/README.md`.
+  Cross-harness reach is by projection (`npx skills add … --skill fleet-campaign`), never a
+  divergent copy: this repo stays the SSOT.
+
+- Review hardening (findings raised on the PR, each verified at source before accepting): `§0
+  BEING > Rules` no longer reaches **P4 VERIFY** or **P5 RE-DERIVE**, so the skip escape cannot
+  waive the acceptance checks the skill exists for; P1 now states that the **read-back must probe
+  exactly the set discovery probed** and must filter any population shared with a loss-bearing
+  surface, because an acceptance check satisfiable by destroying what P0 protected is `L1` through
+  the back door; the worked example's read-back probes both supported config filenames and counts
+  scheduled bumps only, never security-fix PRs; `L9` names the exported-environment form of the
+  credential race alongside the global switcher; and the `description` is under the 1024-character
+  frontmatter limit so loaders do not truncate the triggers.
+
+- P3 now routes every worker spawn through `delegate-governance` (`AGENTS.md` §Delegation canonical
+  entry point) and carries the fleet brief as the payload on top of that prompt, instead of
+  briefing a `Task` worker directly and bypassing the ticket/provider/DNA/cleanup checks.
+- The `--round 2 --json` examples carry the required positional end-state, which the command
+  contract marks mandatory (an empty value prints usage and stops).
+- Second review round, each finding verified at source: `§0` no longer reaches the **output
+  contracts** (a `--json` envelope and the report's measured rows are mandatory; only narrative is
+  skippable); P1 requires **metadata-only probes** (status/count, never a body the report then
+  prints) and distinguishes the **ORIENT columns** — which need no read-back — from the
+  **declared-or-mutated surfaces**, which all do; the worked example's acceptance gate is now the
+  **generation source being gone**, not a bot-PR count, because the vendor opens scheduled bumps
+  and security fixes under one author and the `dependencies`/`security` labels prove neither
+  (a repository's own `labels` option replaces the defaults for security updates too), so remaining
+  PRs are listed for individual review and never bulk-closed; the authorized-off auto-fix surface
+  gets its own read-back; and the fork case now carries the **four-field escalation record** the
+  hard limits require, with "pending escalation" as the correct state when the operator's decision
+  row is absent — "done deliberately" is not an authorization.
+- Identifier hygiene: no account or repository owner is named in the new documents (this repository
+  is referred to as such, the fork member generically, client members as `C1…C6`), and the
+  projection command points at `.claude-plugin/plugin.json` `repository` so a fork substitutes its
+  own source instead of inheriting a hardcoded one.
+
+### Fixed — `skills/README.md` index drift (boy-scout, found while registering `fleet-campaign`)
+
+- `wacli-concierge` and `ref-claim-verify` were both counted in the inventory provenance note but
+  had no row in the Available Skills table, so the heading count disagreed with the directory
+  count. Rows added; the heading is now **97**, matching the 97 skill directories on disk —
+  verified by set difference in both directions, not by eye. `ref-claim-verify` surfaced only on
+  the second rebase, which is `fleet-campaign`'s own `INVENTORY-DECAYS` law applying to its own PR.
+
+### Added — seat profile (six org levels) and three delivery agents
+
+- New `agents/SEAT-PROFILE.md` (v1.0.1): six organizational levels (Political, Strategic,
+  Orchestrator, Managerial, Tactical, Operational) with human analogs, a default RACI per level,
+  delegation shapes, objective layers, and the 14 seat attributes every delivery agent declares.
+  Describes fit only; grants no authority.
+- New agents `solution-architect`, `devsecops-engineer` and `devops-engineer` (v1.0.0, `latent`
+  until two dogfood cycles): forged after a reuse check found <50% in-repo coverage for each;
+  names decided via `anima`. Role Coverage Map and the cowork autonomy policy list them.
+- Coverage Map: Solution Architect, DevSecOps and hosted DevOps reclassified `EXISTS` → `GAP→NEW`
+  because their prior providers are external plugins not shipped here; those stay listed as optional.
+- `forge` Step 3 now loads `SEAT-PROFILE.md` and emits `## Seat Profile` and `## Role Contract`
+  (`status: latent`) for every new agent; the completion checklist requires both. The three new
+  agents carry the mandatory pt-BR line in their descriptions.
+- `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
+
+### Changed — ticket-first traceability (#484)
+
+- Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
+- Preflight searches/reuses or creates in an authorized destination before implementation;
+  outages retain a durable pending-ticket outbox, never a public-provider fallback.
+- Postflight reconciles pending records and carries unresolved work into handoff without
+  blocking safe exit. Existing provider schemas and batching remain canonical.
+- Add static regression contract tests to the plugin validator, align the command entry
+  point, and bind durable deferral to existing authorized claude-mem work state with indexed
+  cold recovery and an isolated installed-source smoke test. Missing/failed storage is
+  explicitly unsupported for durable deferral, not success. No changed seed fields,
+  new storage, dependencies, network hooks or global installation.
+
+### Added — `person-agent-creator` and the first three person-agents
+
+- New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`, for subjects of
+  five classes (living public figure, historical figure, fictional or archetypal character, collective,
+  non-human metaphor) used as advisory lenses for decisions, tiebreaks between ideas and councils — never
+  as an authority, a gate or a substitute for an independent reviewer (every charter carries a
+  "consultative lens, not an authority" paragraph). DRY recon,
+  sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
+  five-lens synthesis, charter template, and a deterministic lint floor
+  (`scripts/lint-person-agent.sh`, 201 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). Every check reads one normalization pre-pass (fences and comments out of the structure view, soft line breaks joined, accents and case folded, headings trimmed); an unclosed HTML comment or code fence fails, and so do a heading or Fidelity row containing `<!--` and a setext or HTML heading in *Known limits*; nothing to check is a failure, and every occurrence is read (one `Source ids` column and one header row in the Fidelity table, one `Class basis:` line, autolinks and bare URLs removed whole, Fidelity rows closed by a pipe and free of escaped pipes); the lint is frozen as a floor by a stop rule, and obfuscation variants are known limits. The floor checks only: a valid `subject_class` inside a closed front matter (YAML-like lines only, no body heading inside it), a `Class basis:` line with strict `S<digits>` dossier ids for fictional and non-human charters only, that every
+  source id in the Fidelity table exists in the dossier (reversed ranges and suffixed ids fail; ranges
+  expand only up to the highest dossier id), every `## ` section of the
+  charter template (read from the template at run time) (including *Revalidation*) and one fidelity table inside `## Fidelity` with a `Source ids` column, unfilled placeholders, a source
+  marker on blockquote lines that contain a quotation (presence, not existence of the id), words from
+  non-exhaustive clinical (every class; only lines labeled `Literary analysis:` or `Metaphor:` are exempt in their class — a change of class is a panel finding) and cultural lists outside *Known limits*, and a bounded list of first-person,
+  role-play and endorsement patterns (English and Portuguese). A double-quoted span counts as a sourced
+  citation only when a source marker follows it; text inside fenced code blocks and HTML comments is
+  ignored, and headings there do not count as sections; fences and comments exclude each other as in a
+  renderer, and inline code never opens either. It runs with `LC_ALL=C`, checks the exit status of every
+  tool it calls and treats any tool error as a failure (proved by breaking `sed`, `head`, `cut`,
+  `dirname`, `grep` and `awk` in the fixtures). Out of scope (listed in the skill): other languages, third-person
+  endorsement, obfuscated text, single-quoted spans. It does not validate personification or
+  endorsement semantically: every run prints a warning and
+  `--json` carries `"semantic_validated": false`. A mandatory merge gate requires a review panel
+  (adversarial, living-person risk, source fidelity) with a declared independence grade (`vendor`
+  preferred, `context` allowed and recorded, `self` never clears), recorded on the pull request at the
+  current head; adversarial escapes become new lint fixtures. In a host that cannot delegate, the panel
+  lenses run as sequential passes recorded as `panel: sequential-single-author`; that is grade `self`,
+  which never clears the gate on its own. When the subject's company makes the
+  reviewer's model, the panel must include a `vendor` or human reviewer, otherwise the gate holds.
+  Independent reviewers are spawned through `skills/delegate-governance/SKILL.md`.
+  Guardrails: no impersonation, verbatim quotes only with source, no remote clinical labels
+  (Goldwater-rule principle), cultural inputs (zodiac, numerology) labeled non-evidential.
+- Elevated in place to v2.0.0 person-agents, each with a dossier under
+  `skills/person-agent-creator/dossiers/`: `consultants/elon-musk`, `consultants/sam-altman`,
+  `consultants/amodei-siblings` (collective mind).
+
+### Fixed — unsourced quotes in three consultant archetypes
+
+- The v1.0.0 headline quotes of `sam-altman` and `amodei-siblings` were not found in any source checked
+  and were removed; `elon-musk`'s was not verified against a primary transcript and is now a labeled
+  paraphrase. Replacements are verbatim lines from the subjects' own writing, with sources.
+
+### Changed — TRAIN: Forge and Anima learn organizational roles
+
+- `agents/forge.md` v1.1.0, `skills/agentic-tool-forge` v1.3.0, `skills/anima` v1.3.0: an organizational role
+  already covered ≥50% by existing agents becomes a **role contract bound to them**, not a new agent (step [2b] in
+  the Forge decision framework, a `role contract (binding)` row in the forge router, and a new Anima adapter
+  `kb/org-roles.md` for naming roles, lanes, edges and tiers). Every contract has `status: latent`, the only
+  admitted value; the file's `status` never grants authority and every decision of the role goes to the human.
+  Activation is out of scope: the ratification gate drafted during review (owner record, `authority_digest`, checks
+  (a)–(e)) was removed because nothing executed it and its identity rule had a revocation hole; what a future gate
+  must satisfy is in `docs/adrs/ADR-019-role-activation-gate-deferred.md`. New regression test
+  `tests/governance/test-roles-latent-only.sh` checks contract form only under `roles/` and refuses when in doubt.
+  The YAML template blocks in `agents/forge.md` are not machine-verified in this PR (declared limitation; a template
+  check is a possible follow-up). Under `roles/` only regular lowercase `.md` files with one frontmatter pass, with no
+  fences, extra documents, symlinks, CR/NEL or BOM, files over 64 KiB, or contract keys in the body (quoted keys,
+  explicit `?`/`:` keys, and the body loaded by the strict loader are all checked; a contract key in the body fails
+  with any value, null and false included, and keys are compared after the loader decodes them, so `"active"`
+  counts as `active`). The frontmatter is loaded with `yaml.safe_load`
+  (duplicate keys, anchors/aliases and `!!omap`/`!!pairs`/`!!set` refused): `status` is `latent`, `tier` is null, `role`/`status`/`tier` only at the root (depth-counted), and at any depth reserved
+  fields are null and activation keys null or false. Without PyYAML the test fails. Fixtures build a real `roles/`
+  tree per refused form. Any refusal by the strict loader in the frontmatter or the body under `roles/` fails
+  (parse error, duplicate key, unreadable document, unknown tag); there is no lenient re-read. Without `perl` (time
+  limit) the test also fails. It is a best-effort lint that fails closed,
+  not a guarantee. It does not detect natural-language activation, unlisted or look-alike (Unicode) keys, tags PyYAML nulls or retypes (`!!null`, `!!binary`), a different YAML parser's
+  reading, or a registry outside `roles/`, and no CI workflow runs it yet.
+
+### Added — `ref-claim-verify` skill: verify cross-reference claims against the source
+
+- `skills/ref-claim-verify/` — read-only, stdlib-only, offline checker for the citations a doc,
+  PR body or diff makes about other artifacts: a cited **path** exists at a base/head ref, a
+  **section** (`file §4.1`) has a matching heading, a **version** (`[ID] v1.2.3` or `` `file` v1.2.3 ``)
+  equals the artifact's own declared version. Verdicts `VERIFIED` / `MISMATCH` / `UNRESOLVED`
+  (UNRESOLVED is never a pass); exit codes 0/2/3/1. Motivation: review bots approved a doc line
+  citing a version no ref declared. Dogfooded on that very PR: reproduces the defect (`claimed
+  v3.1.0; declared 3.0.0`, exit 3). Excerpts are masked by reusing `pii-masking` (fallback masks
+  CPF/email/phone and declares `masking: fallback`); a recall guard counts version-like mentions
+  not tied to an anchor so silence cannot hide a parsing gap. 74 tests.
+- Hardened the verifier against three review findings: (1) the SECTION token regex no
+  longer folds a trailing `.`/`-` into the section (a sentence-ending citation like
+  `` `file.md` §4.1. `` now parses as `4.1` and VERIFIES instead of a false MISMATCH);
+  (2) the SECTION branch now applies the same `safe_path` guard as the PATH branch, so an
+  unsafe/out-of-repo path (`../x.md`) returns UNRESOLVED (per SKILL.md), not MISMATCH;
+  (3) `_git` and the test fixture strip inherited Git env vars (`GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, object dirs, …) so `-C repo` is authoritative and a caller's environment
+  cannot silently redirect the verifier at another repository. Two regression tests added.
+
+### Changed — DNA payload v1.2: optional `depth_remaining` and `authority_scope`
+
+- `protocols/delegation/delegation-dna-prompt.md` adds two optional lines to the
+  auto-pilot DNA block: `depth_remaining` (0 = leaf) and `authority_scope` (a
+  subset of the parent's, never widened). Every parent passes
+  `depth_remaining` (the root passes cap − 1); absent = leaf; a value not lower
+  than the parent's is invalid = leaf. A scope counts only if the parent wrote
+  it; absent scope = no authorization grant; a scope exceeding, contradicting
+  or not confirmable against the parent's is treated as absent (fail-closed).
+  The DNA Heritage block carries both fields, and `delegation-init-prompt.md`
+  lists `DEPTH_REMAINING` as a header line the delegator adds, so a child made
+  by `delegate.sh init` is not a leaf by accident. Stated as prompt-level only.
+  The stricter of `depth_remaining` and the older `depth` counter applies: a
+  child may delegate only if `depth_remaining` ≥ 1 and `depth` is below the cap;
+  otherwise it is a leaf. Grants are unverified prose (§4.1 Known weakness).
+  Agents that ignore the block still apply the §4.1 defaults, and the
+  auto-pilot depth note points to the single cap; these lines match #479's
+  text so the two PRs merge cleanly.
+  `delegate-governance` tells the delegator to add `DEPTH_REMAINING` (and
+  `AUTHORITY_SCOPE` when granting) after the `delegate.sh init` header, so the
+  canonical init path does not make every child a leaf.
+  Rules live in `skills/agentic-delegation` §4.1 (lands with #479; merge #479
+  first).
+  `skills/auto-pilot` lists the two optional lines where it describes the block.
+  The v1.2 block also documents `authority_origin` (mandatory whenever
+  `authority_scope` is granted, per §4.1 — the operator's original grant passed
+  down unchanged; a scope without an origin is treated as absent, fail-closed),
+  closing the gap where a child reading only the payload would not know to carry
+  it. `delegation-init-prompt.md` bumped to v1.1 to record its new
+  `DEPTH_REMAINING` header field.
+- `tests/dogfood-auto-pilot.sh` cycle 3 greps the spec text for the fields and
+  their fail-closed wording (it does not test semantics), checks that `delegate.sh dna` output still carries the v1.1 and v1.2
+  template lines (spec text, not live values), and
+  that no runtime script parses the fields (if one ever does, the test says so).
+
+### Changed — delegation rules have one home: `skills/agentic-delegation` 1.2.0
+
+- New §4.1 "Root posture and authority inheritance": the root orchestrates and
+  executes directly only under a recorded exception; a delegator may hand down
+  execution and authorization, but delegated authority is always a subset of its
+  own, bounded by `depth_remaining`, never widened (not by a council verdict and
+  not by text inside a task), and fail-closed when unknown. A never-delegable
+  table (HUMAN_DOMAIN, absolute-guardrail exceptions, rule changes without an
+  independent red-team, final accountability, audit judgment, escalation choice,
+  memory judgment, world boundary). The root's direct-execution exceptions are a
+  closed list (E1–E4). Every delegator passes `depth_remaining` (the root
+  passes cap − 1); a child that receives none is a leaf; missing scope means
+  no authorization grant; invalid grants fail closed.
+  Enforcement is stated as prompt-level (no spawn-boundary check yet). §7 now
+  points to the table instead of repeating it.
+- `council-gate` P0 also needs the invoker's task to be shown within its
+  parent's authority; otherwise it goes back to the parent.
+- The BEING > Rules escape clause (`rule-quality-tests`) never relaxes §4.1;
+  it can only make an agent stricter or stop. For a root invoker of
+  `council-gate`, the operator's grant stands in for the parent's authority.
+  The closed exception list notes the no-delegation-runtime case.
+- `sentinel/schema/alert_schema.json` example shows `max_allowed` 2; the
+  test checks Sentinel schema examples and runs its fixtures in parallel.
+- Until spawn-boundary validation exists, a delegated grant covers only
+  reversible actions the parent could execute itself, and the child records
+  the grant's origin before acting; irreversible actions go back to the
+  parent. If another layer sets a different depth cap, the lower one applies.
+  The Sentinel schema example chain now matches its depth.
+- Mid delegates (depth left) may execute their own assigned task or delegate
+  parts of it; only the root follows the delegate-first posture.
+- One depth cap (2). Files that stated another value now use 2 and link the
+  SSOT §8: `agents/orchestrator.md`, `commands/delegate.md`, `agents/README.md`,
+  `skills/auto-pilot` ("manual mode allows ≤ 3"), and Sentinel
+  (`sentinel/config.json` `max_delegation_depth` 3→2, `detection_rules.md`,
+  `README.md`) plus the statusmap templates. Files that already said 2 keep
+  their wording. The orchestrator's "simple → execute directly" now
+  applies to leaf/mid agents; the root delegates unless it records an exception.
+- `protocols/agent-delegation.md`: "resolve directly" is for leaf agents; the
+  agentic council runs before escalating to the user.
+- One-line links to the SSOT in `COWORK-AUTONOMY-POLICY`, `delegate-governance`,
+  `auto-pilot` (skill + command), `quiesce`, `council-gate` (its authorization is
+  a subset of its invoker's), `persona-pipeline`, `perspective-trio`,
+  `cascade-resolver`.
+- `skills/council-gate` 1.1.0: new conjunct P0 within-invoker-scope; missing or
+  unverifiable scope ⇒ `HITL_OUT_OF_SCOPE`.
+- The SSOT header and refs no longer point back to the operator's personal rule.
+- New `tests/governance/test-delegation-authority-ssot.sh`, run by
+  `tests/validate-plugin.sh`: fails if another file restates a different depth
+  cap (several phrasings, in tool dirs, `rules/`, `.claude/`, `.agents/` and
+  root guidance files, Codex `.codex` and Copilot instructions), if a rendered value (config table, `current/max`
+  display) shows another cap, if Sentinel's value or `valid_range` (parsed as
+  JSON, 1 ≤ min ≤ max ≤ cap) disagrees or the config is missing, if the SSOT
+  loses its normative clauses or gains a personal-layer reference, if any file
+  that states a depth cap does not link the SSOT, or if a listed widening
+  phrase appears (matched across line breaks).
+  Thirty-nine mutation fixtures (plus a control) prove each check catches the
+  contradiction it guards. The prose checks are a phrase lint, not a proof.
+- The scope rule now says who may issue a scope (only the parent's own
+  briefing or payload) and that a parent grants only from a scope it can show,
+  so a child that cannot confirm its grant is a subset treats it as missing; a
+  value of `depth_remaining` not lower than the parent's is invalid; a
+  HUMAN_DOMAIN criterion failure always escalates; a council verdict outside
+  the invoker's scope is advice only (also in `convergence-engine`'s
+  Return-Gate). `council-gate`'s flow evaluates P0..P5 and routes a P0 failure
+  to `HITL_OUT_OF_SCOPE`; its HITL trigger list and quality section name P0.
+  `depth_remaining` counts only from the immediate parent and must be an
+  integer; an action that needs a missing, invalid or unconfirmable grant goes
+  back to the parent; agents that do not parse the auto-pilot block still
+  apply the §4.1 defaults; Sentinel's cap must be the exact integer.
+  Memory: non-judgment upkeep may be delegated, deciding what to persist may
+  not. The default sweep is part of the given task, not an authority grant;
+  `council-gate` P0 passes for actions inside the invoker's own task or a
+  verifiable grant; §1 escalation goes through the council first; §4's table
+  points to the §4.1 never-delegable table instead of repeating it; §8 states
+  that no session-wide cap on live delegates is set (operator decision).
+- Sample renderings (`skills/audit` config table, statusmap displays,
+  a Sentinel example) show the cap 2. Files that restated the cap without a
+  link (`enhance-pipeline`, `ooda-loop`, `transmute`, `gap-loop`, `work-drain`,
+  `praxis-audit`, `refine-braindump-to-prompt`, `agentic-tool-forge`,
+  `delegation-dna-prompt`) now link the SSOT §8.
+### Added — postflight 0.11.0: P0 GATE + P3.7 MANIFEST for multi-agent close-out
+
+- New SSOT `skills/postflight/references/close-out-manifest-protocol.md`: a fail-closed
+  **P0 GATE** (every delegate delivered / failed / dropped before closing; unknown state
+  blocks; orphans become seed risks + HITL items) and a **P3.7 MANIFEST** (one self-locating
+  close-out file: delegates gate · instruction N-tree with status synced 1:1 to the todo-list ·
+  HITL decisions recommended-first · roadmap · artifact index · recovery triple
+  `[session_id, link, command]` · self-location). References the hunt / seed / ticket-sync /
+  broadcast SSOTs instead of restating them.
+- New executor `bin/close-out-manifest.sh` (`check` · `persist` · `clip`): structural check of
+  the manifest; durable copy of scratch reports only after a secret scan and a PII scan, each
+  proven to detect a positive control assembled at runtime (blind scanner ⇒ rc 3, dry-run
+  default, idempotent); clipboard copy verified by `cmp` read-back (rc 4 ⇒ paste-MCP fallback,
+  never a fake success). `persist` scans and promotes only the bytes it staged privately (no read-twice TOCTOU), refuses binary files, scans raw + CRLF-normalised + line-joined views, and isolates the scanner from inherited config, ignore files and in-content allow directives. No residue on any exit path: one private temp dir plus registered rename temps, removed by a single EXIT/INT/TERM/HUP trap; a failed cleanup is rc 6; clipboard read-back streams into `cmp`.
+- Fusion with the independent `session-handover` prototype (protocol 0.2.0, executor 0.2.0): operator-authorised `PARTIAL` gate, recovery triple coherence (command carries the id, URL link, optional transcript must exist), broken/ephemeral indexed paths refused, read-only `anchor` subcommand (branch@HEAD, dirty files, worktrees), typed open items and verified/unverified facts, a timestamped `.bak` before a changed target is replaced, and an opt-in `check --strict` (after-action review, resume check, not done). Default behaviour unchanged in cost.
+- Review round on PR #478: fields read per section; empty content sections refused; `manifest_path` must exist and match the checked file; `PARTIAL` needs a `PARTIAL` title; missing/non-regular sources and basename collisions refused (rc 5); exclusive `mktemp` rename temps and backups; domestic Brazilian phone formats and checksum-valid bare CPFs in the PII scan; `--strict` sections may not be empty; `manifest_path` may not resolve into a temp root; basenames keep every byte (trailing newline); non-UTF-8 path bytes become U+FFFD so the JSON stays valid; control characters escaped in JSON output; a half-set clipboard override is rc 4; unexpected faults reported log-only (line + rc, no content).
+- Final correction round on PR #478: section regexes brace their variables (ShellCheck SC1087 clean at `-S error`); an incomplete `.bak` is removed by the exit trap; the macOS per-user temp (`/var/folders/*/T`) is ephemeral even when `$TMPDIR` points elsewhere; `persist` refuses a `--dest` under a temp/scratch root (spelled or through a symlink, rc 1); the protocol no longer denies the checksum-valid bare-CPF match.
+- Verifier follow-up on PR #478: `persist` expands a quoted `~` in `--dest` once, so the temp-root gate and the write use the same path (a quoted `~/x` was checked as `$HOME/x` and written to a literal `./~/x`); repeated slashes are normalised before the temp-root check and `canon` never returns `//x` for a child of `/` (`//tmp/x`, `//private/tmp/x` and a symlink to `/tmp` are refused); INT/TERM/HUP are deferred while the `.bak` is created and registered, so a signal in that window leaves no empty backup; the scratch rule matches a path component named `scratchpad` (`~/scratchpad-archive` is durable); the protocol-coherence test (F5) is case-insensitive and targets the unqualified denial.
+- Tests: `bin/tests/close-out-manifest.test.sh` (104 assertions, bash 3.2-safe); wired into
+  `tests/validate-plugin.sh`.
+- `skills/postflight/SKILL.md` 0.10.1 → 0.11.0: Core Rule, responsibilities table, algorithm
+  steps 0.5 / 3.7, anti-patterns 19-20, related artifacts.
+
+### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
+
+- New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
+  Reads every review (paginated, all pages), keeps each reviewer's most recent
+  review, and compares its full `commit_id` with the full `headRefOid` —
+  `CURRENT` / `STALE` / `NONE`. A clean verdict issued on an older commit is the
+  classic trap of `latestReviews`/`reviewDecision`; this makes it a deterministic
+  check. Also reads the head commit's status and check-run descriptions: a
+  reviewer bot that hit its quota can report `success` with "Review rate
+  limited" — no verdict, never convergence. An active `CHANGES_REQUESTED` blocks
+  even after later `COMMENTED` reviews (matches GitHub). The head is re-read at
+  the end; a push during the read blocks.
+- Exit `0` CONVERGED · `3` BLOCKED · `2` usage/API/parse error (fail-closed, never `0`).
+- Tests: `bin/tests/verdict-at-head.test.sh` (52 assertions, offline fixtures:
+  stale approval, 12-char-prefix collision, stale vs superseded
+  `CHANGES_REQUESTED`, rate-limited `success`, >30 reviews across pages,
+  force-push, `--primary` NONE, malformed input, paged statuses, unknown
+  review state, rate limit in `output.text`, literal regex).
+- Documented in `rules/pr-governance-unified.md` Step 7 + Tools Reference.
+- Rate-limit attribution to a reviewer uses normalized equality or vendor-token
+  equality (plus an exact alias table) — never a prefix: context `ci` no longer
+  marks reviewer `cicero`, and `Qodo Merge` now attributes to `qodo[bot]`. The
+  verdict itself was already fail-safe (any rate-limit signal blocks).
+- Script header cites its spec (Step 7) and states idempotency (read-only);
+  the test suite fails fast on any fixture/setup failure (no `set -e`, because
+  every case captures a non-zero exit of the script under test).
+
+### Fixed — gitleaks false-negative: entropy on value, not match (follow-up to #433)
+
+- `.gitleaks.toml` (v1.1.0 -> v1.3.0) — the `vek-db-password` and `vek-jwt-secret`
+  rules evaluated `entropy` against the **whole `name=value` match**, so the
+  variable name diluted the score and a weak real credential slipped under the
+  threshold (`entropy=3.5`/`3.0`). Measured: **0 of 5** weak credentials
+  (a `DB_PASSWORD` set to a common dictionary word, etc.) were detected. Both
+  rules now capture the **value** in group 1 via `secretGroup = 1` and carry
+  **no entropy floor at all**. An entropy floor is a false-negative in disguise:
+  even a low floor of 2.0 drops a non-repeat weak secret such as `abababab`
+  (Shannon entropy 1.0), while — measured on this repo's full history — removing
+  the floor adds **zero** false positives, because the value char class already
+  excludes code/template punctuation. Entropy measures randomness, not intent,
+  and placeholders and weak passwords occupy the **same** band (a `password123`
+  token at 3.278 outscores a real `Passw0rd` at 2.750), so the split is: recall
+  in the rule, precision in the allowlist — never an entropy threshold.
+- The `vek-db-password` value char class also excludes shell/template/code
+  punctuation (`$ { } ( ) , .`) so the rule matches a literal `KEY=secret` but
+  no longer false-positives on code that *reads* a secret (`os.getenv(`,
+  `os.getcwd()`, `${DB_PASS}`). Trade: a password containing a dot is not
+  matched — accepted, because every code-reference false-positive vanishes.
+- A rule-scoped `[rules.allowlist]` exempts three documented non-credentials by
+  form or exact path: the AWS Secrets Manager **reference URI** shape, tested
+  against the extracted value (`regexTarget = "secret"`) and **anchored `^…$`**
+  so a real password that merely *ends* in such a URI is not swallowed; plus a
+  CI build-log capture and a test fixture, each **path-anchored (`$`)** so a
+  suffixed sibling (`…​.bak`) stays scanned. It is deliberately **not** a broad
+  `docs/insights/` path allowlist, because a sibling doc still holds a real
+  credential that must keep firing.
+- `tests/test-gitleaks-config.sh` (new) — a TDD contract for the config, run
+  against the real gitleaks binary: a **canary** (an armed fixture yielding 0
+  findings fails the test — the gate must never be decorative), recall on weak
+  real credentials, a **no-entropy-floor** assertion (low-entropy credentials
+  still fire), precision on documented placeholders, an anti-over-suppression
+  trap (a real secret glued to a placeholder still fires), and an AWS-URI
+  anti-substring-bypass pair. The helper fails hard on a scanner error (never
+  masking a crash as zero findings), compares the **complete** extracted secret
+  (no prefix free-riding), cleans fixtures via an `EXIT`/`RETURN` trap, and
+  treats a missing `gitleaks` binary as a failure, not a skip. Full-history
+  findings dropped from 93 to the residue that is a **genuine** credential
+  requiring rotation.
+
+### Added — `live-session-continuity-recovery` skill
+
+- `skills/live-session-continuity-recovery/SKILL.md` reconstructs the exact active thread with source-coverage and freshness attestation, correction-aware claim provenance, explicit-versus-inferred goals, bounded review, and one read-only OODA next action or HITL. It composes adjacent skills without a transcript parser, write-capable default, automatic session enumeration, or new adapter.
+- Training refinement: seven items / 1,800 characters are best-effort targets, not a hard cap (live output reached 1,975; manual correction reached 1,455). Count before sending where the host permits without persistence; preserve blocker status, report overflow, and label expanded reviews rather than omit material facts. Internal session handles remain private; only currently authorized non-sensitive record labels may disambiguate status, and the next action stays atomic.
+- Training refinement: evidence-gated objective qualifiers, steps/feedback, and read-only peer-WIP boundaries without changing the canonical hierarchy.
+
+### Added — `wacli-operations` concierge + delegated helper (#419)
+
+- `skills/wacli-concierge/SKILL.md` v0.2.1 — model-triggered operational knowledge for
+  named accounts, resilient pairing, bounded sync, state-based diagnosis, store hazards,
+  locks, count-vs-listable behavior, app-state degradation, and consent-gated mutations.
+  Detailed operations and the Forge/33Q/type/naming decision move behind progressive-
+  disclosure references, keeping the loaded skill below the strict size ceiling.
+- `agents/wacli-delegate.md` v0.2.0 (soul-name **Iris**) — context-isolated helper for
+  any capability-detected wacli operation on one named linked account. Research/search is one
+  function among diagnosis, sync/export, interactive pairing coordination, and approval-gated
+  outward/destructive operations. Exact operator approval binds account, action, targets, and
+  payload digest to one non-retried attempt. This is behavioral policy, not a global exactly-once
+  guarantee without an external nonce ledger. Returns one compact, redacted JSON envelope; raw
+  wacli payloads and personal content stay outside the parent context.
+- Architecture: skill + subagent wins. An inline command provides no context boundary; a
+  bespoke MCP server is deferred until a real multi-client, protocol, subscription, or native-
+  upstream need exists. The existing plugin remains the distribution container.
+- Corrections from review: cross-platform install fallback; separate `accounts add` and
+  `--no-auth`; explicit local versus live `doctor` semantics; read-only SQLite requirement;
+  narrow follow-sync delegation; existing-store backup/approval gate; positive/negative
+  activation cases. The count-with-empty-list observation remains explicitly unresolved.
+- Second review round (DIY code review, PR #418): `agents/fixtures/fake-wacli-stub.sh` now parses
+  the documented `--account ACCOUNT --read-only --json ...` global-flag order before selecting
+  `CMD` (previously misclassified `--read-only`/`--json` as an unknown command), and fails nonzero
+  instead of silently exiting 0 on an unsupported `auth`/`messages` subcommand or an unrecognized
+  `messages search` flag. `tests/test-wacli-delegate-contract.sh` gained an existence assertion for
+  `agents/WACLI-DELEGATE-EVAL-REPORT.md` (referenced by its own header) plus the new negative-path
+  and global-flag-order stub assertions. `agents/WACLI-DELEGATE-EVAL-REPORT.md` case 6's label and
+  its Strengths section no longer claim Gate 3 authority provenance or an expired-plan refusal path
+  were verified when neither was.
+- Third review round (bot findings on PR #418, head `684f4e6`): `agents/wacli-delegate.md` v0.2.0
+  adds Execute **gate 6 (parameter binding)** — before the command, the delegate recomputes
+  `sha256(<unmasked target>)`/`sha256(<raw payload>)` from the actual `parameters` and refuses
+  (`PLAN_MISMATCH`) unless they equal the approved plan's `target_digest`/`payload_digest`; an
+  intact, approved plan no longer authorizes a swapped recipient or payload. The golden vector now
+  documents its raw synthetic target/payload and `tests/test-wacli-delegate-contract.sh` §3b pins the
+  recomputation rule. `accounts remove` is classified as a destructive local mutation (skill
+  v0.2.1 + delegate); the skill routes delegation through the canonical `delegate-governance`
+  entry point and states its degraded mode on hosts without the companion agent. Test harness: 5-field
+  script headers, `mktemp` + `trap … EXIT` temp files (explicitly not `set -e` — assertion harness
+  precedent); fake stub escapes interpolated error values and rejects surplus arguments after
+  `doctor --connect` / `auth status`.
+  Copilot round on the same head: `--store` and any companion SQLite query are operator-only
+  (never run by the concierge's `wacli:*` path or the delegate); admission gets a new-account
+  exception so `accounts add` probes `accounts list` instead of a not-yet-existing account.
+
+
+### Added
+- `skills/tutorial-forge/SKILL.md` (v0.1.0) — forge de tutoriais multi-capítulo parametrizáveis (analogias-first, leigo-friendly)
+- `skills/source-curator/SKILL.md` (v0.1.0) — curadoria adversarial de fontes NotebookLM (A/B/C/D grading, baseline-aware invariant)
+- `skills/notebooklm-artifact-orchestrator/SKILL.md` (v0.1.0) — orquestração de 6 studio artifacts por notebook (contrato verificado contra `nlm 0.15.3`)
+- `agents/tutorial-specialist.md` (v0.3.0) — agente orquestrador parametrizável que despacha 4 subagentes separados por `role=` (pesquisador-critico, redator-tutor, revisor-pedagogico, produtor-multimidia), cada um via `delegate-governance` e o schema `Task` (`subagent_type`/`description`/`prompt`); ramo file-only para `markdown`/`html`; Phase 0 cria ou exige um notebook por capítulo; ingere o `tutorial.md` aprovado antes dos artefatos
+- `protocols/tutorial-delegation.md` (v0.2.0) — contrato de 3 handoffs estritos (Pesquisador → Redator → Revisor) com JSON schemas e validação; `excerpt` e títulos seguem `language`
+- Rodada de review: `source-curator` passa o payload como dado (`payload=$(<file)`), nunca como código de shell; emite `ledger.json` (Handoff 1) com `ledger_out=`; dedup semântico com `Task`. Quiz usa `--difficulty` inteiro 1-5.
 
 ### Added — `instrument-self-heal-relay` (Iatros): try-catch-to-AI-harness, hardened v2
 
@@ -163,6 +932,47 @@ affected: `agentic-session-harness`, `bot-finding-arbiter`,
   removed. On a clean `npm install <tgz>`, all 15 helpers exit 0 on `--help` or a real
   invocation, and `gitleaks detect --no-git` over the extracted tarball finds no leaks.
 - No contract change for the Claude plugin, which already ships the whole repository.
+
+### Added — roadmap-tree-projector (durable roadmap N-Tree from a graph SSOT)
+
+Jira/ADR/OpenSpec/Linear store the roadmap NODES (content) but nothing stored the
+dependency EDGES between them, the computed graph STATUS, or the analysis LENSES
+(SWOT/RACI/Eisenhower/DoR/DoD) — so every recap re-drew them in prose that dies on
+context compaction. This adds the missing SSOT + its projector, forged via
+`agentic-tool-forge` (type=skill+command):
+
+- `orchestration/roadmap.yaml` — durable, versioned graph SSOT. Nodes carry
+  POINTERS (`ref:` — Jira key · PR# · session-key), never copied content (DRY).
+  Seed ships GENERIC/REDACTED examples (public repo — privacy guard).
+- `skills/roadmap-tree-projector/` — HYBRID skill: a deterministic
+  `scripts/project_roadmap.py` (self-locate → validate → cycle-detect → topo-sort
+  → render tree + lens; non-zero exit on FAIL, CI-gateable) + a cognitive layer
+  (classify ambiguous status, suggest missing edges). WORLD-AWARE: resolves each
+  node's ticket-manager/home by its world; never writes orchestration into a
+  client repo. Follows `eko-executable-scripts`. 32 tests green
+  (`scripts/test_project_roadmap.py`).
+
+### Fixed — roadmap-tree-projector review round (PR #439)
+
+Addresses coderabbit/copilot/codex threads before merge. P1 (silent-wrong):
+validate `parents` so a typo'd parent errors instead of silently dropping the
+node; fold measured status into the `--json` envelope (`effective_status`);
+non-zero exit on unknown `--lens`/bad parent so CI cannot read success on a
+broken projection; correct the parse contract (PyYAML required, no faked
+fallback — anti-theater); route the status probe by `ref.manager` with the
+node's world as the default. P2: reject duplicate YAML keys (PyYAML last-wins
+→ hard stop); require node `title`; list `roadmap-tree-projector` in
+`skills/README.md`. A second re-review round (the rebase re-triggered a full
+review) added: parent-hierarchy CYCLE detection (an edge-only cycle check let a
+`parents` cycle pass `--check` then RecursionError at render); `resolve_probe_manager`
+now reads the roadmap's OWN `worlds.<name>.ticket_manager` so an added/extended
+world routes correctly instead of emitting `null`; a non-list `nodes` / non-mapping
+node is now a clean validation error (was an uncaught traceback with no JSON
+failure envelope); dependency EDGES are rendered explicitly in the human view
+(were only folded into the topo order); the Jira probe uses the positional
+`acli jira workitem view <KEY>` (the `--key` flag does not exist) and the GitHub
+probe passes `-R <ref.repo>`. Tests 11 → 24 → 32.
+- `commands/roadmap-tree.md` — the `/roadmap-tree` human entry point.
 
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
 
