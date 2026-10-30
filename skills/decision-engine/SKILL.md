@@ -84,6 +84,9 @@ urgência e propostas retóricas `why not` / `por que não` não declinam a aç�
 Perguntas técnicas sem pedido sensível continuam técnicas.
 As relações de permissão aceitam artigos PT/EN após a preposição e contrações como
 `ao`/`aos`/`à`/`às`, além de `para`/`pra`: o objeto continua restrito a conta/usuário.
+A concessão EN também aceita a ordem alvo → acesso (`Grant user access`,
+`Grant an account access`), com `grant`/`granting`, sem ampliar para palavras de
+segurança isoladas; as mesmas exclusões de negação direta e implementação local valem.
 Antes de agir, preserve a confirmação exigida pelo efeito e pela autoridade da ação,
 independentemente de `route`; nenhum veredito concede consentimento.
 

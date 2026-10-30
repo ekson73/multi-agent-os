@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PT/EN gerunds and rhetorical proposals; genuine operational negations remain DIY.
 - Account/user permission relations accept PT/EN articles after prepositions,
   including `ao`/`aos`, `para`/`pra`, while keeping negation and local-test boundaries.
+- Recognizes bounded target-first `grant`/`granting` user/account access, including
+  ordinary articles, while retaining direct-negation, local-mock and real-context
+  boundaries. Real direct/session-pipe regressions cover both target/object orders.
 - Synopsis JSON preserves the existing `title`/`titulo`, structured `options`
   (including evidence/confidence) and `idade` fields without type coercion or raw
   metadata overrides of canonical fields/scope. Direct and real session-scoped CLI
@@ -31,9 +34,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Integrates row-evidence recommendations and GUT priority without dropping the
   human-act guard or transport contract. Real-pipe regressions cover R2 deferrals
   on both sides of an explicit `--today` date, retaining the same clock in R1/R2.
-- The current Main short written-recommendation parser composes with guarded titles
+- The current Main-branch short written-recommendation parser composes with guarded titles
   through the real session pipe, including negative word-boundary and structured-
   option precedence controls.
+- The three newer real-pipe tests use the existing optional-sibling availability
+  guard: execute when synopsis is present, skip only when it is absent.
+
+### Added — ADR-020: design record for `github-app-pr-review` (proposed, nothing built)
+
+- `docs/adrs/ADR-020-github-app-pr-review.md`: how to generalize a pilot's independent agentic reviewer
+  (GitHub App identity, read-only agent, key in a separate job) to the owner's repositories. Decision: one
+  reusable `workflow_call` workflow pinned by SHA + thin callers; one App **per trust boundary** (the pilot keeps
+  its own; the shared `eko-revisor-agentico` App only on repos with a protected `main`), installation token scoped
+  to one repo. Names validated with `anima`; rejected alternatives and a phased rollout gated on ≥2 real green
+  reviews in the pilot. No App, secret or install is created by this change.
 
 ### Fixed — `decision-engine`: read the short `Rec. A:` form as a written recommendation
 

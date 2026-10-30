@@ -77,6 +77,7 @@ _HUMAN_ACT_RE = re.compile(
     r"(?:(?:a|as|o|os|um|uma|uns|umas|the|an)\s+)?"
     r"(?:contas?|accounts?|usuarios?|users?)|(?:(?:real|live)\s+)?(?:provider\s+)?"
     r"account\s+(?:permissions?|settings?))|"
+    r"grant(?:ing)?\s+(?:(?:a|an|the)\s+)?(?:users?|accounts?)\s+access|"
     r"(?:ativ(?:ar|ando)|desativ(?:ar|ando)|habilit(?:ar|ando)|desabilit(?:ar|ando)|"
     r"redefin(?:ir|indo)|enabl(?:e|ing)|disabl(?:e|ing)|reset(?:ting)?)\s+"
     r"(?:(?:a|o|the)\s+)?(?:mfa|2fa|autenticacao\s+(?:multifator|de dois fatores)|"

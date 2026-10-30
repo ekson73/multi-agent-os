@@ -73,6 +73,7 @@ MIXED_REAL_ACTS = (
 ARTICLE_PERMISSION_ACTS = (
     "Change permissions of the account",
     "Grant access to the account",
+    "Grant access to the user",
     "Revoke privileges for a user",
     "Modify settings on an account",
     "Conceder acesso ao usuário",
@@ -98,6 +99,27 @@ ARTICLE_CONTROLS = (
 )
 
 
+TARGET_FIRST_ACCESS_ACTS = (
+    "Grant user access",
+    "Grant a user access",
+    "Grant the users access",
+    "Grant an account access",
+    "Granting user access",
+    "Granting the account access",
+    "Why not grant user access?",
+    "Without delay grant user access",
+    "Implement a local mock to grant user access in a real account",
+)
+TARGET_FIRST_ACCESS_CONTROLS = (
+    "Do not grant user access",
+    "Without granting user access",
+    "Implement a local mock to grant user access",
+    "Implement a local mock to grant the account access",
+    "Implement a local mock to grant user access in a synthetic account",
+    "Implement a user access parser",
+)
+
+
 HUMAN_ACTS = (
     "Alterar permissões da conta do provedor",
     "Desativar a autenticação multifator da conta",
@@ -112,7 +134,7 @@ HUMAN_ACTS = (
     "Alterar permissões de conta",
     "Alterar permissões na conta",
     "Conceder permissão à conta",
-) + ARTICLE_PERMISSION_ACTS + MIXED_REAL_ACTS
+) + ARTICLE_PERMISSION_ACTS + TARGET_FIRST_ACCESS_ACTS + MIXED_REAL_ACTS
 TECHNICAL_CONTROLS = (
     "Escolher biblioteca de parsing",
     "Fazer parsing de conta sintética",
@@ -125,7 +147,7 @@ TECHNICAL_CONTROLS = (
     "Do not disable MFA",
     "Why does the local MFA mock fail?",
     "Por que o teste local de MFA falha?",
-) + ARTICLE_CONTROLS + LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS
+) + ARTICLE_CONTROLS + TARGET_FIRST_ACCESS_CONTROLS + LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS
 
 
 def _load():
@@ -500,6 +522,7 @@ def test_local_action_in_legacy_title_without_decidir_still_works(tmp_path, fiel
     assert out["verdicts"][0]["route"] == "DIY"
 
 
+@pytest.mark.skipif(not FUSE.is_file(), reason="synopsis-panel not installed")
 @pytest.mark.parametrize("attached", [False, True])
 def test_supported_metadata_and_guard_boundaries_survive_real_session_pipe(
         tmp_path, monkeypatch, attached):
@@ -509,9 +532,11 @@ def test_supported_metadata_and_guard_boundaries_survive_real_session_pipe(
     session = "metadata-fixture"
     payload, expected_routes = [], {}
     boundary_cases = (
-        [(text, "HITL") for text in ARTICLE_PERMISSION_ACTS + HUMAN_ACTS[:4]]
+        [(text, "HITL") for text in
+         ARTICLE_PERMISSION_ACTS + TARGET_FIRST_ACCESS_ACTS + HUMAN_ACTS[:4]]
         + [("Disable MFA", "HITL")]
-        + [(text, "DIY") for text in ARTICLE_CONTROLS + LOCAL_IMPLEMENTATIONS])
+        + [(text, "DIY") for text in
+           ARTICLE_CONTROLS + TARGET_FIRST_ACCESS_CONTROLS + LOCAL_IMPLEMENTATIONS])
     for field in ("decidir", "title", "titulo"):
         for text, route in boundary_cases:
             hid = f"H-{8000 + len(payload)}"
@@ -729,6 +754,7 @@ def test_negated_blocking_word_does_not_raise_the_trend():
     assert de.decide(_item("H-0207", "negocio", "não trava nada"), today=TODAY)["priority"]["t"] == 3
 
 
+@pytest.mark.skipif(not FUSE.is_file(), reason="synopsis-panel not installed")
 @pytest.mark.parametrize("today,deferred", [("2029-01-01", True), ("2031-01-01", False)])
 def test_guarded_title_uses_shared_evidence_clock_through_real_session_pipe(
         tmp_path, monkeypatch, today, deferred):
@@ -769,6 +795,7 @@ def test_guarded_title_uses_shared_evidence_clock_through_real_session_pipe(
     assert all("approved" not in v and "resolved" not in v for v in piped["verdicts"])
 
 
+@pytest.mark.skipif(not FUSE.is_file(), reason="synopsis-panel not installed")
 @pytest.mark.parametrize("text,structured,basis", [
     ("Rec. A: manter pendente; alt. B: rever fixture.", False,
      "evidence:recomendacao-registrada"),
