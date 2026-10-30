@@ -454,7 +454,6 @@ function semanticErrors(model) {
   const responsibilityIds = new Set(model.governance.responsibilities.map((item) => item.id));
   const work = [...model.plan.waves, ...model.plan.work_items];
   const workIds = new Set(work.map((item) => item.id));
-  const itemIds = new Set(model.plan.work_items.map((item) => item.id));
   const gapRiskIds = new Set([...model.analysis.gaps, ...model.analysis.risks].map((item) => item.id));
   const edgePairs = new Set(model.topology.edges.map((edge) => `${edge.from}\u0000${edge.to}`));
   const add = (at, code, message) => errors.push({ path: at || "/", code, message });
@@ -517,7 +516,7 @@ function semanticErrors(model) {
     if (state.assigned_actor_ref !== null) requireRef(actorIds, state.assigned_actor_ref, `${at}/assigned_actor_ref`, "DANGLING_ACTOR_REF");
     if (state.decision_ref !== null) requireRef(referenceIds, state.decision_ref, `${at}/decision_ref`, "DANGLING_DECISION_REF");
     if (state.successor_ref !== null) {
-      requireRef(itemIds, state.successor_ref, `${at}/successor_ref`, "DANGLING_SUCCESSOR_REF");
+      requireRef(workIds, state.successor_ref, `${at}/successor_ref`, "DANGLING_SUCCESSOR_REF");
       if (state.successor_ref === ownerId) add(`${at}/successor_ref`, "SELF_SUCCESSOR", "work item cannot supersede itself");
     }
     if (state.started_at && state.ended_at && new Date(state.started_at) > new Date(state.ended_at)) add(at, "LIFECYCLE_TIME_ORDER", "started_at must not exceed ended_at");
@@ -682,13 +681,13 @@ function semanticErrors(model) {
   if (model.child_derivation.generation_depth === 0 && lineageValues.some((item) => item !== null)) add("/child_derivation/parent_lineage", "ROOT_LINEAGE_INVALID", "depth zero requires null lineage");
   if (model.child_derivation.generation_depth > 0 && lineageValues.some((item) => item === null)) add("/child_derivation/parent_lineage", "CHILD_LINEAGE_INCOMPLETE", "child depth requires complete lineage");
   if (model.child_derivation.generation_depth === 2 && model.child_derivation.capability_ceiling.includes("sync_parent_model")) add("/child_derivation/capability_ceiling", "DEPTH_CAPABILITY_INVALID", "depth two cannot sync a parent model");
-  for (const item of model.plan.work_items) {
+  for (const item of work) {
     const seen = new Set();
     let current = item;
     while (current?.lifecycle_state.state === "superseded" && current.lifecycle_state.successor_ref) {
       if (seen.has(current.id)) { add("/plan/work_items", "SUCCESSOR_CYCLE", "successor cycle (id masked)"); break; }
       seen.add(current.id);
-      current = model.plan.work_items.find((candidate) => candidate.id === current.lifecycle_state.successor_ref);
+      current = work.find((candidate) => candidate.id === current.lifecycle_state.successor_ref);
     }
   }
   return errors;

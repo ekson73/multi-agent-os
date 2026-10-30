@@ -1799,3 +1799,30 @@ test("derive-child refuses an --out that reaches the parent through a symlinked 
     }
   });
 });
+
+test("a wave may be superseded by another wave, and wave successor cycles are rejected", async () => {
+  const withWaves = (mutate) => (value) => {
+    const [first] = value.plan.waves;
+    value.plan.waves = [first, { ...JSON.parse(JSON.stringify(first)), id: "wave_second", sequence: first.sequence + 1 }];
+    mutate(value.plan.waves);
+  };
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, withWaves((waves) => {
+      waves[0].lifecycle_state = { ...lifecycle("superseded"), successor_ref: "wave_second" };
+      waves[1].lifecycle_state = lifecycle("planned");
+    }));
+    const result = run(["validate", model]);
+    assert.equal(result.status, 0, result.stderr);
+  });
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, withWaves((waves) => {
+      waves[0].lifecycle_state = { ...lifecycle("superseded"), successor_ref: "wave_second" };
+      waves[1].lifecycle_state = { ...lifecycle("superseded"), successor_ref: waves[0].id };
+    }));
+    const result = run(["validate", model]);
+    assert.equal(result.status, 1);
+    const codes = body(result.stderr).error.details.map((detail) => detail.code);
+    assert.ok(codes.includes("SUCCESSOR_CYCLE"), codes.join(","));
+    assert.ok(!codes.includes("DANGLING_SUCCESSOR_REF"), codes.join(","));
+  });
+});

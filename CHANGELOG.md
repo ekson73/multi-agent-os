@@ -307,6 +307,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   attributes are still scanned, exact reconstruction still refuses any outer edit).
 - Also masked: topology, successor-cycle and history-mismatch diagnostics no longer echo
   identifiers.
+- Round 7 (codex P2): `successor_ref` is validated against waves + work items, and the successor-cycle
+  check walks both, so a wave can be superseded by another wave and a wave cycle is reported
+  (`SUCCESSOR_CYCLE`) instead of `DANGLING_SUCCESSOR_REF`.
 - Round 6 (codex): `derive-child` also refuses an `--out` that reaches the parent model through a
   symlinked ancestor directory or a hard link (device + inode comparison). Schema diagnostics report an unexpected property as `<unexpected-property>`
   instead of echoing its name. `derive-child` serializes the child once and refuses (`FILE_TOO_LARGE`, no output
