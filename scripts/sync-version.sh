@@ -23,6 +23,7 @@ if [ "$MODE" = "--check" ]; then
   [ -f "$OC" ] && check "$OC" "$(jq -r '.version' "$OC")"
   check "README.md badge" "$(grep -oE 'Version-[0-9]+\.[0-9]+\.[0-9]+-blue' README.md | head -1 | sed -E 's/Version-(.*)-blue/\1/')"
   for f in README.md CLAUDE.md; do
+    grep -qE 'Multi-Agent OS v[0-9]+\.[0-9]+\.[0-9]+' "$f" || check "$f footer" ""
     for got in $(grep -oE 'Multi-Agent OS v[0-9]+\.[0-9]+\.[0-9]+' "$f" | sed 's/.* v//' | sort -u); do
       check "$f footer" "$got"
     done

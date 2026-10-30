@@ -4,15 +4,25 @@
 #
 # main is protected (PR-only + required checks), so this workflow never pushes.
 # It compares the version VALUES (not file bytes) and fails with the fix command.
-# Fix locally on a branch and open a PR:  scripts/sync-version.sh
+#
+# It runs after merge on main only, never on PRs: a release PR may change only
+# plugin.json + CHANGELOG.md (scripts/check-release-coherence.py), so derived
+# files lag by design. Release flow: merge the release PR, this check goes red,
+# then run scripts/sync-version.sh on a branch and merge that PR (check goes green).
 
 name: Version Sync
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+    paths:
+      - '.claude-plugin/plugin.json'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'package.json'
+      - 'packaging/opencode-maos/package.json'
+      - 'scripts/sync-version.sh'
+      - '.github/workflows/version-sync.yml'
   workflow_dispatch:
 
 permissions:

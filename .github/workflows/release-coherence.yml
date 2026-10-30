@@ -13,7 +13,8 @@
 # - no reuse of a version already present in the base changelog or Git tags.
 #
 # A stale branch that never changes the version remains a no-op. plugin.json
-# stays the SSOT; version-sync.yml continues syncing README/CLAUDE post-merge.
+# stays the SSOT; version-sync.yml checks README/CLAUDE post-merge and a
+# follow-up PR (scripts/sync-version.sh) syncs them, since main is PR-only.
 
 name: Release Coherence
 
