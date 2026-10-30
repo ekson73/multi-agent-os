@@ -201,10 +201,10 @@ REDACTIONS: List[Tuple[str, bool, re.Pattern]] = [
         r"(?i)([?&](?:" + _REDACTION_KEYWORDS + r"|sig|signature|code|key|auth|x-amz-signature|x-amz-credential)=)[^&#\s]+")),
     # a quoted value is consumed through its closing quote, so `password="a b c d"` is covered too
     ("assignment", True, re.compile(
-        # an identifier prefix (`DB_PASSWORD`, `OPENAI_API_KEY`) is part of the name; matching starts only
+        # an identifier prefix (`DB_PASSWORD`, `OPENAI_API_KEY`, `PGPASSWORD`) is part of the name; matching starts only
         # at the beginning of an identifier run, so a long `a_a_a_...` run is scanned once, not per segment.
         # Any nonempty value is redacted; credible() alone decides whether it is also a finding.
-        r"(?i)(?<![A-Za-z0-9_-])((?:[A-Za-z0-9]+[_-])*(?:" + _REDACTION_KEYWORDS + r"))"
+        r"(?i)(?<![A-Za-z0-9_-])([A-Za-z0-9_-]*?(?:" + _REDACTION_KEYWORDS + r"))"
         r"([\"']?\s*[:=]\s*)(\"[^\"\r\n]+\"|'[^'\r\n]+'|[^\s\"',;]+)")),
     ("opaque-blob", True, re.compile(r"[A-Za-z0-9+/_-]{40,}={0,2}")),
     ("op-ref", False, re.compile(r"\bop://[^\s'\"`)]+")),
@@ -1284,7 +1284,7 @@ def load_brain(ctx: Ctx, store: "Store", files: List[str], sid: str) -> tuple:
         ts = _json_field(ctx, f + ".metadata.json", "updatedAt")
         e.text("assistant", text, ts or h.st.st_mtime, 1, kind="artifact", label=label)
         msgs += e.result()
-    return meta, msgs
+    return (meta, msgs) if msgs else (None, [])  # nothing admitted/parsed: not a sample, not a session
 
 
 def _over_cap(span: str, cap: int) -> bool:

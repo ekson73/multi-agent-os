@@ -1070,9 +1070,11 @@ pw = "Correct" + "Horse9"
 red = mod.redact("DB_PASSWORD=" + pw + " MY_API_KEY=Abcd" + "12345678")[0]
 ok(pw not in red and "Abcd12345678" not in red, "prefixed credential names (DB_PASSWORD=, MY_API_KEY=) are redacted")
 ok("abc12" not in mod.redact("password=abc" + "12")[0], "a short credential assignment value is redacted too")
+ok(pw not in mod.redact("PGPASSWORD=" + pw)[0], "a keyword glued to a prefix with no separator (PGPASSWORD=) is redacted")
 t0 = time.time()
 mod.strip_envelopes("<irc>" * 20000)
 mod.redact("a." * 20000)
+mod.redact("a_" * 20000 + " " + "token" * 4000)
 ok(time.time() - t0 < 2.0, "20k unclosed envelope openings / dotted runs scan in linear time (%.2fs)" % (time.time() - t0))
 ok(mod.strip_envelopes("a<irc x=1>hidden</irc>b<irc>open") == "ab<irc>open",
    "linear envelope stripping keeps the regex semantics (block removed, unclosed opening kept)")
@@ -1178,6 +1180,14 @@ tu = next(x for x in mod.build_stores(tctx, []) if x.id == "claude-code/projects
 ttxt = " ".join(m["text"] for m in tu[0].load()[1]) if tu else ""
 ok("SIBLING-TEXT-7Q" in ttxt and "TOOLBODY-7Q" not in ttxt,
    "user text beside a tool_result block is kept; the tool-result body is still never read")
+rh = os.path.join(FIX, "home-brain-recent")
+for i in range(3):
+    put(".gemini/antigravity/brain/c0ffee44-0000-4000-8000-00000000000%d/task.md" % i, raw=b"# recent\n", mtime=time.time(), home=rh)
+put(".gemini/antigravity/brain/c0ffee44-0000-4000-8000-000000000009/task.md", raw=b"# Task\n- [ ] OLD-BRAIN-7Q\n",
+    mtime=OLD - 60, home=rh)
+rctx2 = mod.Ctx(rh, time.time() - 86400, dict(mod.LIMITS), [], b"k" * 32)
+rs2 = mod._assess(rctx2, next(x for x in mod.build_stores(rctx2, []) if x.id == "antigravity/brain"))
+ok(rs2.status == "supported", "recent (deferred) brain conversations do not use up the samples (%s: %s)" % (rs2.status, rs2.reason))
 # 15. passes 1 and 2 never touch the network: any socket creation raises
 import socket as _socket
 _orig_socket = _socket.socket
