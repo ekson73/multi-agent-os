@@ -661,7 +661,7 @@ function semanticErrors(model) {
   model.lifecycle.events.forEach((event, index) => {
     if (eventIds.has(event.event_id)) add(`/lifecycle/events/${index}/event_id`, "DUPLICATE_EVENT_ID", "event_id must be unique");
     eventIds.add(event.event_id);
-    requireRef(itemIds, event.task_ref, `/lifecycle/events/${index}/task_ref`, "DANGLING_TASK_REF");
+    requireRef(workIds, event.task_ref, `/lifecycle/events/${index}/task_ref`, "DANGLING_TASK_REF");
     if (!TRANSITIONS[event.from_state].includes(event.to_state)) add(`/lifecycle/events/${index}/to_state`, "TRANSITION_DENIED", "transition is not allowed");
     if (priorOccurredAt !== null && new Date(event.occurred_at) < new Date(priorOccurredAt)) add(`/lifecycle/events/${index}/occurred_at`, "HISTORY_TIME_ORDER", "lifecycle events must be globally nondecreasing");
     priorOccurredAt = event.occurred_at;
@@ -674,8 +674,8 @@ function semanticErrors(model) {
   const lastEventId = model.lifecycle.events.at(-1)?.event_id ?? null;
   if (model.lifecycle.latest_event_ref !== lastEventId) add("/lifecycle/latest_event_ref", "LATEST_EVENT_INVALID", "latest_event_ref must be null exactly for empty history, otherwise the final event id");
   for (const [taskRef, finalState] of lastStateByTask) {
-    const current = model.plan.work_items.find((item) => item.id === taskRef);
-    if (current && current.lifecycle_state.state !== finalState) add("/plan/work_items", "HISTORY_FINAL_STATE_MISMATCH", `task ${taskRef} state differs from its final event`);
+    const current = work.find((item) => item.id === taskRef);
+    if (current && current.lifecycle_state.state !== finalState) add("/plan", "HISTORY_FINAL_STATE_MISMATCH", `task ${taskRef} state differs from its final event`);
   }
   const lineage = model.child_derivation.parent_lineage;
   const lineageValues = [lineage.parent_artifact_id, lineage.parent_source_sha256, lineage.derivation_plan_id];
@@ -1110,9 +1110,13 @@ function inspectSidecardBytes(bytes) {
   const expectedCsp = buildCsp();
   const csp = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/u)?.[1]?.replaceAll("&amp;", "&").replaceAll("&#39;", "'");
   if (csp !== expectedCsp) throw new AppError("SIDECARD_CSP_INVALID", "Sidecard CSP is missing or changed");
+  // Escaped visible prose never contains "<", so text between tags is not executable;
+  // drop it (script bodies are kept) before the active-API checks. Any other outer-HTML
+  // edit is still refused by the exact deterministic reconstruction below.
+  const markup = html.replace(/(<script\b[^>]*>[\s\S]*?<\/script>)|>[^<]*(?=<)/giu, (whole, script) => script ?? ">");
   if (/<(?:a|form|iframe|object|embed|link|base|img|audio|video|source)\b/iu.test(html)
-      || /\son[a-z]+\s*=/iu.test(html)
-      || /(?:fetch\s*\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|indexedDB|caches\.|serviceWorker|navigator\.clipboard|showOpenFilePicker|showSaveFilePicker|window\.open|document\.write|innerHTML|outerHTML|insertAdjacentHTML|eval\s*\(|new Function|url\s*\()/iu.test(html)) {
+      || /\son[a-z]+\s*=/iu.test(markup)
+      || /(?:fetch\s*\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|indexedDB|caches\.|serviceWorker|navigator\.clipboard|showOpenFilePicker|showSaveFilePicker|window\.open|document\.write|innerHTML|outerHTML|insertAdjacentHTML|eval\s*\(|new Function|url\s*\()/iu.test(markup)) {
     throw new AppError("SIDECARD_PASSIVITY_FAILED", "Sidecard contains a forbidden active surface");
   }
   const blocks = [...html.matchAll(/<script id="([^"]+)" type="([^"]+)" data-encoding="base64url" data-media-type="application\/json" data-canonicalization="rfc8785-jcs" data-bytes="([0-9]+)" data-sha256="([a-f0-9]{64})">([A-Za-z0-9_-]+)<\/script>/gu)];
@@ -2268,16 +2272,18 @@ async function transitionCommand(modelFile, options) {
   model.identity.chronological.revision += 1;
   enforceSensitivePreflight(canonicalBytes(model));
   validateModel(model);
+  const outputText = jsonText(model);
+  if (Buffer.byteLength(outputText) > MAX_BYTES) throw new AppError("FILE_TOO_LARGE", "Transitioned model would exceed the 2 MiB input limit; source left unchanged");
   const output = path.resolve(options.out);
   await ensureOwnedJsonOutput(output);
   const release = await acquireLock(path.join(path.dirname(output), `.${path.basename(output)}.lock`));
   try {
     if (!(await readBounded(modelFile, "session model")).equals(bytes)) throw new AppError("BASE_DIGEST_MISMATCH", "Source changed before transition commit");
-    await atomicWrite(output, jsonText(model));
+    await atomicWrite(output, outputText);
   } finally {
     await release();
   }
-  return { output, source_sha256: sha256(Buffer.from(jsonText(model))), artifact_id: artifactId(model), transition: { task_ref: event.task_ref, from: event.from_state, to: event.to_state }, next: nextTask(model) };
+  return { output, source_sha256: sha256(Buffer.from(outputText)), artifact_id: artifactId(model), transition: { task_ref: event.task_ref, from: event.from_state, to: event.to_state }, next: nextTask(model) };
 }
 
 function validateChildRequest(request) {

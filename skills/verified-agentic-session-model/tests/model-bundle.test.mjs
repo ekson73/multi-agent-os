@@ -1653,3 +1653,58 @@ test("derive-child capability denials never echo the requested values", async ()
     assert.equal(fs.existsSync(output), false);
   });
 });
+
+// --- PR #421 bot-review round 5 regressions (codex) ---
+test("transition can complete a wave and the resulting history validates", async () => {
+  await temp(async (directory) => {
+    const model = await copyModel(directory);
+    const digest = sha(await readFile(model));
+    const event = { ...eventFor("started", "completed", digest), event_id: "event_wave_done", task_ref: "wave_review" };
+    const eventFile = path.join(directory, "event.json");
+    await writeFile(eventFile, JSON.stringify(event));
+    const output = path.join(directory, "out.json");
+    const result = run(["transition", model, "--event", eventFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 0, result.stderr);
+    const validate = run(["validate", output]);
+    assert.equal(validate.status, 0, validate.stderr);
+  });
+});
+
+test("transition refuses to write an output larger than the input limit", async () => {
+  await temp(async (directory) => {
+    const model = JSON.parse(await readFile(activeFixture, "utf8"));
+    model.plan.work_items[0].lifecycle_state = lifecycle("planned");
+    const template = model.references.find((item) => item.id === "ref_review");
+    const count = 500 - model.references.length;
+    const per = Math.floor((2 * 1024 * 1024 - 3000 - JSON.stringify(model).length) / count) - JSON.stringify({ ...template, id: "ref_pad_000", uri: "" }).length - 1;
+    for (let index = 0; index < count; index += 1) model.references.push({ ...template, id: `ref_pad_${String(index).padStart(3, "0")}`, uri: `https://example.com/public/${"a".repeat(per - 27)}` });
+    const file = path.join(directory, "big.session-model.json");
+    const compact = JSON.stringify(model);
+    await writeFile(file, compact);
+    assert.ok(Buffer.byteLength(compact) <= 2 * 1024 * 1024 && Buffer.byteLength(JSON.stringify(model, null, 2)) > 2 * 1024 * 1024);
+    assert.equal(run(["validate", file]).status, 0);
+    const digest = sha(await readFile(file));
+    const eventFile = path.join(directory, "event.json");
+    await writeFile(eventFile, JSON.stringify(eventFor("planned", "started", digest)));
+    const result = run(["transition", file, "--event", eventFile, "--expected-digest", digest, "--out", file]);
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(body(result.stderr).error.code, "FILE_TOO_LARGE");
+    assert.equal(await readFile(file, "utf8"), compact);
+  });
+});
+
+test("visible prose naming browser APIs renders, while injected active markup is still refused", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.plan.next_action.what = "Document localStorage and fetch() behavior, onload= handlers"; }, readyFixture);
+    const out = path.join(directory, "out");
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", out]);
+    assert.equal(result.status, 0, result.stderr);
+    const file = fs.readdirSync(out).map((name) => path.join(out, name)).find((name) => name.endsWith(".html"));
+    assert.equal(run(["inspect", file]).status, 0);
+    const html = await readFile(file, "utf8");
+    await writeFile(file, html.replace("</body>", "<script>fetch('https://example.com')</script></body>"));
+    const tampered = run(["inspect", file]);
+    assert.equal(tampered.status, 1);
+    assert.ok(["SIDECARD_PASSIVITY_FAILED", "SIDECARD_OUTER_MISMATCH"].includes(body(tampered.stderr).error.code), tampered.stderr);
+  });
+});

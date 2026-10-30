@@ -266,9 +266,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `decision_ref`/`successor_ref`/`resume_after` the target state does not own; `derive-child`
   refuses a child `as_of` older than the parent; standard render re-reads the source before
   promotion so a concurrent edit is refused instead of overwritten.
+- Round 5 (codex): lifecycle events may target waves (task_ref and final-state checks span
+  waves + work items); `transition` refuses an output above the 2 MiB input limit and leaves
+  the source untouched; passivity checks ignore escaped visible prose (script bodies and
+  attributes are still scanned, exact reconstruction still refuses any outer edit).
 - VERSION stays 2.1.4 so already-published 2.1.4 sidecards keep verifying. Measured: old and
   new CLI give identical `validate` results on 25 eko-engram models and identical `verify`
-  results on 21 manifests. 11 new tests (73 total), each mutation-checked.
+  results on 21 manifests. 14 new tests (76 total), each mutation-checked.
 
 ### Fixed — `verified-agentic-session-model` v2.1.4: standard HTML no longer loads Google Fonts
 
