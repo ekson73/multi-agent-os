@@ -7,8 +7,8 @@
 #  *          corrected text + side-by-side diff + audit JSON.
 #  * @reason Closes ASR-error gap before downstream consumers ingest. Default-safe
 #  *          (review-only mode; inline writes require HITL auth flag).
-#  * @impact Empirically validated against Confluence page 900000001 (Nilson→Nelvael
-#  *          golden test, PDCA cycle 0).
+#  * @impact Validated against the synthetic golden fixture (Ptwo→P2,
+#  *          PDCA cycle 0). Real rosters stay outside this public tree.
 #  */
 set -euo pipefail
 
@@ -21,6 +21,7 @@ LANGUAGE="auto"             # pt-br | en-us | auto
 OUTPUT="stdout"             # stdout | <path>
 SOURCE=""                   # path | stdin | confluence:<id> | notion:<id> | gdrive:<id>
 PARTICIPANTS_OVERRIDE=""    # optional path to custom participants whitelist
+PHONETIC_OVERRIDE=""        # optional path to a private phonetic-substitutions catalog
 # Per-destination write-auth tokens (mode-specific to prevent confluence-auth
 # from unlocking a notion-write, breaking the HUMAN_DOMAIN per-destination contract)
 CONFLUENCE_WRITE_AUTH=""
@@ -45,6 +46,7 @@ Options:
                              (default: review-only)
   --output <o>               stdout | <path> (default: stdout)
   --participants <path>      Override participants-canonical.yaml
+  --phonetic <path>          Override phonetic-substitutions.yaml (private local catalog)
   --confluence-write-auth <rationale>
   --notion-write-auth <rationale>
   --gdrive-write-auth <rationale>
@@ -54,8 +56,8 @@ Options:
   -h, --help                 Show this help
 
 Examples:
-  # Golden test (Nilson → Nelvael, page 900000001)
-  $(basename "$0") --source confluence:900000001 --language pt-br --mode review-only
+  # Golden test (synthetic mishearing Ptwo -> P2)
+  $(basename "$0") --source skills/transcript-corrector/pdca/fixture-synthetic-excerpt.md --language en-us --mode review-only
 
   # Inline replace (requires operator HITL auth)
   $(basename "$0") --source path/to/transcript.md --language pt-br \\
@@ -71,6 +73,7 @@ while [ $# -gt 0 ]; do
     --mode) MODE="$2"; shift 2 ;;
     --output) OUTPUT="$2"; shift 2 ;;
     --participants) PARTICIPANTS_OVERRIDE="$2"; shift 2 ;;
+    --phonetic) PHONETIC_OVERRIDE="$2"; shift 2 ;;
     --confluence-write-auth) CONFLUENCE_WRITE_AUTH="$2"; shift 2 ;;
     --notion-write-auth) NOTION_WRITE_AUTH="$2"; shift 2 ;;
     --gdrive-write-auth) GDRIVE_WRITE_AUTH="$2"; shift 2 ;;
@@ -217,7 +220,7 @@ echo "[]" > "$AUDIT_JSON"
 # -------- Pass 1: participants whitelist + phonetic substitution --------
 log "Pass 1 — participants whitelist + phonetic check"
 PARTICIPANTS_FILE="${PARTICIPANTS_OVERRIDE:-$SKILL_DIR/catalogs/participants-canonical.yaml}"
-PHONETIC_FILE="$SKILL_DIR/catalogs/phonetic-substitutions.yaml"
+PHONETIC_FILE="${PHONETIC_OVERRIDE:-$SKILL_DIR/catalogs/phonetic-substitutions.yaml}"
 python3 "$SCRIPT_DIR/pass1-whitelist.py" \
   --input "$INPUT" \
   --output "$PASS1_OUT" \
