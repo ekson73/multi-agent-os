@@ -16,11 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   offline Content-Security-Policy right after `<meta charset="UTF-8">` (`default-src 'none'`,
   inline script/style only, `data:`/`blob:` images and fonts). The browser enforces it, so
   script-initiated loads are blocked without parsing JavaScript. Render and `verify` fail
-  with `NETWORK_ACCESS_DENIED` if the CSP line is missing, moved or altered, or if a static
-  remote reference remains in start-tag attributes or CSS (quote-aware tags, entity- and
-  escape-decoded values, every `srcset` candidate, `srcdoc`, meta refresh, any `@import`).
-  Text nodes, comments and script bodies are not scanned, so labels like `url(https://…)`
-  are not false positives. CI installs pinned Archify v2.11.0 so these tests cannot skip.
+  with `NETWORK_ACCESS_DENIED` if the CSP line is missing, moved, altered or not live head
+  metadata. CI installs pinned Archify v2.11.0 so these tests cannot skip.
+- Follow-up (#551): the hand-rolled HTML scanner is removed. Reviewers kept finding parser
+  differentials (exponential regex, comment closers like `<!-->`, raw-text end tags,
+  length-changing case folding, meta refresh without `url=`). `verify` now re-renders the
+  hashed workflow through the same Archify, applies the same offline transform and requires
+  byte-identical HTML (Archify output is deterministic), so every HTML edit fails
+  `CROSS_VIEW_PARITY_FAILED`. The exact CSP anchor check stays. `verify` therefore needs the
+  same Archify release that rendered the bundle.
 - Generator and manifest schema version move to 2.1.4. A regression test renders, asserts
   no remote fetch, then re-injects a remote stylesheet and asserts `verify` refuses it.
   Mutation-checked: removing either the render strip or the verify guard fails the test.
