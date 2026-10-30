@@ -117,6 +117,8 @@ TAXONOMY_JSON='{
 # rejected so the substitution can never break the JSON table.
 NOTES_VAULT="${MAOS_NOTES_VAULT:-~/notes-vault}"
 case "$NOTES_VAULT" in *'"'*|*'\'*) echo "MAOS_NOTES_VAULT must not contain quotes or backslashes" >&2; exit 1 ;; esac
+# Bash 5.2 patsub_replacement would expand "&" in the replacement; keep it literal.
+shopt -u patsub_replacement 2>/dev/null || true
 TAXONOMY_JSON="${TAXONOMY_JSON//\~\/notes-vault/$NOTES_VAULT}"
 
 VALID_SCOPES="self user project work community corporate durable-personal"
