@@ -37,7 +37,9 @@ secretGroup = 1
 # Rule-scoped false-positive exemptions (NOT global — must never weaken other
 # rules). Each is form- or path-anchored and deliberately narrow. NOTE: we do
 # NOT path-allowlist docs/insights/ broadly — secret-management-strategy.md
-# holds a REAL credential that MUST keep firing until it is rotated.
+# held a REAL credential in history. It was rotated on 2026-10-26, so that ONE
+# historical finding is pinned by fingerprint in .gitleaksignore; any new
+# commit of a password in that file still fires.
 [rules.allowlist]
 description = "vek-db-password documented non-credential references"
 # regexTarget=secret: test the EXTRACTED VALUE (secretGroup 1), fully anchored
@@ -50,8 +52,9 @@ description = "vek-db-password documented non-credential references"
 #   2. The literal redaction marker `<REDACTED>` (optional text before the
 #      closing `>`). This is the documented placeholder, not a credential.
 #      A real password that merely contains the marker is NOT exempted, and
-#      this is deliberately NOT a path allowlist: the same history still holds
-#      a real credential that MUST keep firing until it is rotated.
+#      this is deliberately NOT a path allowlist: the same history holds a
+#      real (now rotated) credential, ignored only by exact fingerprint in
+#      .gitleaksignore so the path keeps firing for anything new.
 regexTarget = "secret"
 regexes = [
     '''^aws:///[^\s'"]+#[A-Z0-9_]+$''',
