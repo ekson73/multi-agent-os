@@ -121,7 +121,7 @@ Definir arquitetura para versionamento seguro de configurações MCP (Model Cont
   "_comment": "SECRETS - NÃO COMMITAR! Este arquivo está no .gitignore",
   
   "BITBUCKET_USERNAME": "seu-usuario",
-  "BITBUCKET_APP_PASSWORD": "seu-app-password",
+  "BITBUCKET_APP_PASSWORD": "your_app_password",
   "REF_TOOLS_API_KEY": "ref-xxxxx",
   "ZAPIER_MCP_TOKEN": "token-base64"
 }
@@ -238,7 +238,7 @@ cat > ~/.claude/personal/dotclaude-configs/mcp-servers.secrets.json << 'EOF'
 {
   "_comment": "Preencher com seus secrets",
   "BITBUCKET_USERNAME": "seu-usuario",
-  "BITBUCKET_APP_PASSWORD": "obter-do-bitbucket",
+  "BITBUCKET_APP_PASSWORD": "your_app_password",
   "REF_TOOLS_API_KEY": "obter-do-ref-tools",
   "ZAPIER_MCP_TOKEN": "obter-do-zapier"
 }
