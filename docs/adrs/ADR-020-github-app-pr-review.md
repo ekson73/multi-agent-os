@@ -63,13 +63,33 @@ names (dual-name doctrine, envelope-safety).
 | object | name | verdict |
 |---|---|---|
 | generic mechanism (workflow + scripts, this repo) | **`github-app-pr-review`** | chosen: says what it is (a PR review published by a GitHub App), English like the rest of the repo, no world prefix on a generic mechanism, honest about being GitHub-bound |
-| App instance for the owner's own world | **`eko-revisor-agentico`** (bot `eko-revisor-agentico[bot]`) | the operator's proposal, **accepted for the instance**: world-prefixed, zero drift from the pilot's `*-revisor-agentico`, read by pt-BR people |
-| `eko-revisor-agentico` as the generic slug | rejected | Portuguese token in an English repo fails *context* and *root*; a world prefix on a generic mechanism fails *scope* |
-| `agentic-pr-reviewer` | rejected | role collision with `agents/code-reviewer.md` and `routed-pr-review`; `agentic` is jargon that does not say "App identity" |
-| `revisor-agentico` | rejected | collides with the pilot's own instance name |
+| App instance for the owner's own world | **`eko-pr-reviewer`** (bot `eko-pr-reviewer[bot]`) | chosen by an `anima` run (§2.1): en-US, world-prefixed, an agent noun for an actor, names its one job, no model vendor in it |
+| `eko-agentic-reviewer` | runner-up | 1:1 translation of the pilot's `*-revisor-agentico`, so least drift; loses on *scope* (does not say PR) and pays the `agentic` jargon cost the bot suffix already covers |
+| `eko-revisor-agentico` | rejected (renamed 2026-10-30) | the first proposal of this ADR; Portuguese tokens in an English repo fail *context* and *root*. Operator rule: the instance name is en-US and named by `anima`, not stamped |
+| `agentic-pr-reviewer` | rejected | as the generic slug: role collision with `agents/code-reviewer.md` and `routed-pr-review`; `agentic` is jargon that does not say "App identity" |
+| `eko-code-reviewer` | rejected | sibling-role collision with `agents/code-reviewer.md` (an in-harness persona, not an identity) |
+| `eko-reviewer` | rejected | too broad: does not say what is reviewed |
 
-Availability of `eko-revisor-agentico` as an App slug is **not proven**: `GET /apps/<slug>` returns 404 for the
-pilot's existing private App too, so a 404 says nothing. It is checked at registration (phase 3).
+#### 2.1 Anima run for the App instance
+
+- **Register**: human (people read `<slug>[bot]` in PR timelines), so resonance is scored too.
+- **Constraints**: GitHub App slug (lowercase, hyphens, ≤34 chars, unique on GitHub); family `eko-`; en-US;
+  engine-neutral, because the reviewer may later run pluggable engines (Claude, Codex, Grok) behind the same App.
+- **Ontology**: the App is an *actor* that posts `APPROVE` / `REQUEST_CHANGES`, so an agent noun (`reviewer`), not
+  the activity (`review`). This pairs with the mechanism: `github-app-pr-review` is the review, `eko-pr-reviewer`
+  is who publishes it.
+- **Scorecard for `eko-pr-reviewer`**: 12/12 correctness PASS (taxonomy `eko-*`; semantics and scope = PR
+  reviewer; singular attributive `pr`; durable; gloss-free: "eko's PR reviewer"). Resonance PASS: 4 syllables
+  after the prefix, sayable in EN and PT, no unintended meaning. 15 chars.
+- **Sweep**: no `eko-pr-reviewer` in this repository or in the artifact registry;
+  `.claude/rules/pr-reviewer-communication.md` is a rule about talking to review bots, a different object.
+- **Availability** (measured 2026-10-30 on `https://github.com/apps/<slug>`): `eko-pr-reviewer` 404,
+  `eko-agentic-reviewer` 404. The check discriminates: the pilot's existing private App answers 200 and a random
+  slug answers 404. (`GET /apps/<slug>` in the REST API answers 404 for the pilot's App too, so the API is not the
+  test.) Free today; re-checked at registration (phase 3).
+- **Pilot App**: it keeps its slug (already registered); not renamed by this ADR. A future App of another trust
+  boundary should follow the same en-US pattern, `<world>-pr-reviewer`; the pilot's slug is not repeated here
+  because the pilot is a client-world repository.
 
 ### 3. Topology: one reusable workflow, one App per trust boundary — not one App for everything
 
@@ -86,7 +106,7 @@ The operator's reading holds for the **workflow** and is refined for the **App**
   installed on. If the same key sits in N environments, the weakest of the N `main` branches becomes the
   security of all N: anyone who can merge a workflow to `main` in one repo can approve PRs in the others. So:
   - the pilot (client world) **keeps its own App**; it is never added to the shared one;
-  - the shared `eko-revisor-agentico` App is installed **only** on repositories whose `main` requires a PR and
+  - the shared `eko-pr-reviewer` App is installed **only** on repositories whose `main` requires a PR and
     whose `revisao-agentica` environment is restricted to `main`; a repository that fails this does not get the
     App;
   - the publish step requests the installation token **scoped to the one repository** being reviewed
@@ -124,7 +144,7 @@ of phase 2).
 | 0 | this design record | — | agent |
 | 1 | pilot proves itself: owner provides the agent token; run `/revisao-agentica` on real PRs | owner provides `CLAUDE_CODE_OAUTH_TOKEN` (credential = owner) | owner + agents |
 | 2 | extract the reusable workflow + scripts into this repo (no App, no secret), behind tests; the pilot switches to calling it, keeping its own App | **≥2 real reviews in the pilot that published a verdict on the reviewed SHA and were correct on audit** (green), and 0 key/agent leaks | agent (PR) |
-| 3 | register `eko-revisor-agentico`, enable it on **one** owner repository with protected `main` | phase 2 merged and the pilot green again on the reusable workflow; owner registers the App and stores the key (credential = owner) | owner |
+| 3 | register `eko-pr-reviewer`, enable it on **one** owner repository with protected `main` | phase 2 merged and the pilot green again on the reusable workflow; owner registers the App and stores the key (credential = owner) | owner |
 | 4 | widen to further owner repositories one at a time, each checked for protected `main` + restricted environment | ≥2 real green reviews on the phase-3 repository; subscription quota observed (below) | owner installs, agent prepares callers |
 
 **Subscription quota.** One `CLAUDE_CODE_OAUTH_TOKEN` (the owner's Claude subscription) would serve every

@@ -7,12 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — ADR-020: the shared App instance is named `eko-pr-reviewer` (was `eko-revisor-agentico`)
+
+- An `anima` run (ADR-020 §2.1) names the owner-world App instance in en-US: `eko-pr-reviewer`, runner-up
+  `eko-agentic-reviewer`. Engine-neutral, so the reviewer can later run other model engines behind the same App.
+  Both slugs measured free on `https://github.com/apps/<slug>` (404; the pilot's existing App answers 200).
+  The pilot's App keeps its slug; future Apps follow `<world>-pr-reviewer`. Nothing registered.
+
 ### Added — ADR-020: design record for `github-app-pr-review` (proposed, nothing built)
 
 - `docs/adrs/ADR-020-github-app-pr-review.md`: how to generalize a pilot's independent agentic reviewer
   (GitHub App identity, read-only agent, key in a separate job) to the owner's repositories. Decision: one
   reusable `workflow_call` workflow pinned by SHA + thin callers; one App **per trust boundary** (the pilot keeps
-  its own; the shared `eko-revisor-agentico` App only on repos with a protected `main`), installation token scoped
+  its own; the shared `eko-pr-reviewer` App only on repos with a protected `main`), installation token scoped
   to one repo. Names validated with `anima`; rejected alternatives and a phased rollout gated on ≥2 real green
   reviews in the pilot. No App, secret or install is created by this change.
 
