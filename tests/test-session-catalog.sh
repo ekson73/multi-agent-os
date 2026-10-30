@@ -1168,6 +1168,16 @@ ctext = " ".join(m["text"] for m in cmsgs)
 ok("QUESTION-7Q" in ctext and "ANSWER-7Q" in ctext and "REASONING-7Q" not in ctext and "TOOLARGS-7Q" not in ctext
    and any(m["kind"] == "tool_call" for m in cmsgs),
    "ChatGPT analysis-channel and tool-directed messages are not emitted as dialogue (tool name kept)")
+ok(mod.project_match("/workspace/project", ["/"]), "--project / scopes every absolute working directory")
+th = os.path.join(FIX, "home-toolres")
+TU = "eeeeeeee-ffff-4000-8000-222222222222"
+put(".claude/projects/-tr/%s.jsonl" % TU, [cl("user", [{"type": "tool_result", "tool_use_id": "t1", "content": "TOOLBODY-7Q"},
+                                                    {"type": "text", "text": "Actually cancel SIBLING-TEXT-7Q"}], sid=TU)], home=th)
+tctx = mod.Ctx(th, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+tu = next(x for x in mod.build_stores(tctx, []) if x.id == "claude-code/projects").units()
+ttxt = " ".join(m["text"] for m in tu[0].load()[1]) if tu else ""
+ok("SIBLING-TEXT-7Q" in ttxt and "TOOLBODY-7Q" not in ttxt,
+   "user text beside a tool_result block is kept; the tool-result body is still never read")
 # 15. passes 1 and 2 never touch the network: any socket creation raises
 import socket as _socket
 _orig_socket = _socket.socket

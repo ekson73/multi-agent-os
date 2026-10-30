@@ -975,7 +975,10 @@ def load_claude(ctx: Ctx, store: "Store", path: str, fh, default_client: str) ->
         if t == "user":
             if isinstance(content, list) and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
                 e.tool_result(ts, ln, any(isinstance(b, dict) and b.get("is_error") for b in content))
-                continue
+                # the tool-result body is never read, but sibling user text/attachments are the user's own
+                content = [b for b in content if not (isinstance(b, dict) and b.get("type") == "tool_result")]
+                if not content:
+                    continue
             e.text("user", blocks_parts(content), ts, ln)
             e.attachments("user", content, ts, ln)
         else:
@@ -2352,7 +2355,7 @@ def safe_session_id(ctx: Ctx, sid: str) -> str:
 
 def project_match(cwd: Optional[str], projects: List[str]) -> bool:
     c = norm_path(cwd)
-    return bool(c) and any(c == p or c.startswith(p + os.sep) for p in projects)
+    return bool(c) and any(c == p or c.startswith(p.rstrip(os.sep) + os.sep) for p in projects)  # `/` too
 
 
 def surface_filter(args) -> Optional[List[str]]:
