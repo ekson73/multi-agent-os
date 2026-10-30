@@ -16,6 +16,14 @@ const readyFixture = path.join(fixtures, "neutral-ready.session-model.json");
 const userHome = os.userInfo().homedir;
 const stockArchify = [path.join(userHome, ".agents", "skills", "archify"), path.join(userHome, ".claude", "skills", "archify")]
   .find((candidate) => fs.existsSync(path.join(candidate, "bin", "archify.mjs")));
+// CI sets VASM_REQUIRE_ARCHIFY=1 after installing pinned Archify, so a missing install fails
+// instead of silently skipping the standard-profile tests.
+function needsArchify(context) {
+  if (stockArchify) return true;
+  if (process.env.VASM_REQUIRE_ARCHIFY === "1") assert.fail("stock Archify is required (VASM_REQUIRE_ARCHIFY=1) but not installed");
+  context.skip("stock Archify unavailable");
+  return false;
+}
 const STATES = ["planned", "started", "delegated", "deferred", "hitl", "blocked", "completed", "canceled", "superseded", "deprecated", "unknown"];
 const ALLOWED = {
   planned: ["started", "delegated", "deferred", "hitl", "canceled", "superseded", "deprecated"],
@@ -776,7 +784,7 @@ test("child derivation scans allowlisted inherited material before any write", a
 });
 
 test("standard profile still renders through trusted stock Archify", async (context) => {
-  if (!stockArchify) { context.skip("stock Archify unavailable"); return; }
+  if (!needsArchify(context)) return;
   await temp(async (directory) => {
     const model = await copyModel(directory, readyFixture);
     const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
@@ -788,7 +796,7 @@ test("standard profile still renders through trusted stock Archify", async (cont
 });
 
 test("standard HTML honors network_access_from_html: remote font loads are removed and verify rejects any remote fetch", async (context) => {
-  if (!stockArchify) { context.skip("stock Archify unavailable"); return; }
+  if (!needsArchify(context)) return;
   await temp(async (directory) => {
     const model = await copyModel(directory, readyFixture);
     const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
@@ -833,7 +841,7 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
 });
 
 test("standard offline guard ignores URL-like text in visible content", async (context) => {
-  if (!stockArchify) { context.skip("stock Archify unavailable"); return; }
+  if (!needsArchify(context)) return;
   await temp(async (directory) => {
     const model = await mutateModel(directory, (value) => {
       value.plan.work_items[0].title = "Investigate url(https://example.com/font.woff2) usage";
@@ -1369,7 +1377,7 @@ test("sensitive scan catches a base64-encoded secret even when the clean decode 
 });
 
 test("verify rejects a source subject containing malformed UTF-8 bytes, matching validate's ENCODING_INVALID guarantee", async (context) => {
-  if (!stockArchify) { context.skip("stock Archify unavailable"); return; }
+  if (!needsArchify(context)) return;
   await temp(async (directory) => {
     const model = await copyModel(directory, readyFixture);
     const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
