@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recognizes bounded target-first `grant`/`granting` user/account access, including
   ordinary articles, while retaining direct-negation, local-mock and real-context
   boundaries. Real direct/session-pipe regressions cover both target/object orders.
+- Accepts `my` in the existing account/permissions and MFA object prefixes, including
+  recognized gerunds, while preserving direct-negation, bounded local-mock and
+  real-context rules. Direct and real-pipe regressions cover decidir/title/titulo.
 - Synopsis JSON preserves the existing `title`/`titulo`, structured `options`
   (including evidence/confidence) and `idade` fields without type coercion or raw
   metadata overrides of canonical fields/scope. Direct and real session-scoped CLI

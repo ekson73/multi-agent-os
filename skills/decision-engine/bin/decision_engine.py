@@ -71,7 +71,7 @@ _GUARD_RE = re.compile(
 _HUMAN_ACT_RE = re.compile(
     r"\b(?:(?:alter(?:ar|ando)|mud(?:ar|ando)|modific(?:ar|ando)|conced(?:er|endo)|"
     r"revog(?:ar|ando)|chang(?:e|ing)|modify(?:ing)?|grant(?:ing)?|revok(?:e|ing))\s+"
-    r"(?:(?:a|as|o|os|the)\s+)?(?:(?:permiss(?:ao|oes)|privilegios?|acesso|configurac(?:ao|oes)|"
+    r"(?:(?:a|as|o|os|the|my)\s+)?(?:(?:permiss(?:ao|oes)|privilegios?|acesso|configurac(?:ao|oes)|"
     r"permissions?|privileges?|access|settings?)(?:\s+(?:real|reais))?\s+"
     r"(?:d[ao]s?|de|n[ao]s?|em|aos?|as?|para|pra|of|on|to|for)\s+"
     r"(?:(?:a|as|o|os|um|uma|uns|umas|the|an)\s+)?"
@@ -80,7 +80,7 @@ _HUMAN_ACT_RE = re.compile(
     r"grant(?:ing)?\s+(?:(?:a|an|the)\s+)?(?:users?|accounts?)\s+access|"
     r"(?:ativ(?:ar|ando)|desativ(?:ar|ando)|habilit(?:ar|ando)|desabilit(?:ar|ando)|"
     r"redefin(?:ir|indo)|enabl(?:e|ing)|disabl(?:e|ing)|reset(?:ting)?)\s+"
-    r"(?:(?:a|o|the)\s+)?(?:mfa|2fa|autenticacao\s+(?:multifator|de dois fatores)|"
+    r"(?:(?:a|o|the|my)\s+)?(?:mfa|2fa|autenticacao\s+(?:multifator|de dois fatores)|"
     r"multi[- ]factor authentication|two[- ]factor authentication)|"
     r"(?:aceit(?:ar|ando)|aprov(?:ar|ando)|confirm(?:ar|ando)|autoriz(?:ar|ando)|"
     r"accept(?:ing)?|approv(?:e|ing)|confirm(?:ing)?|authoriz(?:e|ing))\s+"

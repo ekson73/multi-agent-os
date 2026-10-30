@@ -120,6 +120,24 @@ TARGET_FIRST_ACCESS_CONTROLS = (
 )
 
 
+POSSESSIVE_HUMAN_ACTS = (
+    "Disable my MFA",
+    "Change my account permissions",
+    "Disabling my MFA",
+    "Changing my account permissions",
+    "Why not disable my MFA?",
+    "Without delay change my account permissions",
+    "Implement a local mock to disable my MFA in a real account",
+)
+POSSESSIVE_TECHNICAL_CONTROLS = (
+    "Do not disable my MFA",
+    "Do not change my account permissions",
+    "Without changing my account permissions",
+    "Implement a local mock to disable my MFA",
+    "Implement a local mock to change my account permissions",
+)
+
+
 HUMAN_ACTS = (
     "Alterar permissões da conta do provedor",
     "Desativar a autenticação multifator da conta",
@@ -134,7 +152,7 @@ HUMAN_ACTS = (
     "Alterar permissões de conta",
     "Alterar permissões na conta",
     "Conceder permissão à conta",
-) + ARTICLE_PERMISSION_ACTS + TARGET_FIRST_ACCESS_ACTS + MIXED_REAL_ACTS
+) + ARTICLE_PERMISSION_ACTS + TARGET_FIRST_ACCESS_ACTS + POSSESSIVE_HUMAN_ACTS + MIXED_REAL_ACTS
 TECHNICAL_CONTROLS = (
     "Escolher biblioteca de parsing",
     "Fazer parsing de conta sintética",
@@ -147,7 +165,7 @@ TECHNICAL_CONTROLS = (
     "Do not disable MFA",
     "Why does the local MFA mock fail?",
     "Por que o teste local de MFA falha?",
-) + ARTICLE_CONTROLS + TARGET_FIRST_ACCESS_CONTROLS + LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS
+) + ARTICLE_CONTROLS + TARGET_FIRST_ACCESS_CONTROLS + POSSESSIVE_TECHNICAL_CONTROLS + LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS
 
 
 def _load():
@@ -533,10 +551,10 @@ def test_supported_metadata_and_guard_boundaries_survive_real_session_pipe(
     payload, expected_routes = [], {}
     boundary_cases = (
         [(text, "HITL") for text in
-         ARTICLE_PERMISSION_ACTS + TARGET_FIRST_ACCESS_ACTS + HUMAN_ACTS[:4]]
+         ARTICLE_PERMISSION_ACTS + TARGET_FIRST_ACCESS_ACTS + POSSESSIVE_HUMAN_ACTS + HUMAN_ACTS[:4]]
         + [("Disable MFA", "HITL")]
         + [(text, "DIY") for text in
-           ARTICLE_CONTROLS + TARGET_FIRST_ACCESS_CONTROLS + LOCAL_IMPLEMENTATIONS])
+           ARTICLE_CONTROLS + TARGET_FIRST_ACCESS_CONTROLS + POSSESSIVE_TECHNICAL_CONTROLS + LOCAL_IMPLEMENTATIONS])
     for field in ("decidir", "title", "titulo"):
         for text, route in boundary_cases:
             hid = f"H-{8000 + len(payload)}"

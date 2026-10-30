@@ -87,6 +87,8 @@ As relações de permissão aceitam artigos PT/EN após a preposição e contra�
 A concessão EN também aceita a ordem alvo → acesso (`Grant user access`,
 `Grant an account access`), com `grant`/`granting`, sem ampliar para palavras de
 segurança isoladas; as mesmas exclusões de negação direta e implementação local valem.
+Nas relações já reconhecidas de conta/permissões e MFA, o determinante EN `my`
+também é aceito antes do objeto; isso não amplia a lista de atos nem as exclusões.
 Antes de agir, preserve a confirmação exigida pelo efeito e pela autoridade da ação,
 independentemente de `route`; nenhum veredito concede consentimento.
 
