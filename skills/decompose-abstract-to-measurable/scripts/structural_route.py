@@ -62,12 +62,11 @@ def route(spec_path, legacy_unrouted=False):
     # so omitting structural_form can never earn a cleaner pass than declaring it (closes A2b).
     derived_block = any(f in BLOCK_ON_ADDITIVE_TREE for f in derived)
     derived_cap = any(f in CAP_ASSISTIVE for f in derived)
-    if declared is None and legacy_unrouted:
-        # v1.0.0 compatibility, OPT-IN ONLY: the historical passthrough. Engine band unchanged.
-        # Default is fail-closed below; this branch exists so pre-form specs are not silently capped.
-        route_v = {"status": "under_specified", "reason": "structural_form_not_declared",
-                   "legacy_unrouted": True}
-    elif declared is None and derived_block:
+    def _merge_reasons(new):
+        prev = out.get("inconclusive") or {}
+        reasons = list(prev.get("reasons") or []) if isinstance(prev, dict) else []
+        return {"flag": True, "reasons": reasons + [r for r in new if r not in reasons]}
+    if declared is None and derived_block:
         # Omission + H35 diagnostics that derive relational/gestalt -> the additive tree still
         # structurally CANNOT represent it. Block, exactly as a declared relational/gestalt would.
         sl = 1.0
@@ -75,7 +74,12 @@ def route(spec_path, legacy_unrouted=False):
                    "reason": "structural_form omitted but H35 diagnostics derive a non-additive form "
                              f"({derived}) an additive value-tree cannot represent"}
         out["score"] = None; out["band"] = "BLOCKED"
-        out["inconclusive"] = {"flag": True, "reasons": ["structural_mismatch", "structural_form_not_declared"]}
+        out["inconclusive"] = _merge_reasons(["structural_mismatch", "structural_form_not_declared"])
+    elif declared is None and legacy_unrouted:
+        # v1.0.0 compatibility, OPT-IN ONLY: the historical passthrough. Engine band unchanged.
+        # Evaluated AFTER the H35-derived block, so the flag can never bypass a relational/gestalt block.
+        route_v = {"status": "under_specified", "reason": "structural_form_not_declared",
+                   "legacy_unrouted": True}
     elif declared is None:
         # Fail-closed default (closes A2b evasion-by-omission): an undeclared form is UNROUTED,
         # not a clean pass. Hold for human review; never emit a usable band from omission.
@@ -84,10 +88,11 @@ def route(spec_path, legacy_unrouted=False):
                    "h35_derived": derived, "reason": "structural_form_not_declared — unrouted; "
                    "fail-closed (pass --legacy-unrouted for v1.0.0 pre-form specs)"}
         out["band"] = f"REVIEW (unrouted; engine said {out['band']})"
-        out["inconclusive"] = {"flag": True, "reasons": ["structural_form_not_declared"]}
+        out["inconclusive"] = _merge_reasons(["structural_form_not_declared"])
         if derived_cap:
-            route_v["allowed_use"] = "assistive_only"
-            route_v["reason"] += "; H35 derives a band-capped form"
+            # Report the capped form separately; the omission stays blocked pending review.
+            route_v["h35_derived_cap"] = "assistive_only"
+            route_v["reason"] += "; H35 derives a band-capped form (assistive_only after review)"
     elif conflict:
         sl = 0.7
         route_v = {"status": "classification_conflict", "allowed_use": "blocked_pending_review", "contestable": True,

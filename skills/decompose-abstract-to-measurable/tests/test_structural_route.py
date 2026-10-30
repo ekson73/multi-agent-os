@@ -124,6 +124,22 @@ def test_a2b_omission_with_relational_diagnostics_blocked():
 
 
 @test
+def test_a2b_legacy_flag_cannot_bypass_relational_block():
+    # --legacy-unrouted must NOT bypass an H35-derived relational/gestalt block.
+    d = _run(form=None, diags={"q_value_lives_in_relations": True}, legacy=True)
+    assert d["band"] == "BLOCKED", d["band"]
+    assert d["score"] is None, d["score"]
+
+
+@test
+def test_a2b_omission_with_capped_diagnostics_stays_blocked_pending_review():
+    # Omission + normative/temporal/dispositional diagnostics: still held for review.
+    d = _run(form=None, diags={"q_depends_on_whose_values": True})
+    assert d["route"]["allowed_use"] == "blocked_pending_review", d["route"]
+    assert d["route"].get("h35_derived_cap") == "assistive_only", d["route"]
+
+
+@test
 def test_loss_vector_shape():
     # loss_vector carries 3 computable dims + 2 offline-null (honest null, not 0)
     d = _run(form="additive", diags={"q_value_lives_in_relations": False})
