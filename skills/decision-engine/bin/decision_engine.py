@@ -68,19 +68,23 @@ _GUARD_RE = re.compile(
 # Fold accents at the call site; local implementation and synthetic parsing
 # remain technical unless the text actually requests one of these acts.
 _HUMAN_ACT_RE = re.compile(
-    r"\b(?:(?:alterar|mudar|modificar|conceder|revogar|change|modify|grant|revoke)\s+"
+    r"\b(?:(?:alter(?:ar|ando)|mud(?:ar|ando)|modific(?:ar|ando)|conced(?:er|endo)|"
+    r"revog(?:ar|ando)|chang(?:e|ing)|modify(?:ing)?|grant(?:ing)?|revok(?:e|ing))\s+"
     r"(?:(?:a|as|o|os|the)\s+)?(?:(?:permiss(?:ao|oes)|privilegios?|acesso|configurac(?:ao|oes)|"
     r"permissions?|privileges?|access|settings?)(?:\s+(?:real|reais))?\s+"
     r"(?:d[ao]s?|de|n[ao]s?|a|of|on|to|for)\s+"
     r"(?:contas?|accounts?|usuarios?|users?)|(?:(?:real|live)\s+)?(?:provider\s+)?"
     r"account\s+(?:permissions?|settings?))|"
-    r"(?:ativar|desativar|habilitar|desabilitar|redefinir|enable|disable|reset)\s+"
+    r"(?:ativ(?:ar|ando)|desativ(?:ar|ando)|habilit(?:ar|ando)|desabilit(?:ar|ando)|"
+    r"redefin(?:ir|indo)|enabl(?:e|ing)|disabl(?:e|ing)|reset(?:ting)?)\s+"
     r"(?:(?:a|o|the)\s+)?(?:mfa|2fa|autenticacao\s+(?:multifator|de dois fatores)|"
     r"multi[- ]factor authentication|two[- ]factor authentication)|"
-    r"(?:aceitar|aprovar|confirmar|autorizar|accept|approve|confirm|authorize)\s+"
+    r"(?:aceit(?:ar|ando)|aprov(?:ar|ando)|confirm(?:ar|ando)|autoriz(?:ar|ando)|"
+    r"accept(?:ing)?|approv(?:e|ing)|confirm(?:ing)?|authoriz(?:e|ing))\s+"
     r"(?:(?:a|o|the)\s+)?(?:(?:verificacao|checagem) de seguranca d[oa] "
     r"(?:provedor|plataforma)|provider[- ](?:safety|security) (?:check|verification))|"
-    r"(?:usar|utilizar|processar|coletar|analisar|use|process|collect|analyze)\s+"
+    r"(?:us(?:ar|ando)|utiliz(?:ar|ando)|process(?:ar|ando)|colet(?:ar|ando)|"
+    r"analis(?:ar|ando)|us(?:e|ing)|process(?:ing)?|collect(?:ing)?|analyz(?:e|ing))\s+"
     r"(?:(?:os|the)\s+)?(?:dados pessoais reais|dados reais d[oa]s? clientes?|pii real|"
     r"real (?:pii|personal data|customer data)))\b")
 
@@ -97,11 +101,19 @@ _SYNTHETIC_TARGET_RE = re.compile(
     r"fixtures?\s+(?:sintetic[oa]s?|local|locais)|"
     r"(?:synthetic|local)\s+fixtures?))?\s*[.!]?\s*")
 _REAL_OBJECT_RE = re.compile(r"\b(?:real|reais|live)\b")
+# Explicit real/unknown target metadata also constrains a local action field.
+_TARGET_CONTEXT_RE = re.compile(
+    r"\b(?:(?:em|na|no|in|on|for)\s+(?:(?:uma?|a|an|the)\s+)?"
+    r"(?:contas?|accounts?)(?!\s+sintetic[oa]s?\b)|"
+    r"contas?\s+(?:alvo|d[aoe]\s+(?:cliente|provedor))|"
+    r"(?:target|customer|provider)\s+accounts?)\b")
 
 _NEG_RE = re.compile(r"\b(n[aã]o|nunca|sem|not|never|no|without)\s+(\w+\s+)?$", re.IGNORECASE)
 # The new human-act guard only accepts a negator adjacent to the action.
 # Legacy exposure negation above keeps its existing policy semantics.
 _ACT_NEG_RE = re.compile(r"\b(?:nao|nunca|sem|not|never|no|without)\s*$")
+# A structured rhetorical proposal is not an operational prohibition.
+_PROPOSAL_RE = re.compile(r"\b(?:why\s+not|por\s+que\s+nao)\s*$")
 
 
 def reports_leak(text: str) -> bool:
@@ -124,14 +136,17 @@ def _fold(text: str) -> str:
     return "".join(c for c in norm if not unicodedata.combining(c)).strip().lower()
 
 
-def _human_authority_act(text: str) -> bool:
+def _human_authority_act(text: str, context: str = "") -> bool:
     folded = _fold(text)
+    global_text = _fold(context) if context else folded
     for m in _HUMAN_ACT_RE.finditer(folded):
-        if _ACT_NEG_RE.search(folded[:m.start()]):
+        prefix = folded[:m.start()]
+        if _ACT_NEG_RE.search(prefix) and not _PROPOSAL_RE.search(prefix):
             continue
-        if (_LOCAL_IMPL_PREFIX_RE.fullmatch(folded[:m.start()])
+        if (_LOCAL_IMPL_PREFIX_RE.fullmatch(prefix)
                 and _SYNTHETIC_TARGET_RE.fullmatch(folded[m.end():])
-                and not _REAL_OBJECT_RE.search(m.group())):
+                and not _REAL_OBJECT_RE.search(global_text)
+                and not _TARGET_CONTEXT_RE.search(global_text)):
             continue
         return True
     return False
@@ -246,7 +261,8 @@ def decide(item: dict, policy: dict | None = None) -> dict:
                                  f"tipo '{tipo}' é um dos 5 tipos HITL do SSOT"))
         return out
     if tipo in TECH_TYPES and (_GUARD_RE.search(text) or _MONEY_RE.search(text)
-                               or _human_authority_act(text)):
+                               or any(_human_authority_act(str(item.get(k, "")), text)
+                                      for k in ("decidir", "titulo", "title"))):
         out.update(_hitl_verdict(item, "R2-guard",
                                  "item técnico cita ato irreversível/produção, gasto, envio "
                                  "ou ato de conta/segurança/dados pessoais reais"))

@@ -13,6 +13,31 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "bin" / "decision_engine.py"
 FUSE = ROOT.parent / "synopsis-panel" / "bin" / "synopsis-fuse.py"
 
+GERUND_PAIRS = (
+    ("Changing real account permissions for user X",
+     "Without changing real account permissions for user X"),
+    ("Disabling MFA for the account", "Not disabling MFA for the account"),
+    ("Alterando permissões da conta", "Não alterando permissões da conta"),
+    ("Desativando MFA da conta", "Não desativando MFA da conta"),
+    ("Accepting the provider safety check", "Not accepting the provider safety check"),
+    ("Aceitando a verificação de segurança do provedor",
+     "Não aceitando a verificação de segurança do provedor"),
+    ("Using real personal data", "Not using real personal data"),
+    ("Usando dados pessoais reais", "Não usando dados pessoais reais"),
+)
+METADATA_VALUES = (
+    ("MFA tests", "DIY"),
+    ("Testes de MFA", "DIY"),
+    ("Account permission tests", "DIY"),
+    ("real account", "HITL"),
+    ("conta real", "HITL"),
+    ("target account", "HITL"),
+    ("in the account", "HITL"),
+    ("produção", "HITL"),
+    ("Disable MFA on the account", "HITL"),
+    ("Usar dados pessoais reais", "HITL"),
+)
+
 LOCAL_IMPLEMENTATIONS = (
     "Implementar testes locais para desativar MFA em conta sintética",
     "Implement a local mock to change account permissions",
@@ -41,6 +66,8 @@ MIXED_REAL_ACTS = (
     "Sem hesitar alterar permissões da conta real",
     "Não desativar MFA; alterar permissões da conta real",
     "Without changing real account permissions, disable MFA on the account",
+    "Por que não desativar MFA da conta?",
+    "Why not change account permissions?",
 )
 
 HUMAN_ACTS = (
@@ -68,6 +95,8 @@ TECHNICAL_CONTROLS = (
     "Implementar biblioteca local sem alterar permissões da conta",
     "Não desativar autenticação multifator",
     "Do not disable MFA",
+    "Why does the local MFA mock fail?",
+    "Por que o teste local de MFA falha?",
 ) + LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS
 
 
@@ -367,6 +396,14 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
     payload += [
         _item(f"H-{5200 + i}", "tecnico", text, session_id="guard-fixture")
         for i, text in enumerate(LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS + MIXED_REAL_ACTS)]
+    payload += [
+        _item(f"H-{6000 + i}", "tecnico", LOCAL_IMPLEMENTATIONS[0],
+              title=metadata, session_id="guard-fixture")
+        for i, (metadata, route) in enumerate(METADATA_VALUES)]
+    for i, (positive, negative) in enumerate(GERUND_PAIRS):
+        payload += [
+            _item(f"H-{6100 + 2 * i}", "tecnico", positive, session_id="guard-fixture"),
+            _item(f"H-{6101 + 2 * i}", "tecnico", negative, session_id="guard-fixture")]
     before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
     fuse = subprocess.run(
         [sys.executable, str(FUSE), "--hitl-only", "--compass-json", str(compass),
@@ -386,6 +423,10 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
            for i in range(len(LOCAL_IMPLEMENTATIONS) + len(DIRECT_NEGATIONS))},
         **{f"H-{5200 + len(LOCAL_IMPLEMENTATIONS) + len(DIRECT_NEGATIONS) + i}": ("HITL", False)
            for i in range(len(MIXED_REAL_ACTS))},
+        **{f"H-{6000 + i}": (route, False)
+           for i, (metadata, route) in enumerate(METADATA_VALUES)},
+        **{f"H-{6100 + 2 * i}": ("HITL", False) for i in range(len(GERUND_PAIRS))},
+        **{f"H-{6101 + 2 * i}": ("DIY", False) for i in range(len(GERUND_PAIRS))},
     }
     assert out["source"]["hitl_scope"] == "session"
     assert out["source"]["hitl_session_resolved"] is True
@@ -393,3 +434,45 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
     assert not out["source"].get("hitl_scope_unresolved")
     assert all("approved" not in v and "resolved" not in v for v in out["verdicts"])
     assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+
+
+@pytest.mark.parametrize("positive,negative", GERUND_PAIRS)
+@pytest.mark.parametrize("override", [False, True])
+def test_recognized_gerund_is_guarded_and_its_negation_is_load_bearing(
+        tmp_path, positive, negative, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    out = json.loads(_cli([_item("H-7000", "tecnico", positive),
+                           _item("H-7001", "tecnico", negative)], *extra))
+    assert [(v["route"], v["rule"]) for v in out["verdicts"]] == [
+        ("HITL", "R2-guard"), ("DIY", "R3-technical")]
+    assert all(v["denied"] is False and "approved" not in v and "resolved" not in v
+               for v in out["verdicts"])
+
+
+@pytest.mark.parametrize("field", ["title", "titulo"])
+@pytest.mark.parametrize("metadata,route", METADATA_VALUES)
+@pytest.mark.parametrize("override", [False, True])
+def test_local_action_keeps_benign_metadata_but_honors_global_sensitive_context(
+        tmp_path, field, metadata, route, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    out = json.loads(_cli(_item("H-7100", "tecnico", LOCAL_IMPLEMENTATIONS[0],
+                               **{field: metadata}), *extra))
+    v = out["verdicts"][0]
+    assert v["route"] == route
+    assert v["rule"] == ("R3-technical" if route == "DIY" else "R2-guard")
+    assert v["denied"] is False and "approved" not in v and "resolved" not in v
+
+
+@pytest.mark.parametrize("field", ["title", "titulo"])
+@pytest.mark.parametrize("override", [False, True])
+def test_local_action_in_legacy_title_without_decidir_still_works(tmp_path, field, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    out = json.loads(_cli({"id": "H-7200", "tipo": "tecnico",
+                          field: LOCAL_IMPLEMENTATIONS[1]}, *extra))
+    assert out["verdicts"][0]["route"] == "DIY"

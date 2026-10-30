@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   R0/default policy and R1 precedence remain unchanged; routing never grants consent.
 - Human-act negation must directly qualify the sensitive action; an adverbial
   modifier does not suppress HITL, and a separate affirmative action stays guarded.
+- Evaluate local intent per existing source field without benign title contamination,
+  retaining real/production/unknown-target context across fields. Guard recognized
+  PT/EN gerunds and rhetorical proposals; genuine operational negations remain DIY.
 - Real CLI and session-scoped synopsis pipe regressions cover both policies,
   technical aliases, boundaries and precedence. Refs #555, parent PR #556.
 
