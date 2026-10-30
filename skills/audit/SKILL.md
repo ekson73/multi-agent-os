@@ -428,7 +428,7 @@ This skill integrates with:
 | Parameter | Value | Default |
 |-----------|-------|---------|
 | loop.similarity_threshold | 0.85 | 0.85 |
-| depth.max_delegation_depth | 3 | 3 |
+| depth.max_delegation_depth | 2 | 2 |
 | drift.relevance_threshold | 0.50 | 0.50 |
 | stagnation.timeout_ms | 300000 | 300000 |
 

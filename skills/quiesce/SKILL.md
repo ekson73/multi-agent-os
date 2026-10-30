@@ -237,7 +237,7 @@ each candidate PR, before queueing auto-merge:
 
 - `--max-pdca` (default 6) caps per-PR PDCA iterations; diminishing returns -> escalate.
 - Worktree discipline always on (`skills/worktree-policy/SKILL.md`); never commit to main.
-- Delegation depth <= 2; Sentinel HIGH auto-blocks (`sentinel/config.json` authoritative).
+- Delegation depth <= 2; Sentinel HIGH auto-blocks (`sentinel/config.json` authoritative). Delegated authority is a subset of the delegator's and never widens (`skills/agentic-delegation` §4.1).
 - 6-attempt escalation rule (different approach each attempt).
 - Exactly ONE STOP marker per turn (the `/goal` evaluator contract).
 - HUMAN_DOMAIN + non-negotiable guardrails (secrets/PII, force-push protected,
