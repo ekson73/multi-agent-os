@@ -157,7 +157,7 @@ RETURN caller.name, caller.filePath ORDER BY caller.filePath
 4. detect_changes({scope: "all", repo: "my-app"})
    → Affected: LoginFlow, TokenRefresh
    → Risk: MEDIUM — run tests for these flows
-   Repository: my-app (/abs/path/my-app)  Worktree: same  Index: current
+   Repository: my-app (<repository-path>)  Worktree: same  Index: current
 ```
 
 With a single indexed repository, step 0 returns `total: 1` and the `repo`

@@ -151,7 +151,7 @@ before treating an empty change set as a passed check.
    → LoginFlow and TokenRefresh touch validateUser
 
 3. Risk: 2 direct callers, 2 processes = MEDIUM
-   Repository: my-app (/abs/path/my-app)  Worktree: same  Index: current
+   Repository: my-app (<repository-path>)  Worktree: same  Index: current
 ```
 
 With a single indexed repository, step 0 returns `total: 1` and the `repo`

@@ -7,7 +7,7 @@ Track agent tasks to prevent conflicts.
 | Agent | Task | Status | Branch | Started | Files |
 |-------|------|--------|--------|---------|-------|
 | - | - | - | - | - | - |
-| Claude-Dev-b32c | Pharos open option + decision-intake source dossier/backlog | IN_PROGRESS | feature/pharos-open-option-b32c | 2026-10-10 | Pharos/ADR/adoption dossier/tickets |
+
 ## Completed Tasks
 
 | Agent | Task | Status | Branch | Completed |

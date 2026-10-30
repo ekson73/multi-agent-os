@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — GitNexus sub-skills: one layout (EKO-156, #522)
+
+- The six GitNexus sub-skills move from `.claude/skills/gitnexus/<name>/` to
+  `.claude/skills/gitnexus-<name>/SKILL.md`, one directory per skill, which is where
+  Claude Code discovers skills and where the `AGENTS.md`/`CLAUDE.md` tables already point.
+  No duplicate copy under `.agents/skills/`. Content refreshed to the current GitNexus
+  output (CLI fallbacks, `risk: UNKNOWN` handling, `trace`); `.omc/` is ignored.
+
 ### Changed — `goal-recovery` 0.3.0: `ci` and `tests` on the inference ladder
 
 - `skills/goal-recovery/SKILL.md` 0.2.0 → 0.3.0. Two sources inserted **below `ticket`** (ranks 4 and 5): `ci` (passing check/pipeline status) and `tests` (test names and assertions). Both are deterministic-but-partial evidence, so the goal they recover is a lower bound and `confidence` is capped by coverage breadth.
