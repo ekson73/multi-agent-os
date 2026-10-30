@@ -1128,7 +1128,7 @@ mprim = mst["antigravity/brain"].units()
 ok(mst["antigravity-ide/brain"].units() == [] and mctx.receipt["antigravity-ide/brain"]["sessions_duplicate_skipped"] == 6
    and all(u._kept is None for u in mprim),
    "mirror deduplication skips valid duplicates without retaining the primary transcripts")
-xctx = mod.Ctx(mh, time.time(), dict(mod.LIMITS), ["*/antigravity/brain/*"], b"k" * 32)
+xctx = mod.Ctx(mh, time.time(), dict(mod.LIMITS), ["*/antigravity/brain/*/task.md"], b"k" * 32)
 xst = {x.id: x for x in mod.build_stores(xctx, [])}
 xst["antigravity/brain"].units()
 ok(len(xst["antigravity-ide/brain"].units()) == 6, "an --exclude-path'd primary brain copy does not suppress its mirror")
