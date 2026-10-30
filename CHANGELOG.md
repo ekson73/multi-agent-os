@@ -280,6 +280,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   agents carry the mandatory pt-BR line in their descriptions.
 - `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
 
+### Added — system-health memory_spine lag (EKO-106)
+
+- `system-health-guardian` collector 1.7.0 emits a top-level advisory `memory_spine` object: how long persisted memory under the memory-home `projects/` tree has been un-shipped (oldest unpushed commit vs `@{u}` or oldest dirty path, after a fresh fetch). Fail-closed: an unmeasurable spine reports `unknown`, never lag 0. Not rolled into `.system.status`; the responder seeds residue on warn/crit/unknown.
+
 ### Changed — ticket-first traceability (#484)
 
 - Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
