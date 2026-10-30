@@ -1,15 +1,15 @@
-# CANON.md — Canonical Claude-Code platform decisions (anchor-mode SSOT)
+# CANON.md — Canonical claude-concierge decisions (anchor-mode SSOT)
 
-> **Companion to** `SKILL.md` (claude-code-concierge). This is the `--mode=anchor` source-of-truth.
+> **Companion to** `SKILL.md` (claude-concierge). This is the `--mode=anchor` source-of-truth for all six surfaces. C1, C4, C7, C8 and C9 apply on every surface. C2, C3, C5 and C6 cover Claude Code mechanics (scopes, plugin/marketplace install, the `claude` CLI) and apply only there; per-surface detail lives in `references/surfaces/`.
 > **Why repo-local:** a fresh-amnesic agent or new teammate must re-find the binding platform rules instead of re-deriving (or contradicting) them.
-> **Vendor-neutral** (MIT / AAIF). **Last verified**: 2026-06-13. Entries dated + sunsettable (DUED, qualitative — anti-drift applies to this file too; the authoritative "how" is always the CURRENT official docs).
+> **Vendor-neutral** (MIT / AAIF). **Last verified**: 2026-10-26. Entries dated + sunsettable (DUED, qualitative — anti-drift applies to this file too; the authoritative "how" is always the CURRENT official docs).
 > **How `--mode=anchor` uses this:** surface the relevant decision on demand; if a project artifact contradicts a decision here, emit `decision + contradiction + corrective pointer`.
 
 ---
 
 ## C1 — Official-docs-first (anti-staleness)
 
-The authoritative "how to install/configure/use" is the **CURRENT official docs** — Claude-Code's (`code.claude.com/docs`) AND the tool's own — never training memory. `--mode=research` MUST hit current docs and cite them before recommending a "how".
+The authoritative "how to install/configure/use" is the **CURRENT official docs** — the surface's (e.g. `code.claude.com/docs` for Claude Code, `support.claude.com` for claude.ai) AND the tool's own — never training memory. `--mode=research` MUST hit current docs and cite them before recommending a "how".
 
 **Drift flag:** an install/config "how" asserted from memory without a current-docs citation = contradiction (staleness risk).
 
@@ -45,17 +45,17 @@ Every command the concierge hands is either capability-detected as present (`com
 
 ## C7 — Orient, don't reimplement (DRY)
 
-The concierge ROUTES to `claude-code-guide` (Q&A), `find-docs`/Context7/ref-tools (docs muscle), `agentic-tool-forge`+`anima` (creation/naming), the lifecycle skills (preflight/postflight/auto-pilot/morning-briefing/pulse/quiesce/recap), and the sibling concierges (maos/walkthrough/openclaw). It never re-exposes or reimplements them.
+The concierge ROUTES to `claude-code-guide` (Q&A), `find-docs`/Context7/ref-tools (docs muscle), `agentic-tool-forge`+`anima` (creation/naming), the lifecycle skills (preflight/postflight/auto-pilot/morning-briefing/pulse/quiesce; `postflight` for session close, `morning-briefing --mode=recap` for recap), and the sibling concierges (`maos-concierge`/`walkthrough-concierge`). `openclaw-concierge` is an optional EXTERNAL dependency, not bundled here: capability-detect it before routing; if not installed, report it unavailable. It never re-exposes or reimplements them.
 
 **Drift flag:** the concierge answering a deep feature-Q&A itself (instead of routing to `claude-code-guide`), or building/naming a tool itself (instead of `forge`/`anima`) = contradiction (DRY miss).
 
 ## C8 — Frontmatter + ISO-8601 + community-clean (layer purity)
 
-This skill (and anything it places) carries frontmatter; dates are ISO-8601; content is MIT/AAIF universal — **no Eko/Vek/corporate-specific content** in this community repo.
+This skill (and anything it places) carries frontmatter; dates are ISO-8601; content is MIT/AAIF universal — **no organization-specific content** in this community repo.
 
 **Drift flag:** corporate/operator-personal content leaking into this community skill, a relative date, or missing frontmatter = contradiction.
 
 ## C9 — Refs + sunset
 - Canonical sources: `code.claude.com/docs` · `docs.claude.com` · `github.com/anthropics/*` · the repo's `README.md`/`AGENTS.md` · `docs/framework-consumption.md`.
-- Companion: `AWARENESS-REGISTRY.md` (landscape) · `references/socratic-33q.md` (this concierge's spec).
+- Companion: `references/surfaces/code.md` (Claude Code landscape; ex-AWARENESS-REGISTRY.md) · `references/socratic-33q.md` (this concierge's spec).
 - **Sunset (DUED, qualitative):** supersede an entry when the official docs change the mechanism (e.g. a new CLI verb, a changed scope model, a new plugin/marketplace primitive), or operator retraction. No counter-based expiry — `--mode=doctor`/`research` re-derives against current docs.

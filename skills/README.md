@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-08**: the table lists 93 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08), including `live-session-continuity-recovery` and `session-to-vault`; `spec-backlog-ticket-reconciler` added by hand 2026-10-13 brings it to 94. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
+> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-08**: the table lists 93 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08), including `live-session-continuity-recovery` and `session-to-vault`; `spec-backlog-ticket-reconciler` added by hand 2026-10-13 brings it to 94, and `ratchet-loop` by hand 2026-10-25 to 95; `claude-concierge` (successor, old name kept as an alias) on 2026-10-26 brings it to 96. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
 
-## Available Skills (94)
+## Available Skills (96)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -27,7 +27,8 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `bitbucket-pipeline-watch` | `bitbucket-pipeline-watch/SKILL.md` | Use when an agent needs to WAIT for a Bitbucket Cloud pipeline/build to finish and act on the outcome — instead of fixed-interval polling. |
 | `bot-finding-arbiter` | `bot-finding-arbiter/SKILL.md` | Soul-name **Praetor**. |
 | `chief-of-staff` | `chief-of-staff/SKILL.md` | Operator-facing work-focus conductor — the human twin of the agent-facing reactivate/Entelecheia. |
-| `claude-code-concierge` | `claude-code-concierge/SKILL.md` | Concierge / onboarding / router / docs-researcher / guarded-operator for the CLAUDE-CODE PLATFORM ITSELF — installing, configuring, using the CLI, man |
+| `claude-concierge` | `claude-concierge/SKILL.md` | Front desk for the Claude product surfaces (claude.ai web, desktop, Claude Code, Projects, bots/agents, Duet): picks the surface, loads its reference, researches current docs, routes to the specialist tool. Guarded Claude Code install. Successor of `claude-code-concierge` |
+| `claude-code-concierge` | `claude-code-concierge/SKILL.md` | Deprecated alias of `claude-concierge` |
 | `content-recast` | `content-recast/SKILL.md` | Use when you need to RE-TARGET a piece of your own technical content for a DIFFERENT audience, abstraction level, intent, or language — then optionall |
 | `context-prep` | `context-prep/SKILL.md` | Prepare optimal context package before delegating tasks to sub-agents |
 | `converge` | `converge/SKILL.md` | Converge ≥2 AI-agent proposals into one validated synthesis via a 5-act protocol (steelman → critique → compare → synthesize → reject-log). |
@@ -76,6 +77,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `proofread` | `proofread/SKILL.md` | Use when FINALIZING any text artifact — a doc / ADR / README / ticket body / PR description / commit message / release note — to check GRAMMAR (pt-BR  |
 | `pulse` | `pulse/SKILL.md` | Session re-orientation skill. |
 | `quiesce` | `quiesce/SKILL.md` | Drive the current work session to QUIESCENCE — a steady state with no pending work: no open ticket/gap/fix/failure/PR, every PR green, every PR commen |
+| `ratchet-loop` | `ratchet-loop/SKILL.md` | Round-scored productivity loop (HOTL within an inviolable HITL floor): six phases over an intent tree in BOTH directions — RECOVER (backward) → MEASURE (4 counters, at source) → DECIDE (forward) → EXECUTE → VERIFY → INTROSPECT (Repair on a refuted premise, Evolution on a measured gain). A round that moves none of the four counters is reported BUSY, not virtuous. |
 | `reactivate` | `reactivate/SKILL.md` | Cold-start reactivation conductor for new-fresh-born amnesic agents. |
 | `red-team` | `red-team/SKILL.md` | Decide WHEN an adversarial red-team is MANDATORY for an action, and HOW deep — then route to the right existing primitive (build nothing new). |
 | `refine-braindump-to-prompt` | `refine-braindump-to-prompt/SKILL.md` | Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT. |
@@ -109,9 +111,9 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 
 - **Agentic-tool lifecycle**: `agentic-tool-forge` (genesis) · `agentic-tool-intake` (adopt-or-not) · `agentic-tool-evaluator` (score/QA) · `agentic-tool-trainer` (improve/distill) · `agentic-tool-pipeline` (conductor)
 - **Session lifecycle**: `preflight` → `morning-briefing` → `postflight` (+ `quiesce` · `signoff` · `sync-to-git` · `session-fission` · `session-reentry` · `live-session-continuity-recovery` · `session-to-vault` · `reactivate` · `context-prep`)
-- **Concierge routing**: `maos-concierge` · `claude-code-concierge` · `harness-concierge` · `9router-concierge` · `omniroute-concierge` · `opendesign-concierge` · `openrig-concierge` · `walkthrough-concierge`
+- **Concierge routing**: `maos-concierge` · `claude-concierge` · `harness-concierge` · `9router-concierge` · `omniroute-concierge` · `opendesign-concierge` · `openrig-concierge` · `walkthrough-concierge`
 - **Governance & convergence**: `council-gate` · `convergence-engine` · `converge` · `red-team` · `delegate-governance` · `worktree-policy` · `anti-conflict` · `hierarchical-merge` · `ttl-policy` · `pii-masking`
-- **Loops & recovery**: `ooda-loop` · `gap-loop` · `goal-recovery` · `live-session-continuity-recovery` · `auto-pilot`
+- **Loops & recovery**: `ooda-loop` · `gap-loop` · `ratchet-loop` · `goal-recovery` · `live-session-continuity-recovery` · `auto-pilot`
 - **Founder journey**: `founder-playbook` · `founder-stage-idea` · `founder-stage-mvp` · `founder-stage-launch` · `founder-stage-scale`
 - **Specification & backlog**: `spec-backlog-ticket-reconciler` · `sprint-carryover` · `work-drain`
 - **Roadmap & prioritization**: `roadmap-tree-projector` · `eisenhower-matrix` · `work-compass`
@@ -150,8 +152,8 @@ graph LR
     maos_concierge --> agent_select
     maos_concierge --> auto_pilot
     maos_concierge --> morning_briefing
-    claude_code_concierge --> maos_concierge
-    claude_code_concierge --> agentic_tool_forge
+    claude_concierge --> maos_concierge
+    claude_concierge --> agentic_tool_forge
     9router_concierge --> maos_concierge
     omniroute_concierge --> maos_concierge
   end
