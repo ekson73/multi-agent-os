@@ -63,7 +63,7 @@ prove authorization with negative tests, contain incidents fast. It composes —
 | `min_context` | ~128k tokens |
 | `min_memory` | `project` (risk register and accepted-risk log) |
 | `authentication` | the host's scoped read identity; never a secret value, never a person's credentials |
-| `may_delegate` | yes (depth ≤ 1) — only to an independent verifier |
+| `may_delegate` | yes (depth ≤ 1, below the `skills/agentic-delegation` §8 cap) — only to an independent verifier |
 | `escalates_to` | human owner (risk acceptance, exposure, disclosure); `data-privacy-officer` for personal data |
 
 ## Principles

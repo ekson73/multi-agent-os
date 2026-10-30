@@ -163,6 +163,22 @@ else
 fi
 echo ""
 
+# Delegation rules live in skills/agentic-delegation (SSOT): this test fails when
+# another file restates a different depth cap or the SSOT loses the
+# authority-inheritance rule / never-delegable list.
+DAS_TEST="$PLUGIN_ROOT/tests/governance/test-delegation-authority-ssot.sh"
+if [ ! -f "$DAS_TEST" ]; then
+    fail "tests/governance/test-delegation-authority-ssot.sh missing"
+elif [ ! -x "$DAS_TEST" ]; then
+    fail "tests/governance/test-delegation-authority-ssot.sh is not executable"
+elif DAS_OUT="$(bash "$DAS_TEST" "$PLUGIN_ROOT" 2>&1)"; then
+    pass "tests/governance/test-delegation-authority-ssot.sh passes"
+else
+    fail "tests/governance/test-delegation-authority-ssot.sh FAILED:"
+    printf '%s\n' "$DAS_OUT" | grep -E '✗|FAIL' | tail -10 | sed 's/^/      /'
+fi
+echo ""
+
 # Every artifact the loops below actually visit is recorded here (repo-relative) so the
 # reach assertion at the end can PROVE the walk did not under-reach. #337 fixed the
 # reach; this makes a future regression impossible to land silently. See #336.
