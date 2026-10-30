@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `verified-agentic-session-model` v2.1.4: standard HTML no longer loads Google Fonts
+
+- Every session model lists `network_access_from_html` under `governance.default_denies`,
+  but the `standard` profile shipped stock Archify's template, which loads JetBrains Mono
+  from `fonts.googleapis.com` / `fonts.gstatic.com`. Opening a "local-only" bundle made an
+  external request (found by Codex review on ekson73/eko-engram#62).
+- Render now removes exactly that template block (byte-for-byte match) and inserts an exact
+  offline Content-Security-Policy right after `<meta charset="UTF-8">` (`default-src 'none'`,
+  inline script/style only, `data:`/`blob:` images and fonts). The browser enforces it, so
+  script-initiated loads are blocked without parsing JavaScript. Render and `verify` fail
+  with `NETWORK_ACCESS_DENIED` if the CSP line is missing, moved or altered, or if a static
+  remote reference remains in start-tag attributes or CSS (quote-aware tags, entity- and
+  escape-decoded values, every `srcset` candidate, `srcdoc`, meta refresh, any `@import`).
+  Text nodes, comments and script bodies are not scanned, so labels like `url(https://…)`
+  are not false positives. CI installs pinned Archify v2.11.0 so these tests cannot skip.
+- Generator and manifest schema version move to 2.1.4. A regression test renders, asserts
+  no remote fetch, then re-injects a remote stylesheet and asserts `verify` refuses it.
+  Mutation-checked: removing either the render strip or the verify guard fails the test.
+
 ### Fixed — `verified-agentic-session-model` v2.1.3: misleading JSON Pointer paths in two validator checks
 
 - `semanticErrors()` scans a single combined `work = [...waves, ...work_items]` array for

@@ -21,7 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TOOL = "verified-agentic-session-model";
-const VERSION = "2.1.3";
+const VERSION = "2.1.4";
 const STATUS_VALUES = ["planned", "started", "delegated", "deferred", "hitl", "blocked", "completed", "canceled", "superseded", "deprecated", "unknown"];
 const REASON_REQUIRED = new Set(["deferred", "hitl", "blocked", "canceled", "superseded", "deprecated", "unknown"]);
 const TERMINAL_STATES = new Set(["completed", "canceled", "superseded", "deprecated"]);
@@ -1869,6 +1869,7 @@ async function renderStandard(modelFile, options) {
     await writeFile(staged.markdown, markdown, { mode: 0o600 });
     runArchify(archify, ["validate", "workflow", staged.workflow, "--json"], "ARCHIFY_VALIDATE_FAILED");
     runArchify(archify, ["render", "workflow", staged.workflow, staged.html], "ARCHIFY_RENDER_FAILED");
+    await writeFile(staged.html, offlineArchifyHtml((await readBounded(staged.html, "staged HTML")).toString("utf8")), { mode: 0o600 });
     runArchify(archify, ["check", staged.html], "ARCHIFY_CHECK_FAILED");
     const workflowBytes = await readBounded(staged.workflow, "staged workflow");
     const htmlBytes = await readBounded(staged.html, "staged HTML");
@@ -2029,6 +2030,127 @@ async function readBundleSubject(manifestDir, canonicalDir, subject) {
   return { file, bytes: await readBounded(file, `bundle ${subject.role}`) };
 }
 
+// Every model lists `network_access_from_html` under governance.default_denies, but stock
+// Archify's template loads JetBrains Mono from Google Fonts. The standard profile therefore
+// removes exactly that one template block (matched byte for byte, nothing else is touched)
+// and then rejects any remaining remote resource reference. Without the font the body stack
+// already falls back to system monospace, and image export already uses local() faces only.
+const ARCHIFY_REMOTE_FONT_BLOCK = [
+  "  <!-- Async font load: a blackholed network must not block first paint.",
+  "       The body font stack falls back to system monospace until it lands. -->",
+  "  <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>",
+  "  <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap\"",
+  "        rel=\"stylesheet\" media=\"print\" onload=\"this.media='all'\">",
+  "  <noscript>",
+  "    <link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">",
+  "  </noscript>",
+  ""
+].join("\n");
+const OFFLINE_FONT_NOTE = "  <!-- verified-agentic-session-model: remote font loads removed (network_access_from_html is default-denied); the body font stack uses system monospace. -->\n";
+// The browser, not a scanner, is the primary guard: an exact CSP inserted right after the
+// charset declaration denies every network fetch (scripts and styles stay inline-only,
+// images and fonts data:/blob: only). Extra CSPs can only tighten, never loosen, a policy.
+const OFFLINE_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'";
+const CHARSET_LINE = "  <meta charset=\"UTF-8\">\n";
+// The CSP must be live metadata, not text inside a comment or raw-text element: only the
+// doctype and the <html> start tag may precede "<head>", the charset and the CSP line.
+const OFFLINE_HEAD_PREFIX = /^<!DOCTYPE html>\n<html(?: [a-z-]+="[^"<>]*")*>\n<head>\n$/u;
+const OFFLINE_CSP_LINE = `  <meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}">\n`;
+
+// Defense in depth for static references (and meta refresh, which CSP does not cover).
+// Only start-tag attributes and CSS are read; text nodes, comments and script bodies are
+// not, so visible labels such as "url(https://example.com/x)" are never false positives.
+// Attribute values are entity-decoded, CSS is escape-decoded, and a URL anywhere in a
+// URL-bearing value counts (every srcset candidate; data: candidates are dropped first).
+const URL_ATTRIBUTES = new Set(["href", "xlink:href", "src", "srcset", "imagesrcset", "poster", "action", "formaction", "data", "background", "ping", "manifest", "cite", "longdesc", "codebase", "archive", "icon", "lowsrc", "dynsrc", "profile", "usemap"]);
+const REMOTE_IN_VALUE = /(?:^|[\s,;=(])\s*(?:(?:https?|ftp|wss?):)?\/\/|^\s*(?:https?|ftp|wss?):/iu;
+
+// Out-of-range or surrogate code points decode to U+FFFD instead of throwing RangeError.
+function safeCodePoint(n) {
+  return Number.isInteger(n) && n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : "\ufffd";
+}
+
+function decodeAttributeEntities(value) {
+  const named = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", colon: ":", sol: "/", lpar: "(", rpar: ")", comma: ",", semi: ";", equals: "=", tab: "\t", newline: "\n" };
+  return value.replace(/&(?:#x([0-9a-f]+)|#([0-9]+)|([a-z][a-z0-9]*));?/giu, (whole, hex, dec, name) => {
+    if (hex) return safeCodePoint(Number.parseInt(hex, 16));
+    if (dec) return safeCodePoint(Number.parseInt(dec, 10));
+    return Object.hasOwn(named, name.toLowerCase()) ? named[name.toLowerCase()] : whole;
+  });
+}
+
+function decodeCss(css) {
+  return css.replace(/\/\*[\s\S]*?\*\//gu, " ")
+    .replace(/\\([0-9a-f]{1,6})\s?/giu, (_, hex) => safeCodePoint(Number.parseInt(hex, 16)))
+    .replace(/\\(.)/gu, "$1");
+}
+
+function cssFetches(css) {
+  const decoded = decodeCss(css);
+  return /@import\b/iu.test(decoded) || /(?:url|image-set|image|src)\s*\(\s*["']?\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded) || /["']\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded);
+}
+
+function parseAttributes(tag) {
+  const attributes = [];
+  const body = tag.replace(/^<[a-zA-Z][^\s/>]*/u, "").replace(/\/?>$/u, "");
+  for (const match of body.matchAll(/([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gu)) {
+    attributes.push({ name: match[1].toLowerCase(), value: decodeAttributeEntities(match[2] ?? match[3] ?? match[4] ?? "") });
+  }
+  return attributes;
+}
+
+function remoteResourceRefs(html) {
+  const found = [];
+  const flag = (offset, reason, excerpt) => found.push({ offset, reason, excerpt: excerpt.slice(0, 80) });
+  // Start tags are tokenized quote-aware only after "=", so an apostrophe inside an unquoted
+  // value cannot open a fake quoted string. Any "<letter" not covered by a token fails closed.
+  const START = `(?:[^>=]|=\\s*(?:"[^"]*"|'[^']*'|[^\\s"'>][^\\s>]*|(?=>)))*>`;
+  const contexts = new RegExp(`<!--[\\s\\S]*?-->|(<script\\b${START})[\\s\\S]*?<\\/script\\s*>|(<style\\b${START})([\\s\\S]*?)<\\/style\\s*>|<[a-zA-Z]${START}`, "giu");
+  const covered = [];
+  for (const match of html.matchAll(contexts)) {
+    covered.push([match.index, match.index + match[0].length]);
+    if (match[0].startsWith("<!--")) continue;
+    const tag = match[1] ?? match[2] ?? match[0];
+    const element = tag.match(/^<([a-zA-Z][^\s/>]*)/u)[1].toLowerCase();
+    const attributes = parseAttributes(tag);
+    for (const { name, value } of attributes) {
+      if (name === "srcdoc") flag(match.index, "srcdoc", tag);
+      else if (name === "style" && cssFetches(value)) flag(match.index, "style attribute", tag);
+      else if (URL_ATTRIBUTES.has(name) && REMOTE_IN_VALUE.test(value.replace(/(?:^|(?<=[\s,]))data:\S*/giu, " "))) flag(match.index, name, tag);
+    }
+    if (element === "meta" && attributes.some((item) => item.name === "http-equiv" && /refresh/iu.test(item.value))) {
+      const content = attributes.find((item) => item.name === "content")?.value ?? "";
+      if (/url\s*=/iu.test(content)) flag(match.index, "meta refresh", tag);
+    }
+    if (match[3] !== undefined && cssFetches(match[3])) flag(match.index, "style", match[3]);
+  }
+  let span = 0;
+  for (const start of html.matchAll(/<[a-zA-Z]/gu)) {
+    while (span < covered.length && covered[span][1] <= start.index) span += 1;
+    if (span >= covered.length || covered[span][0] > start.index) flag(start.index, "untokenizable tag", html.slice(start.index, start.index + 80));
+  }
+  return found;
+}
+
+function enforceOfflineHtml(html) {
+  const charsetAt = html.indexOf(CHARSET_LINE);
+  if (charsetAt === -1 || html.indexOf(CHARSET_LINE, charsetAt + 1) !== -1 || !OFFLINE_HEAD_PREFIX.test(html.slice(0, charsetAt)) || !html.startsWith(OFFLINE_CSP_LINE, charsetAt + CHARSET_LINE.length)) {
+    throw new AppError("NETWORK_ACCESS_DENIED", "HTML lacks the exact offline Content-Security-Policy as live head metadata right after its charset declaration");
+  }
+  const refs = remoteResourceRefs(html);
+  if (refs.length) throw new AppError("NETWORK_ACCESS_DENIED", "HTML loads a remote resource although network_access_from_html is default-denied", 1, refs.slice(0, 20));
+}
+
+function offlineArchifyHtml(html) {
+  const occurrences = html.split(ARCHIFY_REMOTE_FONT_BLOCK).length - 1;
+  if (occurrences > 1) throw new AppError("NETWORK_ACCESS_DENIED", "Archify remote font block appears more than once");
+  let hardened = occurrences === 1 ? html.replace(ARCHIFY_REMOTE_FONT_BLOCK, OFFLINE_FONT_NOTE) : html;
+  if (hardened.split(CHARSET_LINE).length !== 2) throw new AppError("NETWORK_ACCESS_DENIED", "Archify HTML does not carry exactly one charset declaration to anchor the offline CSP");
+  hardened = hardened.replace(CHARSET_LINE, `${CHARSET_LINE}${OFFLINE_CSP_LINE}`);
+  enforceOfflineHtml(hardened);
+  return hardened;
+}
+
 async function checkHtmlSnapshot(archify, htmlBytes) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "session-model-verify-"));
   const snapshot = path.join(directory, "snapshot.html");
@@ -2082,6 +2204,7 @@ async function verifyCommand(manifestFile, options) {
     const workflowProblems = schemaErrors(workflow, archify.workflowSchema);
     if (workflowProblems.length) throw new AppError("WORKFLOW_SCHEMA_INVALID", "Derived workflow failed stock Archify schema", 1, workflowProblems);
     await checkHtmlSnapshot(archify, diagram.bytes);
+    enforceOfflineHtml(diagram.bytes.toString("utf8"));
     const expectedWorkflow = projectWorkflow(model, derived, path.basename(diagram.file));
     const expectedMarkdown = renderMarkdown(model, derived);
 

@@ -47,7 +47,25 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install pinned stock Archify (standard-profile tests)
+        # The standard profile renders through a user-scope Archify install. Without it the
+        # standard tests (including the network_access_from_html guard) skip, so CI would
+        # stay green if that guard broke. Pinned to tag v2.11.0 by commit SHA.
+        env:
+          ARCHIFY_SHA: ed0efcc763d358b78df845182b5ed24a9d165a1c # tt-a1i/archify v2.11.0
+        run: |
+          set -euo pipefail
+          git init -q /tmp/archify-src
+          git -C /tmp/archify-src remote add origin https://github.com/tt-a1i/archify.git
+          git -C /tmp/archify-src fetch -q --depth 1 origin "$ARCHIFY_SHA"
+          git -C /tmp/archify-src checkout -q FETCH_HEAD
+          mkdir -p "$HOME/.agents/skills"
+          cp -R /tmp/archify-src/archify "$HOME/.agents/skills/archify"
+          (cd "$HOME/.agents/skills/archify" && npm ci --ignore-scripts --no-audit --no-fund)
+
       - name: model-bundle test suite (node --test)
+        env:
+          VASM_REQUIRE_ARCHIFY: "1"
         run: npm run test:verified-agentic-session-model
 
       - name: Validate plugin structure (repo MUST rule)

