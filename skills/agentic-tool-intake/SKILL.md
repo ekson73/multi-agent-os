@@ -61,9 +61,9 @@ Default invocation = `--mode=decide --dry-run` → a verdict with zero mutation.
 | 1 | **UNDERSTAND** | the candidate's motivation · proposal · purpose · objective · expected results; its real mechanism (read its README/docs — never the hype headline) | `WebFetch` / `find-docs` / `Read` |
 | 2 | **RESEARCH** | internal + external similars; categorize/catalog the candidate + alternatives | delegate `agentic-tool-forge` Phase-1 research (internal Glob/Grep + external `WebSearch`/Context7 + DRY probe) |
 | 3 | **COMPARE / CROSS** | score the candidate (and rival candidates) across the **decision axes** (below) | the decision-matrix (§ below) + `converge` ONLY if ≥2 candidates genuinely conflict |
-| 4 | **VALIDATE** | viability · risks · mitigations · security (local-only? secrets? license) · **trust-tier** | `harmonic §0.5.1` CASC 7-gate + `claude-code-concierge` trust-tier (official > known > individual-unverified → SHA/version-pin) |
+| 4 | **VALIDATE** | viability · risks · mitigations · security (local-only? secrets? license) · **trust-tier** | `harmonic §0.5.1` CASC 7-gate + `claude-concierge` trust-tier (official > known > individual-unverified → SHA/version-pin) |
 | 5 | **DECIDE** | one disposition + rationale + simpler-alternative note + revisit trigger | the rubric → weighted verdict (a *guideline*, not a rigid score — anti-over-eng) |
-| 6 | **INSTALL** *(gated, OFF by default)* | only if verdict = INSTALL **and** `--mode=adopt` **and** operator GO | delegate `claude-code-concierge --mode=install` (scope+source+trust-tier+confirm-gate, pinned) |
+| 6 | **INSTALL** *(gated, OFF by default)* | only if verdict = INSTALL **and** `--mode=adopt` **and** operator GO | delegate `claude-concierge --mode=install` (scope+source+trust-tier+confirm-gate, pinned) |
 | 7 | **RECORD** | mark a dogfood cycle · persist the verdict · update the tracking ticket · boy-scout | `dogfood-ledger` · `postflight` · `ticket-as-prompt --op enrich` |
 
 ## The decision-matrix
@@ -143,7 +143,7 @@ Dormant-by-design otherwise.
 ## §Refs
 
 - **SSOT**: `protocols/agentic-tool-lifecycle.md` (the family slot: forge → **intake** → evaluate → train → operate → deprecate).
-- Composes: `skills/agentic-tool-forge` (research/compare/name) · `skills/claude-code-concierge` (scope/source/trust-tier/guarded-install) · `skills/agentic-tool-evaluator` (post-adopt scoring) · `skills/dogfood-ledger` (cycle tracking) · `skills/converge` (multi-candidate conflict) · `skills/postflight` (record/close) · `skills/anima` (naming, if ADAPT/CREATE) · `skills/ticket-as-prompt` (enrich).
+- Composes: `skills/agentic-tool-forge` (research/compare/name) · `skills/claude-concierge` (scope/source/trust-tier/guarded-install) · `skills/agentic-tool-evaluator` (post-adopt scoring) · `skills/dogfood-ledger` (cycle tracking) · `skills/converge` (multi-candidate conflict) · `skills/postflight` (record/close) · `skills/anima` (naming, if ADAPT/CREATE) · `skills/ticket-as-prompt` (enrich).
 - Gates: `anti-theater-grounding-protocol` (8Q · R4 not-invented) · `scope-discipline-pre-creation` (6Q) · CASC (`harmonic §0.5.1`).
 - Cross-link slug: `[[agentic-tool-intake]]`.
 
