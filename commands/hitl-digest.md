@@ -233,9 +233,16 @@ age e qual a resposta recomendada, ele passa o JSON do digest para a skill
 
 ```bash
 DE="$(dirname "$(dirname "$(dirname "$FUSE")")")/decision-engine/bin/decision_engine.py"
-echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format json \
+# Mesmo recorte do digest: a mesma identidade (HITL_SESSION_ID) e o mesmo --scope
+# (SCOPE vazio = o default da sessão). O passo 2 nunca muda a fatia do ledger.
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \
+  ${SESSION_ID:+--session-id "$SESSION_ID"} ${SCOPE:+--scope "$SCOPE"} --format json \
   | python3 "$DE" - --format tree
 ```
+
+O envelope do engine carrega o `source` do digest (`hitl_scope`,
+`hitl_scope_unresolved`, `hitl_ledger_total`): escopo não resolvido continua sendo dito
+como tal, nunca como fila vazia.
 
 Só os itens `HITL` sobem ao operador. `DIY` o agente resolve e registra; `COMPUTE`
 o agente classifica e recalcula. Sem o `decision-engine` instalado, pule este passo.

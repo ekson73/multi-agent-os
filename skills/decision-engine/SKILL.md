@@ -50,7 +50,7 @@ item, who should act and what the recommended answer is.
 
 | Regra | Quando | Rota |
 |---|---|---|
-| `R0-leaked-secret` | `credencial` sobre segredo/PII já vazado ou exposto | `DIY`, `denied: true` (sem rotação) |
+| `R0-leaked-secret` | `credencial` sobre segredo/PII já vazado, exposto ou comprometido (rotação planejada NÃO conta) | `DIY`, `denied: true` (sem rotação) |
 | `R1-human-type` | tipo é um dos 5 do SSOT | `HITL` com recomendação |
 | `R2-guard` | item técnico que cita produção/irreversível, gasto ou envio | `HITL` |
 | `R3-technical` | tipo técnico (`tecnico`, `tatico`, `operacional`, ...) | `DIY` |

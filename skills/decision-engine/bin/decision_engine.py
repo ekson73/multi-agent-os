@@ -49,9 +49,11 @@ DEFAULT_POLICY = {
     "leaked_secret": "deny-rotation",
 }
 
+# Only words that say the secret is ALREADY exposed. Rotation words are not
+# evidence of a leak: a planned rotation is a normal credencial gate (R1).
 _LEAK_RE = re.compile(
     r"\b(vazad[oa]s?|vazamento|expost[oa]s?|exposi[cç][aã]o|leak(ed|s)?|exposed|"
-    r"rota[cç][aã]o|rotacionar|rotate|rotation)\b", re.IGNORECASE)
+    r"compromised|comprometid[oa]s?)\b", re.IGNORECASE)
 _GUARD_RE = re.compile(
     r"\b(produ[cç][aã]o|production|prod|irrevers[ií]vel|irreversible|apagar|delete|"
     r"drop|force[- ]push|pagar|pagamento|contratar|assinar|payment|spend|"
@@ -93,8 +95,9 @@ _CARD_OPTIONS = _load_card_options()
 
 
 def _is_item(obj) -> bool:
+    # `tipo` may be missing: such an item must still reach R4 (COMPUTE).
     return (isinstance(obj, dict) and isinstance(obj.get("id"), str)
-            and obj["id"].startswith("H-") and "tipo" in obj)
+            and obj["id"].startswith("H-") and ("tipo" in obj or "decidir" in obj))
 
 
 def collect_items(doc) -> list[dict]:
@@ -121,7 +124,9 @@ def collect_items(doc) -> list[dict]:
 
 
 def _hitl_verdict(item: dict, rule: str, reason: str) -> dict:
-    opts, has_rec, source = _CARD_OPTIONS(item, item)
+    # The option builder keys on the unaccented SSOT spelling ('irreversivel').
+    folded = dict(item, tipo=_fold(str(item.get("tipo", ""))))
+    opts, has_rec, source = _CARD_OPTIONS(folded, folded)
     labels = [o["label"] for o in opts]
     if has_rec:
         rec, basis = labels[0], "evidence"
@@ -186,6 +191,19 @@ def decide(item: dict, policy: dict | None = None) -> dict:
     return out
 
 
+SCOPE_KEYS = ("hitl_scope", "hitl_scope_reason", "hitl_scope_unresolved",
+              "hitl_session_resolved", "hitl_ledger_total", "hitl_source", "hitl_warning")
+
+
+def scope_info(doc) -> dict:
+    """Carry the digest's scope metadata through, so an unresolved scope is never
+    read as an empty queue."""
+    meta = doc.get("meta") if isinstance(doc, dict) else None
+    if not isinstance(meta, dict):
+        return {}
+    return {k: meta[k] for k in SCOPE_KEYS if k in meta}
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("input", nargs="?", default="-",
@@ -204,16 +222,23 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     verdicts = [decide(i, policy) for i in collect_items(doc)]
+    source = scope_info(doc)
     if args.format == "tree":
-        if not verdicts:
-            print("decision-engine: 0 itens HITL na entrada")
+        if source.get("hitl_scope_unresolved"):
+            print(f"decision-engine: escopo não resolvido no digest: {source['hitl_scope_unresolved']}"
+                  " (isto NÃO é fila vazia)")
+        elif not verdicts:
+            total = source.get("hitl_ledger_total")
+            extra = f" (ledger tem {total}; escopo {source.get('hitl_scope')})" if total else ""
+            print(f"decision-engine: 0 itens HITL na entrada{extra}")
         for v in verdicts:
             print(f"{v['id']} [{v['tipo']}] -> {v['route']} ({v['rule']}): {v['recommendation']}")
             for alt in v["alternatives"]:
                 print(f"    alt: {alt}")
         return 0
     counts = {r: sum(v["route"] == r for v in verdicts) for r in ("DIY", "COMPUTE", "HITL")}
-    print(json.dumps({"schema": SCHEMA, "counts": counts, "verdicts": verdicts},
+    print(json.dumps({"schema": SCHEMA, "counts": counts, "source": source,
+                      "verdicts": verdicts},
                      ensure_ascii=False, indent=2))
     return 0
 

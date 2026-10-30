@@ -179,3 +179,33 @@ def test_a_hitl_verdict_never_grants_permission():
     for tipo in ("credencial", "gasto", "irreversivel", "envio", "negocio"):
         v = de.decide(_item("H-0019", tipo))
         assert v["route"] == "HITL" and "resolved" not in v and "approved" not in v
+
+
+@pytest.mark.parametrize("text", ["Realizar rotação trimestral da chave",
+                                  "Autorizar rotação preventiva da credencial",
+                                  "Rotate the deploy key"])
+def test_a_planned_rotation_is_not_a_leak_and_escalates(text):
+    v = de.decide(_item("H-0020", "credencial", text))
+    assert v["route"] == "HITL" and v["denied"] is False
+
+
+def test_an_item_without_tipo_is_collected_and_goes_to_compute():
+    out = json.loads(_cli({"id": "H-1001", "decidir": "Escolher parser"}))
+    assert [(v["id"], v["route"]) for v in out["verdicts"]] == [("H-1001", "COMPUTE")]
+
+
+def test_accented_type_gets_its_own_type_options():
+    plain = de.decide(_item("H-0021", "irreversivel"))
+    accented = de.decide(_item("H-0021", "irreversível"))
+    assert accented["recommendation"] == plain["recommendation"]
+    assert accented["alternatives"] == plain["alternatives"]
+
+
+def test_unresolved_scope_is_carried_and_not_read_as_empty():
+    env = {"meta": {"hitl_scope": "session", "hitl_ledger_total": 19,
+                    "hitl_scope_unresolved": "no session identity"},
+           "tree": {"domains": {}, "hitl_unattached": []}}
+    out = json.loads(_cli(env))
+    assert out["source"]["hitl_scope_unresolved"] == "no session identity"
+    tree = _cli(env, "--format", "tree")
+    assert "NÃO é fila vazia" in tree
