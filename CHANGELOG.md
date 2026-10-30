@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Security
+- Hygiene: removed third-party personal data from transcript-corrector examples; removed personal email.
+  Review round: `author.email` dropped from the plugin manifest (no URL in an email field); the
+  scoped PII check now lints the same suffixes it name-scans (TOML included), follows `--skill-dir`,
+  matches hyphenated names and windows up to 6 tokens; `correct.sh --phonetic <path>` loads a
+  private phonetic catalog.
+
+### Added — `protocols/agent-comm-protocol.md` (ACP) compact bot↔bot messaging
+
+- New `protocols/agent-comm-protocol.md` (ACP v1.0.0, Status: Proposed): a compact,
+  self-explaining, verb-closed envelope for bot↔bot traffic in a shared channel, so
+  several persona-agents in one group do not drown or confuse the humans and never
+  answer for the human. One `acp` envelope per turn (addressed `@to`/`@from`, ordered
+  by `re`), a CLOSED verb set (ASK · ACK · INFO · RESULT · BLOCKED · NEEDS-OPERATOR ·
+  CLAIM · YIELD · DONE), `RESULT`/`DONE` bound to source-measured evidence, and a
+  `NEEDS-OPERATOR`-only path to the human. Anti-small-talk gate (no payload → not sent)
+  and a PII/secret gate. DRY: reuses `response-compression`, `pii-masking`, `sentinel`,
+  `exit-hygiene`, `agent-delegation`; reimplements none.
+- Review round: reserved `@operator` recipient (no bot answers it) with a paired prose line,
+  required payload keys and receiver validation, a quoting grammar that cannot forge fields,
+  CLAIM/YIELD/DONE ownership by channel order, and `@from` checked against the attested author.
+
 ### Fixed — Prisma structural_route A2b fail-open (issue #506)
 
 - `skills/decompose-abstract-to-measurable/scripts/structural_route.py`: the `declared is None` branch returned the engine band UNCHANGED (`under_specified`, `inconclusive.flag=false`, no `allowed_use`), so omitting `meta.structural_form` earned a *cleaner* pass than declaring `additive` — the A2 evasion-by-omission the code claimed to close, reopened by a second path. Now fail-closed by default: an undeclared form is `REVIEW (unrouted)` with `human_review` and `inconclusive.flag=true`; if H35 diagnostics derive relational/gestalt it is `BLOCKED` (an additive tree still cannot represent it); the historical v1.0.0 passthrough is preserved only behind the explicit `--legacy-unrouted` flag. Tests 9 → 11 (added fail-closed-default, legacy opt-in, A2b-omission-blocked); `break_suite.py` gains the A2b case (HOLD); step-5b table in `SKILL.md` documents the undeclared-form row. No regression: aggregate 10/10, e3_kappa 12/12.
@@ -216,6 +238,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rewrite, or to take the repo private, is the operator's call and is out of
   scope here.
 
+### Added: `virtuous-spiral` generic parent skill (HOTL delivery cycle)
+
+- `skills/virtuous-spiral/SKILL.md` (v0.4.0): generic parent skill for a spiral, event-driven delivery cycle over a node tree (forward-1 delivers downward, backward traces each deliverable up to a motivation and prunes theater, forward-2 repeats only the missing deliverables one level up). Consolidates two proposals under one name: the floor, classes, self-evolution and child format from one, the gate for irreversible acts only (RELEASE or HOLD, closing re-read, state-id precondition, work record), the short ledger and the digest from the other.
+- An "Inviolable floor" section holds the hard limits; its integrity is checked with one `awk | sha256sum` command. From the repository root set `F` to `skills/virtuous-spiral/SKILL.md` and run that command; the hashed section text is unchanged. The approved hash is kept outside the file; a changed hash is class 2.
+- Review clarifications outside the floor: the public preamble points at the floor's opaque authorization ref and does not treat it as a ticket or message id; the trigger is a set of deliveries ending in a PR, a BRIEF or a session (one ticket or one PR stays on `ooda-loop`); forward-2 repeats only missing deliverables and a fully covered parent still climbs; the PR ratio records the round's start and end and both queries use both bounds with `--limit 1000`.
+- Review follow-up outside the floor: the inventory note labels 2026-10-08 as the pre-addition snapshot (the table lists 96); only floor numbers live in the inviolable floor, and the REPORT caps in §11 stay operational; the state-id step states a conditional write, and the PR-ratio queries state the host contract first, with the GitHub commands kept as one host's example. The inviolable floor text is unchanged.
+- Metacognition classifies an act under the irreversible gate before acting. A cost comparison does not authorize an irreversible act. A compensable merge to main stays subject to the floor rule on merge and repositories. The inviolable floor text is unchanged.
+- Action bias: the agent decides and delivers by default and records decision and reasoning afterwards; it asks only about intent or policy, personal taste, domain norms and the inviolable floor. Reversible and compensable steps never wait; only irreversible acts pass the gate. Cost ceilings have no default number: the agent declares its own estimate and only new spend is floor. Status: proposal, no cycle run yet (dogfood pending).
+- `skills/README.md` lists it (96) and adds it to the Loops & recovery family.
+
 ### Fixed — `vek-db-password` allowlist for the literal redaction marker (v1.3.0 → v1.3.1)
 
 - `.gitleaks.toml` — the scheduled Supply-Chain Sentinel full-history scan was
@@ -266,6 +298,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/README.md` lists this reconciler (94 tracked skills after syncing with `main`).
 - The reconciler is marked experimental and unqualified (`qualification: experimental-unqualified`) until its evaluation records a PASS; the bundled EVAL-REPORT verdict remains FLAG.
 - Hardened the reconciler against three review findings: (1) an ingestion-time trust boundary at Passo 3 treats every retrieved spec/tracker body, comment and title as untrusted data (no embedded instruction is executed, disclosed, or forwarded raw to the verifier) — closing the window before the later H10 gate; (2) replace-style field updates (title, milestone, labels-as-set) now require the same atomic precondition or single-writer coordination as body edits, since `gh issue edit --title` offers no conditional write — only genuinely additive field ops stay exception-eligible; (3) the disclosure gate (authorize + minimize + redact) now applies to every verifier handoff regardless of criticality, not only HIGH/hard-trigger, so a MEDIUM refuter on a separate model/provider cannot receive unauthorized private source detail. Decision table grows to twenty-three rows (REQ-20 injection-inert, REQ-21 field-replace HOLD).
+
+### Added — `fleet-campaign` (Classis): converge N resources to one declared config state
+
+- Review round: a zero-repo account and an alerts `404` count only after a positive control on
+  the same credential (otherwise `unverified`); `--dry-run` keeps the P0 decision record in the
+  report and writes nothing durable.
+- New skill `skills/fleet-campaign` (v0.1.0, `latent` until two dogfood cycles) + the
+  `/fleet-campaign` command wrapper. Forged through `agentic-tool-pipeline`; the Stage-1 DRY probe
+  over the existing corpus found no member deriving a work register from a **live provider
+  measurement of N resources** — `work-drain` derives from trackers, `repo-custody-transfer` is
+  N=1 host-to-host, `ooda-loop` is the generic round — so this is an addition, not a sister of an
+  existing SSOT. Named via `anima`: system-name `fleet-campaign`, soul-name **Classis**; rejected
+  `fleet-convergence` (collides semantically with `converge`/`convergence-engine`) and `census`
+  (names only the measuring half).
+- Carries the six-phase M.O. that survived a real 48-member / 2-credential-boundary / 3-round
+  campaign: DISAMBIGUATE the product name into independent surfaces classed by what is LOST when
+  each is off → RECON every member at source this round with the probe printed per column → ORIENT
+  on authority facts → SHARD one worker per credential boundary → VERIFY every worker claim at
+  source before accepting it → RE-DERIVE the register each round and close on an empty
+  re-measurement.
+- Carries fourteen generalized laws, each stated provider-agnostically **and** evidenced by its
+  measured instance: SURFACE-DECOMPOSITION · AUTHORITY-REF · FALSE-NEGATIVE-READ · TIER-NOT-CONFIG
+  · HOST-FLOOR-OUTRANKS-POLICY · FORK-INHERITS · INVENTORY-DECAYS · CLAIM-IS-NOT-EVIDENCE ·
+  ONE-WORKER-PER-CREDENTIAL · OWN-BY-RESOURCE-BOUNDARY · ROLLUP-IS-NOT-THE-GATE ·
+  BLOCKED-IS-NOT-MISSING-APPROVAL · GATE-MAY-LIVE-IN-CODE · EXTERNAL-LOOPS-DO-NOT-CONVERGE.
+- New section **How a law enters this table**: a law enters only with a **measured** cause; a cause
+  inferred from tool output is a hypothesis, marked as such or left out. The section carries the
+  correction that proved the rule — `ROLLUP-IS-NOT-THE-GATE` first shipped with an inferred cause
+  ("a check run that registers and never concludes", read off truncated check names) and a
+  measurement refuted it: the real contributors were **non-required apps out of quota** plus
+  skipped jobs, with no unconcluded run present. The effect survived, the cause did not, and only
+  the measured cause yields the actionable form (`gh pr checks <n> --required`, exit 0).
+- `AUTHORITY-REF` now carries both directions: the default ref **varies between members of the same
+  branching family**, and a config left on a non-default branch is a **silent landmine** — inert
+  until someone flips the default.
+- Hard limits that `§0 BEING > Rules` never waives: turning off a loss-bearing surface
+  (detection/alerting/audit/backup), irreversible deletion, production, PII or a secret value, a
+  peer's or another org's config, a cost delta, a non-ours fork's divergence, and a declared state
+  with no read-back probe. An unanswered escalation is re-stated every round until decided.
+- `skills/fleet-campaign/references/worked-example.md` holds the concrete probe set and matrix from
+  the campaign behind the laws, redacted for an open-source repo: client-org members appear only as
+  `C1…C6`, with no host, account, ARN, secret name, person or client content.
+- Registered in `skills/README.md` (new "Fleet & bulk convergence" family) and `commands/README.md`.
+  Cross-harness reach is by projection (`npx skills add … --skill fleet-campaign`), never a
+  divergent copy: this repo stays the SSOT.
+
+- Review hardening (findings raised on the PR, each verified at source before accepting): `§0
+  BEING > Rules` no longer reaches **P4 VERIFY** or **P5 RE-DERIVE**, so the skip escape cannot
+  waive the acceptance checks the skill exists for; P1 now states that the **read-back must probe
+  exactly the set discovery probed** and must filter any population shared with a loss-bearing
+  surface, because an acceptance check satisfiable by destroying what P0 protected is `L1` through
+  the back door; the worked example's read-back probes both supported config filenames and counts
+  scheduled bumps only, never security-fix PRs; `L9` names the exported-environment form of the
+  credential race alongside the global switcher; and the `description` is under the 1024-character
+  frontmatter limit so loaders do not truncate the triggers.
+
+- P3 now routes every worker spawn through `delegate-governance` (`AGENTS.md` §Delegation canonical
+  entry point) and carries the fleet brief as the payload on top of that prompt, instead of
+  briefing a `Task` worker directly and bypassing the ticket/provider/DNA/cleanup checks.
+- The `--round 2 --json` examples carry the required positional end-state, which the command
+  contract marks mandatory (an empty value prints usage and stops).
+- Second review round, each finding verified at source: `§0` no longer reaches the **output
+  contracts** (a `--json` envelope and the report's measured rows are mandatory; only narrative is
+  skippable); P1 requires **metadata-only probes** (status/count, never a body the report then
+  prints) and distinguishes the **ORIENT columns** — which need no read-back — from the
+  **declared-or-mutated surfaces**, which all do; the worked example's acceptance gate is now the
+  **generation source being gone**, not a bot-PR count, because the vendor opens scheduled bumps
+  and security fixes under one author and the `dependencies`/`security` labels prove neither
+  (a repository's own `labels` option replaces the defaults for security updates too), so remaining
+  PRs are listed for individual review and never bulk-closed; the authorized-off auto-fix surface
+  gets its own read-back; and the fork case now carries the **four-field escalation record** the
+  hard limits require, with "pending escalation" as the correct state when the operator's decision
+  row is absent — "done deliberately" is not an authorization.
+- Identifier hygiene: no account or repository owner is named in the new documents (this repository
+  is referred to as such, the fork member generically, client members as `C1…C6`), and the
+  projection command points at `.claude-plugin/plugin.json` `repository` so a fork substitutes its
+  own source instead of inheriting a hardcoded one.
+
+### Fixed — `skills/README.md` index drift (boy-scout, found while registering `fleet-campaign`)
+
+- `wacli-concierge` and `ref-claim-verify` were both counted in the inventory provenance note but
+  had no row in the Available Skills table, so the heading count disagreed with the directory
+  count. Rows added; the heading is now **97**, matching the 97 skill directories on disk —
+  verified by set difference in both directions, not by eye. `ref-claim-verify` surfaced only on
+  the second rebase, which is `fleet-campaign`'s own `INVENTORY-DECAYS` law applying to its own PR.
 
 ### Added — seat profile (six org levels) and three delivery agents
 
@@ -528,6 +645,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Copilot round on the same head: `--store` and any companion SQLite query are operator-only
   (never run by the concierge's `wacli:*` path or the delegate); admission gets a new-account
   exception so `accounts add` probes `accounts list` instead of a not-yet-existing account.
+
+
+### Added
+- `skills/tutorial-forge/SKILL.md` (v0.1.0) — forge de tutoriais multi-capítulo parametrizáveis (analogias-first, leigo-friendly)
+- `skills/source-curator/SKILL.md` (v0.1.0) — curadoria adversarial de fontes NotebookLM (A/B/C/D grading, baseline-aware invariant)
+- `skills/notebooklm-artifact-orchestrator/SKILL.md` (v0.1.0) — orquestração de 6 studio artifacts por notebook (contrato verificado contra `nlm 0.15.3`)
+- `agents/tutorial-specialist.md` (v0.3.0) — agente orquestrador parametrizável que despacha 4 subagentes separados por `role=` (pesquisador-critico, redator-tutor, revisor-pedagogico, produtor-multimidia), cada um via `delegate-governance` e o schema `Task` (`subagent_type`/`description`/`prompt`); ramo file-only para `markdown`/`html`; Phase 0 cria ou exige um notebook por capítulo; ingere o `tutorial.md` aprovado antes dos artefatos
+- `protocols/tutorial-delegation.md` (v0.2.0) — contrato de 3 handoffs estritos (Pesquisador → Redator → Revisor) com JSON schemas e validação; `excerpt` e títulos seguem `language`
+- Rodada de review: `source-curator` passa o payload como dado (`payload=$(<file)`), nunca como código de shell; emite `ledger.json` (Handoff 1) com `ledger_out=`; dedup semântico com `Task`. Quiz usa `--difficulty` inteiro 1-5.
 
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 

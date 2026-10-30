@@ -1,0 +1,31 @@
+{
+  "_note": "INVALID by design — a DoD FABRICATED FROM NOTHING that the validator MUST refuse. It carries confidence 0.9 (a confident derivation) but recovered_from is EMPTY: there is no source the DoD was derived from. This is the exact hole EKO-101 named — before the provenance gate it validated with exit 0. The validator must now refuse it (exit 3) via 'recovered_from empty while confidence>0', mirroring the sibling handoff-as-prompt anti-theater grounding gate. Used by run-tests.sh to prove the gate fires, not just the happy path.",
+  "jsonrpc": "2.0",
+  "method": "session.dod_derivation",
+  "params": {
+    "for_goal": "Ship the thing and be done.",
+    "confidence": 0.9,
+    "recovered_from": [],
+    "inconclusive": {"flag": false, "reasons": []},
+    "context_lock": {
+      "context": "invented context with no anchor",
+      "purpose": "invented purpose",
+      "stakeholder": "nobody in particular",
+      "targets": "unspecified"
+    },
+    "measurement_spec": {
+      "meta": {
+        "construct": "Is the thing DONE?",
+        "context_lock": {"context": "invented", "purpose": "invented", "stakeholder": "nobody", "targets": "unspecified"}
+      },
+      "nodes": [
+        {"id": "n0", "label": "done", "kind": "branch"},
+        {"id": "l1", "label": "it works", "leaf_type": "J", "value": 1.0, "confidence": 0.9, "parents": [{"id": "n0", "weight": 1.0}]}
+      ]
+    },
+    "acceptance": ["it works (J)"],
+    "kpis": ["looks done"],
+    "termination_predicate": "DONE when it works."
+  },
+  "data": {"layer": "community", "type": "dod-as-prompt", "engine": "decompose-abstract-to-measurable", "contract_version": "1.0.0"}
+}
