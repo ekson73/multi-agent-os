@@ -1,6 +1,6 @@
 # .gitleaks.toml -- Gitleaks configuration for VEK repositories
 # Canonical source: multi-agent-os/.gitleaks.toml
-# Version: 1.3.0
+# Version: 1.3.1
 
 title = "VEK Secret Scanning Rules"
 
@@ -41,13 +41,21 @@ secretGroup = 1
 [rules.allowlist]
 description = "vek-db-password documented non-credential references"
 # regexTarget=secret: test the EXTRACTED VALUE (secretGroup 1), fully anchored
-# ^…$ so the WHOLE value must BE an AWS Secrets Manager REFERENCE URI (the
-# pointer, not a secret) — e.g. aws:///vek-sales/env/hml#VEK_DB_PASSWORD. Testing
-# the match (unanchored) was unsafe: a real password merely ENDING in such a URI
-# (CorrectHorse1!aws:///foo#BAR) contained the substring and was suppressed.
+# ^…$ so the WHOLE value must BE one of the shapes below. Testing the match
+# (unanchored) was unsafe: a real password that merely CONTAINS the shape was
+# suppressed.
+#   1. An AWS Secrets Manager REFERENCE URI (the pointer, not a secret) —
+#      e.g. aws:///vek-sales/env/hml#VEK_DB_PASSWORD. A password that merely
+#      ENDS in such a URI (CorrectHorse1!aws:///foo#BAR) stays detectable.
+#   2. The literal redaction marker `<REDACTED>` (optional text before the
+#      closing `>`). This is the documented placeholder, not a credential.
+#      A real password that merely contains the marker is NOT exempted, and
+#      this is deliberately NOT a path allowlist: the same history still holds
+#      a real credential that MUST keep firing until it is rotated.
 regexTarget = "secret"
 regexes = [
     '''^aws:///[^\s'"]+#[A-Z0-9_]+$''',
+    '''^<REDACTED[^>]*>$''',
 ]
 # Path exemptions: a CI build-log capture and a test fixture — neither is a
 # credential store. Anchored to the EXACT file end-of-path ($) so a suffixed

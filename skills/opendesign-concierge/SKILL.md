@@ -4,16 +4,17 @@ version: "1.0.0"
 description: |
   Concierge / onboarding / guide / capability-detector for the Open Design platform
   (`nexu-io/open-design` — the open-source, agent-native, local-first "Figma/Claude-Design
-  alternative", Apache-2.0). Use when a human or agent wants to LEARN Open Design, find HOW to
-  apply a design system (e.g. Airbnb) to an app, get the exact `od` CLI / MCP invocation, pick
-  between the integration tiers, choose Open Design vs an alternative (Figma Make · v0 · Anima ·
-  Banani · Stitch), or AUDIT whether Open Design is installed/configured. It ROUTES + TEACHES —
-  it never reimplements Open Design and never re-clones it (the canonical clone already lives at
-  `~/.claude/plugins/marketplaces/open-design/`). 4 modes: explain (default — teach the platform +
-  landscape), onboard (guided ramp), guide (intent → exact tier + `od` invocation), audit
-  (read-only: is OD installed? config drift?). Vendor-neutral (AAIF cross-vendor).
-  Triggers (pt/en): "como uso o open-design", "aplicar design system X no app", "open-design vs
-  figma/v0", "how do I apply the airbnb design system", "od cli how to", "is open design installed".
+  alternative", Apache-2.0). For a human or agent wanting to LEARN Open Design, find HOW to
+  apply a design system (e.g. Airbnb) to an app, get the exact `od` CLI / MCP invocation,
+  pick between integration tiers, choose Open Design vs an alternative (Figma Make · v0 ·
+  Anima · Banani · Stitch), or AUDIT whether it is installed/configured. ROUTES + TEACHES;
+  never reimplements Open Design, never re-clones it (the canonical clone already lives at
+  `~/.claude/plugins/marketplaces/open-design/`). 4 modes: explain (default: teach platform
+  + landscape), onboard (guided ramp), guide (intent → exact tier + `od` invocation), audit
+  (read-only: is OD installed? config drift?). Vendor-neutral (AAIF cross-vendor). Triggers
+  (pt/en): "como uso o open-design", "aplicar design system X no app", "open-design vs
+  figma/v0", "how do I apply the airbnb design system", "od cli how to", "is open design
+  installed".
 allowed-tools: Read, Glob, Grep, Bash, WebFetch, WebSearch, Skill
 evals:
   should_trigger:
@@ -26,7 +27,7 @@ evals:
   should_not_trigger:
     - "Actually run the full design migration / spawn the daemon (that is the od CLI / Docker job)"
     - "Build/clone Open Design from source (it is already cloned — don't reinstall)"
-    - "Onboard onto MAOS or Claude Code itself (that is maos-concierge / claude-code-concierge)"
+    - "Onboard onto MAOS or Claude Code itself (that is maos-concierge / claude-concierge)"
     - "Generate a brand-new Figma file (use the Figma MCP, not this concierge)"
 metadata:
   version: "1.0.0"

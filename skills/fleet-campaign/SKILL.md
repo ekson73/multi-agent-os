@@ -100,8 +100,10 @@ Enumerate the independent surfaces the product name bundles. For each, answer on
 | **noise-only** | turning it off loses nothing a human would miss | the campaign may act |
 | **loss-bearing** | turning it off loses detection, alerting, audit or recovery | HITL, per surface |
 
-Record the classification (`decision-capture`) before the first probe. A campaign that skipped P0
-is the one that blinds a resource nobody meant to blind.
+Record the classification (`decision-capture`) before the first probe. Under `--dry-run` the
+record is kept in the report only and nothing durable is written; the durable capture happens on
+the first executing round. A campaign that skipped P0 is the one that blinds a resource nobody
+meant to blind.
 
 ### P1 — RECON at source
 

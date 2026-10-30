@@ -40,13 +40,17 @@ client repo that stores a payment application's secret-sync manifest. That near 
 
 48 members across two credential boundaries: our personal account (20) and a client organization
 (28). A third candidate account measured **0 repos** and was dropped from the fleet — recorded, not
-silently omitted.
+silently omitted. A zero is only trusted after a **positive control**: the same credential first
+reads its own identity (`gh api user --jq .login`) and one repository known to belong to that
+boundary. A credential that fails the control (expired, wrong host, fine-grained or App token
+scoped to selected repos) makes the zero `unverified`, never "empty", and the boundary stays in
+the fleet as an open escalation.
 
 Probe per column (the contract: the command is printed *with* the matrix):
 
 | Column | Probe | Reading |
 |---|---|---|
-| `alerts` | `gh api -i repos/{o}/{r}/vulnerability-alerts \| head -1` | `204` = on · `404` = off |
+| `alerts` | `gh api -i repos/{o}/{r}/vulnerability-alerts \| head -1` | `204` = on · `404` = off **only when** the same credential reads the repo with Administration-read (positive control: `gh api repos/{o}/{r} --jq .permissions.admin` is `true`); otherwise `404` is `unverified` (GitHub also answers `404` for an under-permissioned or unauthenticated private repo) |
 | `sec-upd` | `gh api repos/{o}/{r} --jq '.security_and_analysis.dependabot_security_updates.status'` | `enabled`/`disabled` · **`null` = not populated at this plan tier** |
 | `config file` | `gh api -i repos/{o}/{r}/contents/.github/dependabot.yml \| head -1` (then `.yaml`) | `200` = present · `404` = absent. **Status only** — the bare call returns the file *body*, which the report contract would then print |
 | `open bot PRs` | `gh pr list --repo {o}/{r} --author app/dependabot --state open --json number --jq 'length'` | count. An **ORIENT signal only** — how loud the noise is. It mixes scheduled bumps with security fixes under one author and is deliberately **not** the acceptance gate (see P4) |

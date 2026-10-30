@@ -6,6 +6,254 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — Prisma structural_route A2b fail-open (issue #506)
+
+- `skills/decompose-abstract-to-measurable/scripts/structural_route.py`: the `declared is None` branch returned the engine band UNCHANGED (`under_specified`, `inconclusive.flag=false`, no `allowed_use`), so omitting `meta.structural_form` earned a *cleaner* pass than declaring `additive` — the A2 evasion-by-omission the code claimed to close, reopened by a second path. Now fail-closed by default: an undeclared form is `REVIEW (unrouted)` with `human_review` and `inconclusive.flag=true`; if H35 diagnostics derive relational/gestalt it is `BLOCKED` (an additive tree still cannot represent it); the historical v1.0.0 passthrough is preserved only behind the explicit `--legacy-unrouted` flag. Tests 9 → 11 (added fail-closed-default, legacy opt-in, A2b-omission-blocked); `break_suite.py` gains the A2b case (HOLD); step-5b table in `SKILL.md` documents the undeclared-form row. No regression: aggregate 10/10, e3_kappa 12/12.
+
+### Changed — `/hitl-digest`: alias `--this-session-only` e o escopo de sessão (eko-backlog#231)
+
+- `commands/hitl-digest.md`: the operator's own spelling `/maos:hitl-digest --this-session-only` is now a first-class flag, documented in the usage block, in the parameters table and in the deterministic execution block. It is an **alias of `--scope session`** for the HITL ledger slice: only the items whose provenance (the ledger's `Sessão` column) names the invoking conversation — in **every** mode, including the general panel with `--with-pendencies`.
+- `skills/synopsis-panel/bin/synopsis-fuse.py`: new `--this-session-only` flag. It only ever narrows, so it **contradicts `--scope all`**: both flags together are refused with a usage error (exit 2) instead of being resolved silently in favour of the widening. `--scope session` now has the same effect in the general panel (it previously narrowed only the pure digest), so the alias is a real alias and not a second spelling of something else. The general panel keeps the whole ledger by default — the historical behaviour is unchanged.
+- The zero case stays honest: a session slice that shows nothing out of a full ledger says **how many** items the ledger holds and **why** none of them is this conversation's ("0 of N ledger items are this conversation's"), and an unresolved identity still says it is not an empty queue. "0 shown" can never be read as "0 exist". The same line now reaches the `ask-user-question` preamble, so the spec-mandated "nenhuma decisão pendente" line never stands alone next to a full ledger.
+- Regression tests in `skills/synopsis-panel/tests/test_hitl_session_scope.py`: the alias equals `--scope session` (pure digest and general panel), the contradiction is refused with exit 2, and the "N open in the ledger, 0 shown" case states the reason in the render and in the JSON envelope.
+
+### Fixed — complete live HITL authorization context and local digest clock
+
+- AskUserQuestion questions now preserve the complete decision text, including trailing monetary limits and business conditions; only the durable preamble title remains clipped by display columns. Addresses the post-merge finding on #535 without changing approval gates, options, session ownership or machine/deferred output.
+- The digest header code uses the machine's local date and time, including local-day rollover; machine-envelope timestamps remain UTC. Deterministic subprocess fixtures isolate their `TZ` without changing the parent environment.
+
+### Fixed — concierge route availability and community-neutral guidance
+
+- Claude concierge companions now identify OpenClaw's concierge as an optional,
+  external dependency: detect it before routing and report unavailable when absent.
+  Replaced the nonexistent `recap` route with existing `morning-briefing --mode=recap`;
+  session close remains `postflight`.
+- Generalized the community-content prohibition and removed organization-specific
+  default routing from the MAOS concierge. World-specific external routing stays
+  opt-in and capability-detected; safety gates, sovereignty boundaries and historical
+  verification/snapshot dates are unchanged. No integration was installed or added.
+- Review follow-up: removed the unbundled `auto-orchestrator` route from the Code
+  lifecycle table and aligned the MAOS genesis companion's external-router guidance,
+  retaining its original date with a dated correction annotation.
+
+### Fixed — `/hitl-digest` AskUserQuestion mode (bot review of #535)
+- Single structured option padded with `Manter pendente`; unknown `sev` no longer crashes the overflow line; option labels de-duplicated after clipping; empty queue emits `ask_user_question: null` + `no_decisions: true`; ledger provenance (dirty/behind/warning) carried into the envelope and preamble; SKILL example now pipes `--compass-json -`.
+- Follow-up review: decimal commas remain part of options; emitted labels remain unique even when a suffix collides; blank/non-text evidence cannot recommend; Unicode record titles use display columns; long warnings and harness metadata wrap without losing content. AUQ cards now use the already session-filtered raw ledger so attached gates survive `--hitl-only` without exposing other sessions.
+- Merged the upstream session-scope fix (#543/#544). Legacy-format goldens run with explicit `--scope all`; the JSON golden gains upstream scope metadata and tree/HTML goldens drop the misleading pendency `scope=all` on a pure HITL digest, exactly as upstream already does. Mermaid and all remaining bytes stay unchanged; AUQ does not change the existing renderers.
+- Local review follow-up: unresolved session scope keeps `no_decisions: false`; the tool payload remains null with an explicit reason. The skill uses a runnable consumer value and relative command links, expired questions explicitly select the deferred text consumer, and generic credential instructions name the approved store rather than a vendor.
+- Live AUQ cards retain digest/session scope even without `--hitl-only` (including the with-pendencies invocation); explicit `--scope all` alone widens. Deferred and machine consumers retain baseline panel scope and renderer parity.
+
+### Added — `/hitl-digest --format ask-user-question` (consumer-gated)
+
+- `skills/synopsis-panel/bin/synopsis-fuse.py`: new `ask-user-question` format with `--consumer human-live|human-deferred|machine`, `--session-id`, `--now`, `--harness`, `--repo`. For a `human-live` consumer it emits an AskUserQuestion-ready payload (≤3 questions, a 4th only for ⏫; header = `H-NNNN`; options from structured input, then the options the ledger row lists, then type dispositions; `(recomendado)` only with an evidence pointer) plus the durable text preamble (digest code, `aberta no AskUserQuestion` record lines, `⏭`, harness line). `human-deferred` gets the existing tree and `machine` the existing JSON envelope. Existing formats are unchanged (byte-identical goldens in `tests/test_synopsis_hitl_auq.py`).
+
+### Added — `context-budget`: measure the always-loaded context, source by source
+
+- **NEW `bin/context-budget`** (read-only, idempotent, `--json`): ranks each source of the context
+  Claude Code loads before the first reply — rules, CLAUDE.md chain, MEMORY.md, skill/agent
+  listings, deferred MCP tool names, MCP server instructions, hook injections — in bytes and
+  estimated tokens (`bytes/4`, labelled estimate). Two modes: `transcript` (measured from the
+  session `.jsonl` attachments before the first assistant record) and `disk` (files measured,
+  listings estimated, MCP/hooks `not_measured`). Hook stdout/stderr is never counted or printed;
+  only injected text (`content`, including newline-joined lists, or `additionalContext` of `async_hook_response`).
+  Disk mode counts user and project `.claude/rules/` (cwd and ancestors, nested dirs) and
+  merges `enabledPlugins` user < project < local; secret-looking keys (incl. suffixed names
+  like `*_PASSPHRASE`, `AUTHORIZATION`) are redacted.
+  Plugin installs are picked by scope (local > project > user, project/local only when
+  `projectPath` is cwd or an ancestor), and `.claude-plugin/plugin.json` component paths are
+  honored (custom `skills` add to `skills/`; custom `commands`/`agents` replace the defaults;
+  paths escaping the plugin root are ignored and counted).
+  Malformed non-string, non-null install scopes are skipped and counted; glob discovery treats
+  home, project and plugin directory names literally, including wildcard metacharacters.
+  Skill/agent/command listings also scan project-scope `.claude/{skills,agents,commands}`
+  (cwd and ancestors), deduped by realpath.
+  Agent/command estimates reuse the canonical entry classifier, excluding ALL-CAPS documents
+  and skill-owned sub-documents while retaining genuine nested commands.
+  Source labels abbreviate home only at a complete path boundary; original machine paths and byte counts stay unchanged.
+- **NEW `commands/context-budget.md`** thin wrapper; **NEW `bin/tests/context-budget.test.sh`**
+  (82 assertions, fake `$HOME`, read-only check); temporary-directory allocation fails closed before fixture setup.
+- Why: baseline for the context-reduction plan. Reuse check: `auto-shard` (CLAUDE.md >40KB only),
+  `memory-curator-sweep.sh` (index cap only) and `claude-code-concierge` measure no per-source
+  budget, so this is a new tool; it does not touch the `claude-concierge` work in flight.
+### Fixed — preserve HITL ownership across native OMP recovery
+
+- `synopsis-fuse.py` now follows only explicit `parentSession` references in native
+  OMP session headers when resolving the default session scope. A worker reads its
+  adjacent root JSONL, not its own process header. This keeps gates recorded under
+  the original session visible after recovery under a new ID without rewriting provenance.
+- Explicit identity overrides remain exact. UUID-only parents resolve a unique native
+  file with that exact UUID in the same collection and continue through its header.
+  A missing parent file proves that parent only; multiple candidates, cycles, ambiguous
+  references and header/filename conflicts fail closed. No prompt-cache key, cwd/title
+  inference, other-collection search or session index is used.
+- Regression coverage exercises both native layouts, two-/five-hop UUID recovery,
+  missing parents, cycles, ambiguous parent files, conflicting headers, ignored cache
+  keys and override isolation through the pure CLI path.
+
+### Fixed — the HITL digest shows THIS conversation's gates by default, and the whole ledger only when asked
+
+- **The defect.** `hitl/punch-list.md` is ONE global queue — every conversation's gates
+  live in the same file — and the pure digest rendered all of it. Measured on
+  2026-10-26: `synopsis-fuse.py --hitl-only --compass-json -` against the live ledger
+  returned **19 global items** for a conversation that owned **2** of them. A digest
+  that answers "what needs me now" answered with everyone else's queue, and the agent
+  reading it could not tell whose gates it was looking at.
+- **The fix.** The HITL ledger scope is now applied **before** counting, prioritising and
+  rendering, so every number in the output describes the slice that was actually shown.
+  In `--hitl-only` mode the default is `session` — the items whose ownership the ledger
+  itself records, in the ledger's own **`Sessão`** column (the writer's contract: the id
+  of the conversation that opened the item, or `-` when there is none). Only an explicit
+  `--scope all` widens to the whole ledger, legacy items included; every other `--scope`
+  value is a *pendency* scope and never widens. The general panel (without
+  `--hitl-only`) is unchanged — it is a landscape, not a digest — and the work-compass
+  pendency scope is untouched.
+- **Provenance is the ledger's, never the chat's.** An item with no provenance (a `-`,
+  an empty cell, or a ledger written before the column existed) is **legacy**: it belongs
+  to no known conversation, so it enters the global scope and never the session scope.
+  Mentioning an item's ID in a conversation does not make it yours, and the engine does
+  not treat a same-cwd, same-title or same-operator conversation as the same one.
+- **Identity is the invoking conversation, and it fails closed.** Resolution order:
+  `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` →
+  `CLAUDE_SESSION_ID` → native `PI_SESSION_FILE` headers and their explicit
+  `parentSession` chain. A worker uses the adjacent native root JSONL, not its own
+  process header. A UUID-only parent resolves only a unique matching native file in
+  the same collection; a missing parent file proves that parent only. Explicit
+  CLI/environment overrides stay exact and do not expand ancestry. `PI_SESSION_ID`
+  is deliberately NOT consulted: it is per process, not the invoking conversation.
+  When no identity resolves, the render shows
+  **nothing** and states why — it never falls back to "all" and never claims the queue
+  is empty, because "I do not know whose this is" is not "there is nothing". Every render
+  names the scope it applied; the JSON envelope carries `meta.hitl_scope`,
+  `meta.hitl_scope_reason`, `meta.hitl_session_ids`, `meta.hitl_session_resolved`,
+  `meta.hitl_session_source`, `meta.hitl_scope_unresolved` and `meta.hitl_ledger_total`
+  (the size *before* the narrowing, so "0 shown" is never read as "0 exist").
+- **Ids are compared exactly.** A session id is an opaque token: only surrounding
+  whitespace is stripped, and `A` is not `a`. The JSON path reads the writer's single
+  `session_id` field. The `Sessão` column is located by the header, so its position in
+  the table cannot shift the other columns.
+- **Tests.** `skills/synopsis-panel/tests/test_hitl_session_scope.py` (real ledgers in
+  the writer's table format and real CLI subprocesses, no mocks): the default narrows to
+  the calling conversation, an explicit `--scope all` widens, a pendency scope never
+  widens, a legacy item stays out of the session scope, a chat mention does not grant
+  ownership, an unresolved identity shows nothing and says why, the general panel keeps
+  the whole ledger, the pure path never invokes the collector, the id match is exact, and
+  an identity that is only separators or a marker is not an identity.
+
+### Changed — `claude-code-concierge` becomes `claude-concierge` (all Claude product surfaces)
+
+- **Scope widened** from Claude Code only to six surfaces: claude.ai web, desktop, Claude Code
+  (CLI/IDE), Projects, bots/agents (Claude in Slack, Claude in Chrome, Agent SDK, Managed Agents)
+  and Duet. Each surface has its own `references/surfaces/<surface>.md`, sourced from official
+  docs on 2026-10-26; unsourced facts are marked NOT VERIFIED.
+- **Progressive disclosure:** the SKILL.md body is a lean router (surface → reference → route);
+  the old AWARENESS-REGISTRY moved to `references/surfaces/code.md`.
+- **Compatibility:** `skills/claude-code-concierge/` stays as a thin deprecated alias. No slash
+  command wrapper was added (repo policy from #407: skills are already `/`-invokable).
+- Cross-references in sibling concierges, the lifecycle protocol and `skills/README.md` now name
+  `claude-concierge`.
+
+### Fixed — `synopsis-panel` now names the HITL ledger it read, and warns when that is not the tracked one
+
+- **The defect.** `find_hitl_md()` in `skills/synopsis-panel/bin/synopsis-fuse.py`
+  resolved the **working-tree** copy of `hitl/punch-list.md` and said nothing about
+  which file it had opened. Measured on 2026-10-26: a vault **21 commits behind its
+  upstream**, with a dirty ledger, rendered **16 open items** — the *same count* as the
+  tracked copy, with three already-closed items (`H-0034`, `H-0038`, `H-0047`) shown and
+  three real ones (`H-0044`, `H-0051`, `H-0052`) hidden, one of them the most serious in
+  the queue. The matching total is what hid the error, so an agent measured a stale queue
+  **without knowing**, three times in one session.
+- **The fix, and what was deliberately not done.** The default is unchanged: the engine
+  still reads the working-tree file. Preferring the tracked version would silently parse a
+  *different* file than the one on disk and break the legitimate case — a human editing the
+  ledger on purpose — which is worse than the defect in a read-only tool used by humans and
+  agents alike. So the engine never swaps the file; it **names** it and **warns**. Every
+  render (`tree`, `mermaid`, `html`) prints the absolute ledger path, and prints a warning
+  when that file is modified against `HEAD` or its repo is behind its upstream, with the
+  exact command to read the tracked version. The JSON envelope carries the same facts in
+  `meta.hitl_source`, `meta.hitl_source_kind`, `meta.hitl_source_dirty`,
+  `meta.hitl_source_behind` and `meta.hitl_warning`. A clean, up-to-date ledger emits no
+  warning at all. New `ledger_provenance()` runs only read-only git queries and degrades to
+  a bare path when git, the repo or the upstream is unavailable — an absent signal is
+  reported as unknown, never as "clean".
+- **Tests.** `skills/synopsis-panel/tests/` (12 cases, real git fixtures, no mocks, following
+  the `skills/pii-masking/tests/` convention). They cover both halves of the contract — a
+  divergent ledger warns, a clean one does not — and are validated by mutation: removing the
+  warning fails 4, removing the path fails 3, restoring passes 12.
+- **Docs.** `skills/synopsis-panel/SKILL.md` gains a "Procedência do ledger" section, and its
+  `--hitl-only` example gains the `--compass-json -` it was missing: without it the script
+  invokes the live `work-compass` collectors and takes minutes, which reads as a hang.
+  `commands/hitl-digest.md` documents reading the header before citing the queue.
+
+### Security — remove production-estate reconnaissance detail from the public HEAD
+
+- This repo is **public**. Seven documentation files recorded an AWS account
+  identifier, the name of a client production EKS cluster, its region, its
+  kubecontext name, and counts of its namespaces, kustomizations and
+  HelmReleases. None of those values authenticates anyone, so this is a
+  **reconnaissance exposure, not a credential leak** — an account identifier
+  cannot be rotated, which is precisely why it should never have been written
+  down in public. The combination (account identifier + `AdministratorAccess`
+  label + named production cluster) is finished target-selection material.
+- `docs/insights/agent-tools-resources-inventory.md` — §9 "Live Connections"
+  and the §1 tool table now state *capability* ("SSO profile configured",
+  "Reachable", "Context configured") and point at the operator's private IaC
+  repo and secret manager for the concrete identifiers, following the
+  vendor-neutral pointer pattern already used in
+  `protocols/delegation/provider-matrix.md` §Secrets. Estate counts are dropped
+  outright: they described one client's production footprint and serve no
+  reader of a public framework repo.
+- Six further files referenced the same cluster name as a private IaC *repo*
+  name; each now reads `<private-iac-repo>` or "the private IaC repo", which
+  preserves the sentence's meaning exactly:
+  `docs/adoption/codegraph-2026-06-18.md`,
+  `docs/insights/aws-sm-naming-convention.md`,
+  `docs/insights/eisenhower-dependency-prioritization.md`,
+  `docs/insights/multi-agent-swarm-governance-v2.md`,
+  `docs/insights/secret-management-strategy.md`.
+- **History is deliberately not rewritten.** The values remain in every prior
+  commit, in any existing clone, and in GitHub's fork/PR caches. A rewrite
+  would feel like a fix without being one, and it is not reversible. Whether to
+  rewrite, or to take the repo private, is the operator's call and is out of
+  scope here.
+
+### Fixed — `vek-db-password` allowlist for the literal redaction marker (v1.3.0 → v1.3.1)
+
+- `.gitleaks.toml` — the scheduled Supply-Chain Sentinel full-history scan was
+  failing on two `vek-db-password` findings whose extracted value is the
+  literal placeholder `<REDACTED>`. The rule-scoped allowlist now exempts a
+  value that **is** that marker (`regexTarget = "secret"`, anchored
+  `^<REDACTED[^>]*>$`), alongside the existing Secrets Manager reference-URI
+  exemption. A path or whole-file exemption is not used: the same document
+  still holds a real credential that must keep firing until it is rotated, and
+  that finding is not fingerprinted in `.gitleaksignore`. A value that merely
+  contains the marker stays detectable. Contract test covers the marker, the
+  historical `${…:<REDACTED>}` shape, and four near-miss real secrets.
+
+### Changed — `ratchet-loop` 0.2.0 (C2 instrumented) + top-20 description redundancy cut
+
+- `skills/ratchet-loop/SKILL.md` 0.1.0 → 0.2.0. C2 ("premises refuted per round") claimed to be a counter but nothing recorded a refutation, so it read whatever the conductor remembered — the unmeasured claim its own `ANTI-THEATER` gate fails. Adds **§Phase 6 — the `REFUTACAO` marker**: a five-field `|`-separated line (`REFUTACAO|premise|who asserted|who refuted|the measurement`) written into the round's work-ledger item `decision` field in the **same** round, a copy-ready `jq` counting command over the item files, and the obligation to mutation-check that command before reading a `0` as a real `0` (a command returning 0 because nothing matched and one returning 0 because it is broken look identical). `|` over JSON because `decision` is free text with a 2,000-character ceiling that a human also reads: greppable with no parser, no schema registration, no escaping that breaks on a hand edit.
+- **Alternative rejected, recorded in the asset**: reanimating the session harness's `spec_alignment` field to carry refutations — measured dead since 2026-06 with 0 `divergent` values, so reviving it is a schema-and-pipeline change in a dependency `ratchet-loop` does not own, to feed one counter. Also rejected: counting refutations by regex over prose, which returned 17 candidates on a corpus with no agreed marker — a candidate list, not a metric.
+- **Top-20 largest skill `description` fields trimmed of redundancy**: 25,245 → 24,434 bytes (−811 B, −3.21%) across `bot-finding-arbiter`, `council-gate`, `maos-concierge`, `postflight`, `atomize-and-route`, `morning-briefing`, `red-team`, `ratchet-loop`, `enhance-pipeline`, `convergence-engine`, `opendesign-concierge`, `transmute`, `goal-recovery`, `reveng`, `agentic-tool-pipeline`, `reactivate`, `work-drain`, `walkthrough-concierge`, `sprint-carryover`, `derive-system-from-goal`. The `description` is a skill's discovery trigger, so the cut is gated on a **set diff of distinct trigger terms per skill**: 0 terms removed across all 20, 8 added. Only four quoted trigger phrases were dropped, each one whose tokens another retained quoted phrase in the same list already covered (`"should this go to the human"`, `"session recap"`, `"sprint rollover"`, `"method"`).
+- **Measured refutation of the byte target.** A 50% cut is unreachable by arithmetic, not by effort: the sum of each description's distinct trigger terms plus one byte of glue each is 15,829 B against 25,245 B, capping any non-shrinking cut at 37.3% *with zero prose at all*. Restricted further to redundancy only — repeated trigger lists, an idea stated twice, a non-additive example, `Use when you need to…` preamble — the realistic ceiling is single-digit percent, which is what landed.
+- **Measured defect in the catalog-size regex.** `^description:\s*(.*?)(?=^\w+:|\Z)` does not stop at `allowed-tools:`, because `\w` excludes the hyphen, so that key is counted as description text. Corrected to `(?=^[\w-]+:\s|\Z)`, the host catalog measures **160,509 B over 363 skills** (avg 442 B), not 165,446 B — 4,937 B (3.0%) of inflation across 79 skills.
+
+### Added — `ratchet-loop` thin round-scored productivity loop
+
+- `skills/ratchet-loop/SKILL.md` (v0.1.0): a **round**-scored productivity loop under HOTL autonomy with an inviolable HITL floor (credential · spend · irreversible · prod/PII · peer config). Six phases over one intent tree in **both** directions — RECOVER (backward, leaf→project; 5why + 5w2h on the node in work) → MEASURE (four counters, at source; an unmeasurable counter ships `NOT VERIFIED`) → DECIDE (forward, smallest node set that moves a counter, Eisenhower over it; never delegated) → EXECUTE (one worker per resource boundary; the conductor does not execute) → VERIFY (evaluator verdict **and** conductor re-measurement; a worker's claim is never the acceptance) → INTROSPECT (two gates: **Repair** on a premise refuted at source, obliging a same-round fix of *every* surface repeating it; **Evolution** on a measured gain, generalized with the measured cause attached).
+- **Net-new is exactly three rows**: the bidirectional round contract (N1), the four-counter productivity gate incl. *premises refuted per round* which nothing else counts (N2), and a falsifiable introspection trigger with the same-round all-surface repair obligation (N3). Everything else delegates: the SKILL.md carries a line-by-line **non-reimplementation table** naming the owner of each part across 18 existing assets (`work-compass`, `pulse`, `eisenhower-matrix`, `ooda-loop`, `gap-loop`, `quiesce`, `convergence-engine`, `decision-capture`, `agentic-session-harness`, `corpus-firing-audit`, `praxis-audit`, `rule-quality-tests`, `dogfood-ledger`, `ttl-policy`, `status-map`, `audit`, `agentic-tool-pipeline`, `agentic-tool-trainer`).
+- A round that moves none of the four counters is reported **BUSY**, not virtuous; two consecutive rounds with zero acceptances is an exit clause alongside convergence, 24 rounds and 12 hours. The skill is named for the mechanism (a ratchet clicks forward and cannot slip) rather than the claim, keeping "ciclo virtuoso"/"virtuous cycle"/"HOTL" in its triggers so the identity never asserts the outcome the counters exist to test.
+- Carries `§How a rule enters this asset`: a cause measured at source may be written as fact; a cause **inferred from tool output is a `HYPOTHESIS`** and ships labelled. The section names the empirical breach that produced it — a round asserted a ~40k-token fixed overhead that a delegated measurement put at ~18k, and reported a gateway down while it was answering; both were inferences presented as measurements.
+- Forged through `agentic-tool-pipeline` (Stage-0 → bare INTENT → `agentic-tool-forge`; Stage-1 measured no duplicate in the corpus; Stage-2/3 converged **type = skill**, rejecting command/rule/agent); named via `anima` agent-register, rejecting `virtuous-cycle`, `hotl-loop` and `cvp-hotl`. Seven design corrections recorded as D1–D7. `dogfood_status: pending-first-cycle` — zero real cycles; promotion is `dogfood-ledger`'s call.
+- `skills/README.md` lists it (95 tracked skills) and adds it to the **Loops & recovery** family.
+
+### Added — `/hitl-digest` thin command
+
+- `commands/hitl-digest.md`: thin `/hitl-digest` slash command over the `synopsis-panel` engine (`synopsis-fuse.py --hitl-only`). Renders the HITL DIGEST on demand — only the human-attention gates (credential, spend, irreversible, external-send, business), ⏫ high-severity and 👤 human-domain first. Reimplements nothing: it delegates rendering to `synopsis-fuse.py` and the ledger to the external `punch-list.md` SSOT; read-only. The engine path resolves from `CLAUDE_PLUGIN_ROOT` (with a git-root fallback), and the pure digest short-circuits aggregation with an empty compass so it never blocks on `work-compass`.
+
+### Changed — git-cycle-sentinel 0.1.1 (dogfood cycle-1 + cycle-2 real)
+
+- `skills/git-cycle-sentinel/SKILL.md` bumped 0.1.0 → 0.1.1 after dogfood cycle-1 (dry-run, decision-vs-norm) and cycle-2 (real execution in a throwaway `/tmp` git sandbox, 7/7 assertions PASS). Two previously-decorative guards made functional: **§A6** host-alias parse now strips any scp-style `[user@]host:` prefix (incl. a userless alias like `github.com-ekson73:`) so the alias never glues onto the owner, and RECUSA (STOP-ERROR) when the slug is not `owner/repo`; **§A7** idempotency probe scopes `git log --grep="idmp:<key>"` to the branch's unmerged range `origin/<base>..HEAD` (never whole reachable history) so a reused key on a merged-and-deleted branch cannot false-positive. Repo-awareness table corrected: `multi-agent-os gpgsign` re-measured `true` (read live, not the frozen cell). `dogfood_status → dogfood-cycle-2-real-7of7-pass-promotable`.
+
 ### Changed — canonical execution ticket body
 
 - The spec–backlog–ticket reconciler single issue template now includes explicit in/out scope, constraints and gates, a verification method with planned versus observed evidence, and an actionable next step. It serves both informal spec-as-prompt and ticket-as-spec usage while the source specification retains authority.
@@ -21,6 +269,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — `fleet-campaign` (Classis): converge N resources to one declared config state
 
+- Review round: a zero-repo account and an alerts `404` count only after a positive control on
+  the same credential (otherwise `unverified`); `--dry-run` keeps the P0 decision record in the
+  report and writes nothing durable.
 - New skill `skills/fleet-campaign` (v0.1.0, `latent` until two dogfood cycles) + the
   `/fleet-campaign` command wrapper. Forged through `agentic-tool-pipeline`; the Stage-1 DRY probe
   over the existing corpus found no member deriving a work register from a **live provider
