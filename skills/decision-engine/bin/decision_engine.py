@@ -57,10 +57,25 @@ _LEAK_RE = re.compile(
 _GUARD_RE = re.compile(
     r"\b(produ[cç][aã]o|production|prod|irrevers[ií]vel|irreversible|apagar|delete|"
     r"drop|force[- ]push|pagar|pagamento|contratar|assinar|payment|spend|"
+    r"comprar|compra|gasto|gastar|despesa|fatura|billing|purchase|buy|"
+    r"compartilhar|share|divulgar|encaminhar|forward|"
     # External send: any send/publish verb or messaging channel. A false positive
     # only escalates (safe); a false negative would let a send run unasked.
     r"enviar|envio|mandar|send|publicar|postar|post|e-?mail|whatsapp|telegram|"
     r"slack|discord|sms)\b", re.IGNORECASE)
+
+_NEG_RE = re.compile(r"\b(n[aã]o|nunca|sem|not|never|no|without)\s+(\w+\s+)?$", re.IGNORECASE)
+
+
+def reports_leak(text: str) -> bool:
+    """True when the text states an exposure; a negated one ('não exposto') is not."""
+    for m in _LEAK_RE.finditer(text or ""):
+        if not _NEG_RE.search(text[:m.start()]):
+            return True
+    return False
+
+
+_MONEY_RE = re.compile(r"(R\$|US\$|USD|EUR|€)\s*\d", re.IGNORECASE)
 
 _FUSE_PATH = (pathlib.Path(__file__).resolve().parents[2]
               / "synopsis-panel" / "bin" / "synopsis-fuse.py")
@@ -76,7 +91,9 @@ def _load_card_options(fuse_path: pathlib.Path = _FUSE_PATH):
     """Reuse the synopsis-panel option builder; fall back to a minimal one.
 
     The fallback is explicit: its verdicts carry
-    options_source='fallback:synopsis-panel-absent', never a silent substitute."""
+    options_source='fallback:synopsis-panel-absent' (not installed) or
+    'fallback:synopsis-panel-error' (installed but failed to load)."""
+    reason = "fallback:synopsis-panel-absent"
     if fuse_path.is_file():
         try:
             spec = importlib.util.spec_from_file_location("synopsis_fuse", fuse_path)
@@ -84,13 +101,14 @@ def _load_card_options(fuse_path: pathlib.Path = _FUSE_PATH):
             spec.loader.exec_module(mod)  # module body only; main() is __main__-guarded
             return mod._card_options
         except Exception:  # noqa: BLE001 — never let the sibling break the verdict
-            pass
+            # Installed but broken is not the same as absent: say which.
+            reason = "fallback:synopsis-panel-error"
 
     def _fallback(h: dict, raw: dict):
         return ([{"label": "Aprovar", "description": "Segue com o que o item descreve."},
                  {"label": "Recusar", "description": "Não segue; fecha como recusado."},
                  {"label": "Manter pendente", "description": "Nada muda agora."}],
-                False, "fallback:synopsis-panel-absent")
+                False, reason)
     return _fallback
 
 
@@ -166,7 +184,7 @@ def decide(item: dict, policy: dict | None = None) -> dict:
     out = {"id": item.get("id"), "tipo": item.get("tipo", "")}
 
     if tipo == "credencial" and pol.get("leaked_secret") == "deny-rotation" \
-            and _LEAK_RE.search(text):
+            and reports_leak(text):
         out.update(route="DIY", rule="R0-leaked-secret", denied=True,
                    reason="segredo/PII já vazado: política do operador é ignorar, sem rotação",
                    recommendation="Negado: não rotacionar; não reabrir no digest",
@@ -177,7 +195,7 @@ def decide(item: dict, policy: dict | None = None) -> dict:
         out.update(_hitl_verdict(item, "R1-human-type",
                                  f"tipo '{tipo}' é um dos 5 tipos HITL do SSOT"))
         return out
-    if tipo in TECH_TYPES and _GUARD_RE.search(text):
+    if tipo in TECH_TYPES and (_GUARD_RE.search(text) or _MONEY_RE.search(text)):
         out.update(_hitl_verdict(item, "R2-guard",
                                  "item técnico cita ato irreversível/produção, gasto ou envio"))
         return out
@@ -235,7 +253,8 @@ def main(argv: list[str] | None = None) -> int:
             extra = f" (ledger tem {total}; escopo {source.get('hitl_scope')})" if total else ""
             print(f"decision-engine: 0 itens HITL na entrada{extra}")
         for v in verdicts:
-            print(f"{v['id']} [{v['tipo']}] -> {v['route']} ({v['rule']}): {v['recommendation']}")
+            print(f"{v['id']} [{v['tipo']}] -> {v['route']} ({v['rule']}): {v['recommendation']}"
+                  f" [base: {v['recommendation_basis']}]")
             for alt in v["alternatives"]:
                 print(f"    alt: {alt}")
         return 0

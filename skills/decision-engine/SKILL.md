@@ -67,7 +67,7 @@ Para voltar ao comportamento de escalar, passe `--policy` com
 quebrado) sai com exit `2`; nunca é adivinhada.
 
 `options_source` diz de onde vieram as opções: `structured`, `ledger-text` ou
-`type-generic` (do `synopsis-panel`), ou `fallback:synopsis-panel-absent` quando o
+`type-generic` (do `synopsis-panel`), `fallback:synopsis-panel-error` (instalado mas falhou ao carregar), ou `fallback:synopsis-panel-absent` quando o
 `synopsis-panel` não está instalado. O fallback é sempre declarado, nunca silencioso.
 
 ## Uso

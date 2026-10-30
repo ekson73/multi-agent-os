@@ -244,8 +244,12 @@ O envelope do engine carrega o `source` do digest (`hitl_scope`,
 `hitl_scope_unresolved`, `hitl_ledger_total`): escopo não resolvido continua sendo dito
 como tal, nunca como fila vazia.
 
-Com `--with-pendencies` o painel geral lê o ledger inteiro; para rotear o mesmo
-conjunto, defina `SCOPE=all` (sem isso o passo 2 roteia só a fatia desta conversa).
+Antes do passo 2, ligue `SESSION_ID` e `SCOPE` ao que o digest mostrado usou: o
+`--session-id` dele e o `--scope` dele (vazio = o default da sessão). Use
+`SCOPE=all` só quando o painel mostrado leu o ledger inteiro (`--scope all`, ou
+`--with-pendencies` sem `--this-session-only`); um painel restrito à sessão nunca é
+ampliado no passo 2. A saída `tree` mostra a base de cada recomendação
+(`evidence` ou `type-default`).
 
 Só os itens `HITL` sobem ao operador. `DIY` o agente resolve e registra; `COMPUTE`
 o agente classifica e recalcula. Sem o `decision-engine` instalado, pule este passo.

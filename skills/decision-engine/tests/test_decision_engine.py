@@ -215,3 +215,28 @@ def test_unresolved_scope_is_carried_and_not_read_as_empty():
                                   "Postar o anúncio no Discord", "Send the release note"])
 def test_a_technical_item_that_sends_externally_is_guarded(text):
     assert de.decide(_item("H-1000", "tecnico", text))["route"] == "HITL"
+
+
+@pytest.mark.parametrize("text", ["Comprar licença anual por R$ 500",
+                                  "Autorizar gasto de R$ 500",
+                                  "Compartilhar dados do cliente com parceiro"])
+def test_a_technical_item_that_spends_or_shares_is_guarded(text):
+    assert de.decide(_item("H-2000", "tecnico", text))["route"] == "HITL"
+
+
+@pytest.mark.parametrize("text", ["Token não exposto; rotação preventiva",
+                                  "Key was not exposed, rotate on schedule"])
+def test_a_negated_exposure_is_not_a_leak(text):
+    v = de.decide(_item("H-2001", "credencial", text))
+    assert v["route"] == "HITL" and v["denied"] is False
+
+
+def test_a_broken_backend_is_not_reported_as_absent(tmp_path):
+    broken = tmp_path / "synopsis-fuse.py"
+    broken.write_text("raise RuntimeError('boom')\n", encoding="utf-8")
+    opts = de._load_card_options(broken)
+    assert opts({}, {})[2] == "fallback:synopsis-panel-error"
+
+
+def test_tree_output_shows_the_recommendation_basis():
+    assert "[base: type-default" in _cli([_item("H-2002", "gasto")], "--format", "tree")
