@@ -244,6 +244,9 @@ O envelope do engine carrega o `source` do digest (`hitl_scope`,
 `hitl_scope_unresolved`, `hitl_ledger_total`): escopo não resolvido continua sendo dito
 como tal, nunca como fila vazia.
 
+Com `--with-pendencies` o painel geral lê o ledger inteiro; para rotear o mesmo
+conjunto, defina `SCOPE=all` (sem isso o passo 2 roteia só a fatia desta conversa).
+
 Só os itens `HITL` sobem ao operador. `DIY` o agente resolve e registra; `COMPUTE`
 o agente classifica e recalcula. Sem o `decision-engine` instalado, pule este passo.
 
