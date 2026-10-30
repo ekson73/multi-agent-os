@@ -34,7 +34,7 @@ QORDER = [("relational", "q_value_lives_in_relations"), ("temporal", "q_requires
           ("normative", "q_depends_on_whose_values")]
 
 
-def route(spec_path):
+def route(spec_path, legacy_unrouted=False):
     with open(spec_path, encoding="utf-8") as fh:
         spec = json.load(fh)
     meta = spec.get("meta", {})
@@ -58,8 +58,41 @@ def route(spec_path):
         (declared in ("additive", "atomic") and any(f in BLOCK_ON_ADDITIVE_TREE | CAP_ASSISTIVE for f in derived))
         or (declared not in ("additive", "atomic") and declared not in derived))
     sl = None  # structural_loss (deterministic where derivable)
-    if declared is None:
-        route_v = {"status": "under_specified", "reason": "structural_form_not_declared"}
+    # Derive a block/cap verdict from H35 diagnostics ALONE (independent of a declared form),
+    # so omitting structural_form can never earn a cleaner pass than declaring it (closes A2b).
+    derived_block = any(f in BLOCK_ON_ADDITIVE_TREE for f in derived)
+    derived_cap = any(f in CAP_ASSISTIVE for f in derived)
+    def _merge_reasons(new):
+        prev = out.get("inconclusive") or {}
+        reasons = list(prev.get("reasons") or []) if isinstance(prev, dict) else []
+        return {"flag": True, "reasons": reasons + [r for r in new if r not in reasons]}
+    if declared is None and derived_block:
+        # Omission + H35 diagnostics that derive relational/gestalt -> the additive tree still
+        # structurally CANNOT represent it. Block, exactly as a declared relational/gestalt would.
+        sl = 1.0
+        route_v = {"status": "structural_mismatch", "allowed_use": "blocked", "h35_derived": derived,
+                   "reason": "structural_form omitted but H35 diagnostics derive a non-additive form "
+                             f"({derived}) an additive value-tree cannot represent"}
+        out["score"] = None; out["band"] = "BLOCKED"
+        out["inconclusive"] = _merge_reasons(["structural_mismatch", "structural_form_not_declared"])
+    elif declared is None and legacy_unrouted:
+        # v1.0.0 compatibility, OPT-IN ONLY: the historical passthrough. Engine band unchanged.
+        # Evaluated AFTER the H35-derived block, so the flag can never bypass a relational/gestalt block.
+        route_v = {"status": "under_specified", "reason": "structural_form_not_declared",
+                   "legacy_unrouted": True}
+    elif declared is None:
+        # Fail-closed default (closes A2b evasion-by-omission): an undeclared form is UNROUTED,
+        # not a clean pass. Hold for human review; never emit a usable band from omission.
+        sl = 0.7
+        route_v = {"status": "under_specified", "allowed_use": "blocked_pending_review", "human_review": True,
+                   "h35_derived": derived, "reason": "structural_form_not_declared — unrouted; "
+                   "fail-closed (pass --legacy-unrouted for v1.0.0 pre-form specs)"}
+        out["band"] = f"REVIEW (unrouted; engine said {out['band']})"
+        out["inconclusive"] = _merge_reasons(["structural_form_not_declared"])
+        if derived_cap:
+            # Report the capped form separately; the omission stays blocked pending review.
+            route_v["h35_derived_cap"] = "assistive_only"
+            route_v["reason"] += "; H35 derives a band-capped form (assistive_only after review)"
     elif conflict:
         sl = 0.7
         route_v = {"status": "classification_conflict", "allowed_use": "blocked_pending_review", "contestable": True,
@@ -101,6 +134,8 @@ def route(spec_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.stderr.write("usage: structural_route.py <spec.json>\n"); sys.exit(2)
-    print(json.dumps(route(sys.argv[1]), ensure_ascii=False))
+    args = [a for a in sys.argv[1:] if a != "--legacy-unrouted"]
+    legacy = "--legacy-unrouted" in sys.argv[1:]
+    if len(args) != 1:
+        sys.stderr.write("usage: structural_route.py [--legacy-unrouted] <spec.json>\n"); sys.exit(2)
+    print(json.dumps(route(args[0], legacy_unrouted=legacy), ensure_ascii=False))
