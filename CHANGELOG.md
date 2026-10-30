@@ -15,8 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   implementation descriptions, including sensitive feature phrases. Real/production
   or unrecognised targets and separate sensitive requests retain the HITL gate.
   R0/default policy and R1 precedence remain unchanged; routing never grants consent.
+- Human-act negation must directly qualify the sensitive action; an adverbial
+  modifier does not suppress HITL, and a separate affirmative action stays guarded.
 - Real CLI and session-scoped synopsis pipe regressions cover both policies,
   technical aliases, boundaries and precedence. Refs #555, parent PR #556.
+
+### Fixed — `bin/sync-agentic-tools.sh`: a missing source repo is reported, not skipped in silence
+
+- #518 changed the toolkit default to `~/Projects/ai-toolkit` and dropped the old variable.
+  An install whose toolkit lives elsewhere then synced nothing from it, with no message.
+  The script now prints `WARN (source repo not found, its tools are NOT synced; set
+  MAOS_TOOLKIT_DIR)` (or `MAOS_DIR`) on stderr for each missing source repo. Behaviour is
+  otherwise unchanged. Test: `bash bin/tests/sync-agentic-tools.test.sh` (fails with the fix removed).
 
 ### Added — `skills/decision-engine` 0.1.0: route each HITL item to DIY, COMPUTE or HITL
 

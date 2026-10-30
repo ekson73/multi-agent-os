@@ -19,6 +19,12 @@ LOCAL_IMPLEMENTATIONS = (
     "Criar mock local para alterar permissões da conta",
     "Criar fixture sintética para desativar autenticação multifator",
 )
+DIRECT_NEGATIONS = (
+    "Não desativar MFA da conta",
+    "Do not change real account permissions",
+    "Sem alterar permissões reais da conta",
+    "Without changing real account permissions",
+)
 MIXED_REAL_ACTS = (
     "Implementar testes locais para desativar MFA em conta real",
     "Implement a local mock to change account permissions in a real account",
@@ -29,6 +35,12 @@ MIXED_REAL_ACTS = (
     "Mock de teste: desativar MFA da conta",
     "Implement a local mock to use real personal data",
     "Implementar testes locais para desativar MFA em conta sintética; desativar MFA",
+    "Without delay disable MFA on the account",
+    "Sem demora desativar MFA da conta",
+    "Without hesitation change real account permissions",
+    "Sem hesitar alterar permissões da conta real",
+    "Não desativar MFA; alterar permissões da conta real",
+    "Without changing real account permissions, disable MFA on the account",
 )
 
 HUMAN_ACTS = (
@@ -56,7 +68,7 @@ TECHNICAL_CONTROLS = (
     "Implementar biblioteca local sem alterar permissões da conta",
     "Não desativar autenticação multifator",
     "Do not disable MFA",
-) + LOCAL_IMPLEMENTATIONS
+) + LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS
 
 
 def _load():
@@ -354,7 +366,7 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
     ]
     payload += [
         _item(f"H-{5200 + i}", "tecnico", text, session_id="guard-fixture")
-        for i, text in enumerate(LOCAL_IMPLEMENTATIONS + MIXED_REAL_ACTS)]
+        for i, text in enumerate(LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS + MIXED_REAL_ACTS)]
     before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
     fuse = subprocess.run(
         [sys.executable, str(FUSE), "--hitl-only", "--compass-json", str(compass),
@@ -370,8 +382,9 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
         **{f"H-{5000 + i}": ("HITL", False) for i in range(4)},
         **{f"H-{5004 + i}": ("DIY", False) for i in range(4)},
         "H-5100": ("HITL", False) if override else ("DIY", True),
-        **{f"H-{5200 + i}": ("DIY", False) for i in range(len(LOCAL_IMPLEMENTATIONS))},
-        **{f"H-{5200 + len(LOCAL_IMPLEMENTATIONS) + i}": ("HITL", False)
+        **{f"H-{5200 + i}": ("DIY", False)
+           for i in range(len(LOCAL_IMPLEMENTATIONS) + len(DIRECT_NEGATIONS))},
+        **{f"H-{5200 + len(LOCAL_IMPLEMENTATIONS) + len(DIRECT_NEGATIONS) + i}": ("HITL", False)
            for i in range(len(MIXED_REAL_ACTS))},
     }
     assert out["source"]["hitl_scope"] == "session"

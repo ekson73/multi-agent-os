@@ -99,6 +99,9 @@ _SYNTHETIC_TARGET_RE = re.compile(
 _REAL_OBJECT_RE = re.compile(r"\b(?:real|reais|live)\b")
 
 _NEG_RE = re.compile(r"\b(n[aã]o|nunca|sem|not|never|no|without)\s+(\w+\s+)?$", re.IGNORECASE)
+# The new human-act guard only accepts a negator adjacent to the action.
+# Legacy exposure negation above keeps its existing policy semantics.
+_ACT_NEG_RE = re.compile(r"\b(?:nao|nunca|sem|not|never|no|without)\s*$")
 
 
 def reports_leak(text: str) -> bool:
@@ -124,7 +127,7 @@ def _fold(text: str) -> str:
 def _human_authority_act(text: str) -> bool:
     folded = _fold(text)
     for m in _HUMAN_ACT_RE.finditer(folded):
-        if _NEG_RE.search(folded[:m.start()]):
+        if _ACT_NEG_RE.search(folded[:m.start()]):
             continue
         if (_LOCAL_IMPL_PREFIX_RE.fullmatch(folded[:m.start()])
                 and _SYNTHETIC_TARGET_RE.fullmatch(folded[m.end():])

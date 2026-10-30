@@ -75,6 +75,8 @@ O ato deve ser apenas a descrição da funcionalidade: alvo real, produção, ou
 sensível ou alvo não reconhecido como sintético continuam HITL. Uma palavra `mock`
 ou `teste` solta não retira o gate. É proteção lexical limitada, não classificação
 universal de HUMAN_DOMAIN.
+A negação só neutraliza o ato quando ligada diretamente ao verbo sensível;
+modificadores adverbiais de urgência não retiram o gate.
 Antes de agir, preserve a confirmação exigida pelo efeito e pela autoridade da ação,
 independentemente de `route`; nenhum veredito concede consentimento.
 
