@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `bin/sync-agentic-tools.sh`: a missing source repo is reported, not skipped in silence
+
+- #518 changed the toolkit default to `~/Projects/ai-toolkit` and dropped the old variable.
+  An install whose toolkit lives elsewhere then synced nothing from it, with no message.
+  The script now prints `WARN (source repo not found, its tools are NOT synced; set
+  MAOS_TOOLKIT_DIR)` (or `MAOS_DIR`) on stderr for each missing source repo. Behaviour is
+  otherwise unchanged. Test: `bash bin/tests/sync-agentic-tools.test.sh` (fails with the fix removed).
+
 ### Added — `skills/decision-engine` 0.1.0: route each HITL item to DIY, COMPUTE or HITL
 
 - New thin skill `skills/decision-engine/` (`bin/decision_engine.py`, stdlib-only, read-only).

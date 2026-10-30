@@ -23,6 +23,13 @@ APPLY=0
 MAOS="${MAOS_DIR:-$HOME/Projects/multi-agent-os}"
 TOOLKIT="${MAOS_TOOLKIT_DIR:-$HOME/Projects/ai-toolkit}"
 REPOS=("$MAOS" "$TOOLKIT")
+# A missing source repo must be loud, not a silent no-op: the toolkit default
+# changed (#518), so an install that kept the old location would otherwise stop
+# syncing its agents and rules without any message.
+for repo in "$MAOS" "$TOOLKIT"; do
+  [ -d "$repo" ] || printf 'WARN (source repo not found, its tools are NOT synced; set %s): %s\n' \
+    "$([ "$repo" = "$MAOS" ] && echo MAOS_DIR || echo MAOS_TOOLKIT_DIR)" "$repo" >&2
+done
 
 SKILLS_DIR="$HOME/.agents/skills"
 AGENTS_DIR="$HOME/.omp/agent/agents"
