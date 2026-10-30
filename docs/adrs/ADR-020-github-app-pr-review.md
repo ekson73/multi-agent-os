@@ -146,6 +146,131 @@ environment: pr-review
 - **No names in this repository.** No organization, account, e-mail, client, private repository or subscription
   is named here; trust boundaries are described as trust boundaries.
 
+### 6. Fallback queue and tenant-scoped engine credentials (amendment, 2026-10-30)
+
+**Why.** The pilot's first real run failed because its only model engine had hit its subscription usage limit.
+The pilot's log shows only `Process completed with exit code 1` for the review step, with no limit text, so the
+engine's error was not even captured. One engine is a single point of failure: a reviewer that stops for days
+when one quota runs out is not a gate anyone can rely on.
+
+**Decision.** The reviewer stays **one App per trust boundary and one reusable workflow**. Inside the agent job,
+the engine adapters of §5 are tried from an ordered **queue**.
+When an engine reports a usage/quota limit, the next one runs. When no engine in the queue can run, the job
+**fails closed**: no verdict is published. This repository ships the mechanism, the adapter contract and a
+neutral example. It ships **no** default engine, no default order and no credential name.
+
+#### 6.1 Adapter contract (detail of §5)
+
+Every adapter is a small script with the same inputs and outputs, so the rest of the workflow does not know
+which engine ran.
+
+| part | contract |
+|---|---|
+| input | the stripped PR checkout (read-only), the base checkout, the review prompt file, a verdict JSON Schema |
+| tools | read files and search only. No shell, no file writes, no network beyond the engine's own endpoint |
+| output | one JSON object that matches the verdict schema (`verdict`, `findings[]` with `path@SHA#L` citations) |
+| exit class | exactly one of `ok`; `quota` (limit or cap reached: try the next engine); `auth` (credential missing or expired: try the next engine and flag it); `error` (anything else: **stop the queue and fail closed**) |
+| logs | the engine's raw stderr and its structured error event stay in the job log, redacted, so every `quota` vs `error` call can be audited |
+
+Only `quota` and `auth` move the queue on. A malformed verdict, a refusal or a crash is `error`: moving on would
+let a prompt-injected PR shop for the most lenient engine.
+
+The validation job is unchanged: it checks the verdict against the schema, the grounding of every citation and
+that the head SHA did not move, whatever engine produced it. The verdict records the adapter name, so each review
+is auditable per engine.
+
+#### 6.2 Admission test for an adapter
+
+An engine gets an adapter only when the first four answers are measured in that engine's own primary sources
+(official docs, terms of use, `--help` of the pinned version) and recorded next to the adapter; the fifth is
+checked on every run:
+
+1. **CI login within the terms.** Can the credential it uses run on the runner type the caller uses, inside the
+   provider's terms? How is it provisioned (token, device flow, cached file), does it expire, and how is it
+   renewed? A credential that only works by copying a person's interactive login cache to a runner, against or
+   outside the provider's documented flows, is not admitted.
+2. **Read-only.** Can it be held to read and search tools only, with shell, writes and outbound network off? A
+   sandbox that still lets the agent run shell commands is not the same as "no shell", and is recorded as such.
+3. **Structured verdict.** Can it be forced to emit JSON that matches a schema?
+4. **Limit detection.** Is there a machine-readable signal (an error class, an event field, an exit code) that
+   separates "quota/limit reached" from other failures? If the only signal is free text or a generic exit code,
+   the adapter maps it to `error` (fail closed), never to `quota`.
+5. **Tenant scope (checked per run, not once).** Which tenant does this credential belong to, and is the target
+   repository inside that tenant (or inside a tenant administered by the umbrella that owns the credential)? If
+   not, the queue skips this credential: that engine fails closed for this run and the next entry is tried.
+
+An answer that cannot be confirmed in a primary source is recorded as "not confirmed" and counts as **no**.
+Some provider flows are documented only for private, trusted, single-stream runners; such an adapter declares
+that constraint, and the caller must not use it on a public repository or with parallel jobs on one credential.
+
+#### 6.3 Credentials: umbrella pool vs tenant-owned
+
+Two kinds of engine credential, and one rule for each:
+
+| kind | who pays for it | may review |
+|---|---|---|
+| **umbrella (operator) credential** | the operator who administers several tenants | repositories of **every** tenant that operator administers, the operator's own included |
+| **tenant-owned credential** | one tenant (a subscription, token, App or secret paid by that tenant) | repositories of **that tenant only**; it never crosses to another tenant or to the umbrella's own repositories |
+
+So each tenant's queue is: `[that tenant's own engines, if any] -> [the umbrella pool]`. The umbrella's own queue
+never contains a tenant-owned engine. A queue that ends up empty after the tenant-scope check (§6.2, question 5)
+fails closed.
+
+The `owner:` label in the caller's config is a check, not the authority. The authority is **where the secret is
+stored**: a tenant-owned secret exists only in that tenant's repositories or organization, so a repository of
+another tenant cannot name it into existence. The umbrella decides by hand which tenants receive a copy of an
+umbrella secret. The workflow also refuses a run whose config says `owner: <tenant>` for a tenant other than
+the repository's own.
+
+This governs **engine** credentials only. The **App** rule of §3 is unchanged: each trust boundary keeps its own
+App and key, because an App key approves PRs, while an engine credential only produces a verdict that the
+boundary's own publish job still validates.
+
+#### 6.4 Where the real configuration lives
+
+As in §5: nothing boundary-specific lands in this public repository; the real values live in the caller
+repository or on the user's machine. The queue extends the §5 schema: an `engines` entry may be an object that
+names the credential's owner and its own secret, which replaces the single `engine_credential_secret`. Neutral
+example of that block:
+
+```yaml
+# .github/pr-review.yml in the caller repository (example; values are placeholders)
+boundary: tenant-a                  # §5 key: this repository's trust boundary (here, a tenant)
+engines:                            # tried in order; first one that returns ok wins
+  - adapter: engine-a               # tenant-owned: usable only inside tenant-a
+    owner: tenant-a
+    secret: TENANT_ENGINE_A_TOKEN   # name of an environment secret of THIS repository
+    runner: github-hosted
+  - adapter: engine-b               # umbrella pool: usable in every tenant the umbrella administers
+    owner: umbrella
+    secret: UMBRELLA_ENGINE_B_TOKEN
+    runner: self-hosted-persistent  # when the adapter requires it
+    concurrency: serialized         # one job stream per credential, if the adapter requires it
+on_exhausted: fail-closed           # the only accepted value
+```
+
+#### 6.5 What does not change
+
+One App per trust boundary; the agent job never sees the App key; the publish job validates the verdict
+fail-closed on the reviewed SHA; the manual comment trigger; no forks. The rollout gate is unchanged: **≥2 real
+green reviews in the pilot** before phase 2, and the same ≥2 again on the first repository of a new tenant
+before widening. A fallback engine counts toward the gate only for reviews it actually produced.
+
+#### 6.6 Risks
+
+- **Terms of use.** Subscription logins are personal or contractual. Each adapter carries its provider's CI
+  constraints (private-only, single-stream, no copying of login caches); a caller that breaks them is outside
+  the provider's terms, not just outside this design.
+- **Quota misread.** A provider may report capacity errors and quota errors under one class. Treating both as
+  `quota` only moves to the next engine; it never publishes a verdict, so the cost is a wasted run, not a wrong
+  approval.
+- **Umbrella credential spread.** A copy of an umbrella secret in a tenant's repository can be read by anyone who
+  can merge a workflow to that repository's `main`. So an umbrella secret goes only to tenant repositories that
+  pass the §3 install rule (protected `main`, environment restricted to `main`), and a leak of it is a leak of
+  the umbrella's quota for every tenant. Rotating it revokes all copies at once.
+- **Engine diversity.** Different engines may judge the same PR differently. The verdict names the adapter, and
+  the gate counts reviews per engine, so a lenient engine is visible in the audit.
+
 ## Rejected alternatives
 
 | alternative | why rejected |
