@@ -89,14 +89,15 @@ else
     while IFS= read -r line; do
         [ -n "$line" ] || continue
         n="$(printf '%s' "$line" | grep -oE '[0-9]+$')"
-        if [ "$n" != "$CAP" ]; then
-            bad "depth cap $n ≠ SSOT $CAP: ${line#"$ROOT"/}"
+        # a lower, role-specific cap is allowed (SSOT §8: the lower one applies)
+        if [ "$n" -gt "$CAP" ]; then
+            bad "depth cap $n > SSOT $CAP: ${line#"$ROOT"/}"
             drift=1
         fi
     done <<EOF
 $hits
 EOF
-    [ "$drift" -eq 0 ] && ok "no Markdown file states a delegation depth cap other than $CAP"
+    [ "$drift" -eq 0 ] && ok "no Markdown file states a delegation depth cap above $CAP"
 
     # rendered values (config tables, "current/max" status displays): value
     # check only — examples need not link the SSOT, but must show the cap.

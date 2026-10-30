@@ -110,7 +110,7 @@ The list is closed; it assumes a runtime that can delegate (where none exists, d
 | Memory judgment (what to persist or promote) | non-judgment upkeep (e.g. pruning stale entries) may be delegated; deciding what to persist or promote may not; user-scope persistence needs operator confirmation |
 | World boundary (keeping separate contexts and identities apart) | crossing it is never a delegate's call |
 
-**Before escalating to the human**, run the agentic council (`skills/convergence-engine`, `skills/council-gate`); only the irreducible residue goes to the human. A council result never authorizes an action outside the invoker's scope; out-of-scope results are advice only.
+**Before escalating to the human**, run the agentic council (`skills/convergence-engine`, `skills/council-gate`); only the irreducible residue goes to the human. A leaf does not convene the council (that would delegate); it returns the escalation to its parent, which runs it. A council result never authorizes an action outside the invoker's scope; out-of-scope results are advice only.
 
 **Default sweep on delegated work.** Unless the briefing narrows it, delegated work carries the sweep, as part of the task it was given (it is not an authority grant: anything beyond the task still needs one): analyze, criticize, find and fix bugs, gaps, warnings, failures, errors, security issues and inconsistencies, improve, harmonize, sanitize.
 

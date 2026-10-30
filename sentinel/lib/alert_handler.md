@@ -1529,7 +1529,7 @@ async def main_example():
         {
             "task": "Spawn dev agent for testing",
             "agent_type": "dev",
-            "chain": "Orchestrator → Dev → Dev → Dev"
+            "chain": "Orchestrator → Dev → Dev"
         }
     )
 

@@ -167,14 +167,15 @@ echo ""
 # another file restates a different depth cap or the SSOT loses the
 # authority-inheritance rule / never-delegable list.
 DAS_TEST="$PLUGIN_ROOT/tests/governance/test-delegation-authority-ssot.sh"
-if [ -x "$DAS_TEST" ]; then
-    if bash "$DAS_TEST" "$PLUGIN_ROOT" >/dev/null 2>&1; then
-        pass "tests/governance/test-delegation-authority-ssot.sh passes"
-    else
-        fail "tests/governance/test-delegation-authority-ssot.sh FAILED (run 'bash tests/governance/test-delegation-authority-ssot.sh' for details)"
-    fi
+if [ ! -f "$DAS_TEST" ]; then
+    fail "tests/governance/test-delegation-authority-ssot.sh missing"
+elif [ ! -x "$DAS_TEST" ]; then
+    fail "tests/governance/test-delegation-authority-ssot.sh is not executable"
+elif DAS_OUT="$(bash "$DAS_TEST" "$PLUGIN_ROOT" 2>&1)"; then
+    pass "tests/governance/test-delegation-authority-ssot.sh passes"
 else
-    fail "tests/governance/test-delegation-authority-ssot.sh missing or not executable"
+    fail "tests/governance/test-delegation-authority-ssot.sh FAILED:"
+    printf '%s\n' "$DAS_OUT" | grep -E '✗|FAIL' | tail -10 | sed 's/^/      /'
 fi
 echo ""
 

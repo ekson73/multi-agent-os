@@ -73,7 +73,7 @@ intake -> 33-socratic interrogation (§4)
       -> RED-TEAM refutation (§5.2.5)             --refuted-->  P4 FAILS -> HITL (§7)   [the missed-facet catch]
                                                   --survives-->
       -> evaluate predicate P0..P5 (§6)
-                    P0 fails (beyond the task without a verifiable grant) -> HITL_OUT_OF_SCOPE (§6)
+                    P0 fails (beyond the task without a verifiable grant) -> HITL_OUT_OF_SCOPE (§6): delegated invoker -> back to its parent; root -> §7
                     predicate PASS + ARMED        -> execute + decision-capture (§6.3)
                     predicate PASS + UNARMED       -> emit verdict + 1-touch confirm (§1)
                     predicate FAIL, score recoverable -> Score-Uplift (<=3) -> re-loop <= n*
@@ -145,7 +145,7 @@ AUTHORIZE_EXECUTED ⟺ P0 within-invoker-scope ∧ P1 Layer-1 deterministic-clea
 The **safe class is P0–P4**; **P5 (armed) is the *only* difference** between executed and consultative. On **any** terminal verdict run `maos:decision-capture` (`agentic-decide`) **first**: record the **verdict** · **why** · `spec_alignment` · the council trace · **the red-team trace** · the Layer-1 clear · the score. Metron needs the record whether or not it executed (authorize-rate + regret-rate), and this guarantees **every emitted `audit_ref` (§8) is backed by a real record** — no dangling ref on the default unarmed path. **Only on AUTHORIZE + ARMED** does the gate then **execute the action** — and it executes it **through the caller under the caller's existing guardrails** (the same hooks + the §5.1 Layer-1 deny-set), never by expanding its own shell surface (see the §5.1 execution-surface constraint). A `HITL_*` verdict emits `audit_ref: null` (nothing was authorized to capture beyond the escalation itself).
 
 ## §7 — HITL fallback = contestable evidence, NOT a persuasive verdict
-When the predicate fails (the action is outside the invoker's verifiable scope (P0), OR Layer 1 blocks, OR the red-team refutes, OR score/convergence falls short), escalate via `AskUserQuestion` (tool-over-prose, per `end-of-action-briefing-protocol` §7.1) carrying:
+When the predicate fails (the action is outside the invoker's verifiable scope (P0), OR Layer 1 blocks, OR the red-team refutes, OR score/convergence falls short), escalate (a delegated invoker returns a P0 failure to its parent instead; only the root, or a residue the parent cannot resolve, reaches the human) via `AskUserQuestion` (tool-over-prose, per `end-of-action-briefing-protocol` §7.1) carrying:
 1. **Ranked recommendations** (recommended FIRST + tagged), each with its **confidence** and the **tradeoff** as the description.
 2. The **audit trail / council trace + red-team trace** the human can inspect to **contest without re-doing the work** (evidence-first, not argument-first — the Explainability-Paradox counter).
 3. **Friction proportional to stakes** (rule §5.3; no blanket friction on trivial safe-class).
