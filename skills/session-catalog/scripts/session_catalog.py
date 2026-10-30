@@ -781,7 +781,9 @@ class Ctx:
             if path not in self.explicit and st.st_mtime >= self.high_water:
                 rc["files_deferred_recent_or_unstable"] += 1
                 return None
-            cap = self.limits["max_record_bytes"] if whole_record else self.limits["max_file_bytes"]
+            # a whole-document source is one record AND one file: both budgets bound it
+            cap = (min(self.limits["max_record_bytes"], self.limits["max_file_bytes"]) if whole_record
+                   else self.limits["max_file_bytes"])
             if st.st_size > cap:
                 self.quarantine_(store, path, "file-over-size-cap")
                 return None
@@ -1232,9 +1234,9 @@ def _brain_usable(ctx: "Ctx", files: List[str]) -> bool:
     high_water and opens (no-follow, bound to the walked object) as nonempty UTF-8 within the file
     cap. A compact verdict: nothing is parsed, retained or counted, so deduplicating a large mirror
     neither holds every primary transcript in memory nor spends the record budget twice."""
-    cap = ctx.limits["max_file_bytes"]
+    cap = min(ctx.limits["max_file_bytes"], ctx.limits["max_record_bytes"])
     for f in files:
-        if ctx.mtime(f) >= ctx.high_water:
+        if ctx.excluded(f) or ctx.mtime(f) >= ctx.high_water:  # an excluded primary never stands in
             continue
         try:
             fd, st = ctx.open_source(f, ctx.walked.get(f))

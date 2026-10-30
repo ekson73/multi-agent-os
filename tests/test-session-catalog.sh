@@ -1128,6 +1128,15 @@ mprim = mst["antigravity/brain"].units()
 ok(mst["antigravity-ide/brain"].units() == [] and mctx.receipt["antigravity-ide/brain"]["sessions_duplicate_skipped"] == 6
    and all(u._kept is None for u in mprim),
    "mirror deduplication skips valid duplicates without retaining the primary transcripts")
+xctx = mod.Ctx(mh, time.time(), dict(mod.LIMITS), ["*/antigravity/brain/*"], b"k" * 32)
+xst = {x.id: x for x in mod.build_stores(xctx, [])}
+xst["antigravity/brain"].units()
+ok(len(xst["antigravity-ide/brain"].units()) == 6, "an --exclude-path'd primary brain copy does not suppress its mirror")
+sctx = mod.Ctx(mh, time.time(), dict(mod.LIMITS, max_file_bytes=4, max_record_bytes=1024), [], b"k" * 32)
+sst = {x.id: x for x in mod.build_stores(sctx, [])}
+su = sst["antigravity/brain"].units()
+ok(all(not u.load()[1] for u in su) and any(q["reason"] == "file-over-size-cap" for q in sctx.quarantine),
+   "a whole-document source is bounded by --max-file-bytes too, not only --max-record-bytes")
 
 cctx = mod.Ctx(rx_home, time.time(), dict(mod.LIMITS), [], b"k" * 32)
 cstore = mod.Store("export/chatgpt/0", "openai", "openai.chatgpt-export", rx_home, "zip", "acct-x", kind="export")
