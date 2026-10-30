@@ -862,7 +862,7 @@ test("standard offline guard ignores URL-like text in visible content", async (c
   if (!needsArchify(context)) return;
   await temp(async (directory) => {
     const model = await mutateModel(directory, (value) => {
-      value.plan.work_items[0].title = "Investigate url(https://example.com/font.woff2) usage";
+      value.plan.work_items[0].title = "Remove fonts.googleapis.com and url(https://example.com/font.woff2)";
     }, readyFixture);
     const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
     assert.equal(render.status, 0, render.stderr);

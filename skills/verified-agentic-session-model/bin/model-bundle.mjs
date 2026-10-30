@@ -2067,7 +2067,6 @@ function enforceOfflineHtml(html) {
   if (charsetAt === -1 || html.indexOf(CHARSET_LINE, charsetAt + 1) !== -1 || !OFFLINE_HEAD_PREFIX.test(html.slice(0, charsetAt)) || !html.startsWith(OFFLINE_CSP_LINE, charsetAt + CHARSET_LINE.length)) {
     throw new AppError("NETWORK_ACCESS_DENIED", "HTML lacks the exact offline Content-Security-Policy as live head metadata right after its charset declaration");
   }
-  if (/fonts\.googleapis\.com|fonts\.gstatic\.com/u.test(html)) throw new AppError("NETWORK_ACCESS_DENIED", "HTML still references Google Fonts");
 }
 
 function offlineArchifyHtml(html) {
