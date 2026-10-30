@@ -1735,3 +1735,31 @@ test("visible prose naming browser APIs renders, while injected active markup is
     assert.ok(["SIDECARD_PASSIVITY_FAILED", "SIDECARD_OUTER_MISMATCH"].includes(body(tampered.stderr).error.code), tampered.stderr);
   });
 });
+
+test("derive-child refuses to write a child above the input limit and leaves no output", async () => {
+  await temp(async (directory) => {
+    const model = JSON.parse(await readFile(activeFixture, "utf8"));
+    const ids = [];
+    const padding = 3250; // content + purpose per record: parent stays under 2 MiB, pretty-printed child does not
+    for (const collection of ["dna", "templates", "governance"]) {
+      const [base] = model.inert_material[collection];
+      model.inert_material[collection] = Array.from({ length: 100 }, (_unused, index) => {
+        const id = index === 0 ? base.id : `pad_${collection}_${index}`;
+        ids.push(id);
+        return { ...base, id, content: "x".repeat(padding), purpose: "y".repeat(padding) };
+      });
+    }
+    const file = path.join(directory, "big-parent.session-model.json");
+    const compact = JSON.stringify(model);
+    await writeFile(file, compact);
+    assert.ok(Buffer.byteLength(compact) < 2 * 1024 * 1024, "the parent itself must be within the limit");
+    assert.equal(run(["validate", file]).status, 0);
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(childRequest({ inherited_material_ids: ids })));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", file, "--request", requestFile, "--expected-digest", sha(Buffer.from(compact)), "--out", output]);
+    assert.equal(result.status, 1, result.stdout.slice(0, 300));
+    assert.equal(body(result.stderr).error.code, "FILE_TOO_LARGE");
+    assert.equal(fs.existsSync(output), false);
+  });
+});

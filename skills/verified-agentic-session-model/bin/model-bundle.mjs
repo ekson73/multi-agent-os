@@ -2494,13 +2494,17 @@ async function deriveChildCommand(modelFile, options) {
   validateModel(child);
   validatePortableDistribution(child);
   enforceSensitivePreflight(canonicalBytes(child));
+  // Serialize once: the child must stay within the same 2 MiB input limit every later
+  // command enforces, or derive-child would succeed and then produce an unusable file.
+  const childText = jsonText(child);
+  if (Buffer.byteLength(childText) > MAX_BYTES) throw new AppError("FILE_TOO_LARGE", "Derived child would exceed the 2 MiB input limit; request fewer inherited materials");
   const output = path.resolve(options.out);
   if (output === path.resolve(modelFile)) throw new AppError("CHILD_OUTPUT_ALIASES_PARENT", "Child --out must not be the same path as the parent model file");
   await ensureOwnedJsonOutput(output);
   const release = await acquireLock(path.join(path.dirname(output), `.${path.basename(output)}.lock`));
   try {
     if (!(await readBounded(modelFile, "parent session model")).equals(bytes)) throw new AppError("BASE_DIGEST_MISMATCH", "Parent changed before child commit");
-    await atomicWrite(output, jsonText(child));
+    await atomicWrite(output, childText);
   } finally {
     await release();
   }
