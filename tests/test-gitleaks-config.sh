@@ -196,6 +196,8 @@ p_alnum="$(printf '%s%s%s%s' 'n7k2' 'm4p8' 'q1r6' 't3w5')"
 p_uscore="$(printf '%s%s' 'ab_cd_' 'efghij12')"
 # Mixed case must not take the uppercase-constant exemption.
 p_mixed="$(printf '%s%s' 'N7k2m4p8' 'q1r6t3w5')"
+# All-caps literal with no '_' segment is not an identifier: must still fire.
+p_upper="$(printf '%s%s' 'ABAB' 'ABAB')"
 # 8 and 9 characters — below the old 3.5 entropy ceiling.
 p_short="$(printf '%s%s' 'k3m8' 'q2w7')"
 p_short_uri="$(printf '%s%s%s' 'b4n6' 'p8r1' 't')"
@@ -217,6 +219,7 @@ pos="$(printf '%s\n' \
   "client_secret=${p_alnum}" \
   "app_secret=${p_uscore}" \
   "api_secret=${p_mixed}" \
+  "app_secret=${p_upper}" \
   "client_secret=${p_short}" \
   "app_secret=${p_punct}" \
   "spring.datasource.password=\${DB_PASSWORD:${p_env}}" \
@@ -236,6 +239,7 @@ if [ "$(nrule "$r_pos" app-password-assignment)" -ge 8 ] \
    && has_rule_secret "$r_pos" app-password-assignment "$p_alnum" \
    && has_rule_secret "$r_pos" app-password-assignment "$p_uscore" \
    && has_rule_secret "$r_pos" app-password-assignment "$p_mixed" \
+   && has_rule_secret "$r_pos" app-password-assignment "$p_upper" \
    && has_rule_secret "$r_pos" app-password-assignment "$p_short" \
    && has_rule_secret "$r_pos" app-password-assignment "$p_punct"; then
   ok "ASSIGN positive: alphanumeric, short, punctuation, env, yaml, ini detected"
@@ -273,6 +277,12 @@ neg="$(printf '%s\n' \
   'secret = SOME_CONSTANT_NAME' \
   'secret = SECRET_PARAM_RE.match(_snake(dk))' \
   'password = os.getenv("BITBUCKET_APP_PASSWORD")' \
+  'password = os.environ["DB_PASSWORD"]' \
+  'password = os.environ.get("DB_PASSWORD")' \
+  'secret = process.env.APP_SECRET' \
+  'password = self.config.password' \
+  'password = request.form["password"]' \
+  'APP_SECRET=$APP_SECRET_VALUE' \
   "secret:${p_asg}" \
   "export ABSECRET=${p_asg}" \
   'quarkus.datasource.password=${APP_DB_PASSWORD:***}' \
@@ -307,6 +317,17 @@ ang="$(printf '<%s>' 'REDACTED')"
 r_ang="$(scan "$(printf 'DB_PASSWORD=%s\npassword=%s\n' "$ang" '<...>')")"
 if [ -z "$r_ang" ]; then ok "ANGLE: angle-bracket placeholder fires no rule"
 else bad "ANGLE: angle-bracket placeholder fired $(nrule "$r_ang" app-db-password) app-db-password finding(s)"; fi
+
+# ANTI-BYPASS for the angle-bracket exemption: only the exact mask <REDACTED>
+# is a placeholder. Any other bracketed value, mixed case or uppercase with
+# digits, is not a placeholder and must still fire app-db-password.
+wrap1="$(printf '<%s%s>' 'notA' 'Placeholder9x')"
+wrap2="$(printf '<%s%s>' 'A123' '4567')"
+r_wrap="$(scan "$(printf 'DB_PASSWORD=%s\npassword=%s\n' "$wrap1" "$wrap2")")"
+if [ "$(nrule "$r_wrap" app-db-password)" -ge 2 ]; then ok "ANGLE ANTI-BYPASS: bracket-wrapped non-placeholder values still fire"
+else bad "ANGLE ANTI-BYPASS: a bracket-wrapped non-placeholder value was suppressed ($(nrule "$r_wrap" app-db-password)/2)"; fi
+if [ "$(nrule "$r_wrap" app-password-assignment)" -ge 2 ]; then ok "ANGLE ANTI-BYPASS: app-password-assignment also fires on bracket-wrapped non-placeholders"
+else bad "ANGLE ANTI-BYPASS: app-password-assignment suppressed a bracket-wrapped non-placeholder ($(nrule "$r_wrap" app-password-assignment)/2)"; fi
 
 # Built-in rules. Tokens are generated here; the source has no ghp_ or AKIA literal.
 p_ghp="$(python3 - <<'PY'
@@ -351,6 +372,8 @@ fi
 # The insights doc must pass because its values are masked. Scan the file
 # CONTENTS under a neutral fixture name so a path allowlist cannot hide it.
 doc_body="$(cat "$HERE/../docs/insights/secret-management-strategy.md")"
+# Hard stop by design: a scanner error (scan returns 2) aborts the suite via
+# set -e instead of being counted as a soft failure, same as every scan above.
 r_doc="$(scan "$doc_body")"
 doc_new=$(( $(nrule "$r_doc" app-uri-userinfo-password) + $(nrule "$r_doc" app-password-assignment) + $(nrule "$r_doc" app-env-default-secret) ))
 if [ "$doc_new" -eq 0 ]; then ok "DOC: secret-management-strategy.md content does not trip the new rules"
