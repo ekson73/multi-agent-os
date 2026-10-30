@@ -307,7 +307,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   attributes are still scanned, exact reconstruction still refuses any outer edit).
 - Also masked: topology, successor-cycle and history-mismatch diagnostics no longer echo
   identifiers.
-- Round 6 (codex): `derive-child` serializes the child once and refuses (`FILE_TOO_LARGE`, no output
+- Round 6 (codex): schema diagnostics report an unexpected property as `<unexpected-property>`
+  instead of echoing its name. `derive-child` serializes the child once and refuses (`FILE_TOO_LARGE`, no output
   written) when it would exceed the 2 MiB input limit that every later command enforces.
 - VERSION stays 2.1.4 so already-published 2.1.4 sidecards keep verifying. Measured: old and
   new CLI give identical `validate` results on 25 eko-engram models and identical `verify`

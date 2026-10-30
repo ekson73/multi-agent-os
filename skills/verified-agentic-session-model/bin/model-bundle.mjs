@@ -421,7 +421,7 @@ function schemaErrors(instance, schemaFile) {
       const properties = schema.properties || {};
       for (const [key, child] of Object.entries(value)) {
         if (Object.hasOwn(properties, key)) check(child, properties[key], `${at}/${pointerEscape(key)}`, documentFile, sink);
-        else if (schema.additionalProperties === false) add(sink, `${at}/${pointerEscape(key)}`, "additionalProperties", "property is not allowed");
+        else if (schema.additionalProperties === false) add(sink, `${at}/<unexpected-property>`, "additionalProperties", "property is not allowed (name masked)");
         else if (schema.additionalProperties && typeof schema.additionalProperties === "object") check(child, schema.additionalProperties, `${at}/${pointerEscape(key)}`, documentFile, sink);
       }
     }

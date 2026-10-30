@@ -1763,3 +1763,17 @@ test("derive-child refuses to write a child above the input limit and leaves no 
     assert.equal(fs.existsSync(output), false);
   });
 });
+
+test("schema diagnostics never echo an unexpected property name", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.metadata["ghp_abcdefghijklmnopqrstuvwxyz123456"] = "x"; }, readyFixture);
+    for (const command of ["validate", "next"]) {
+      const result = run([command, model]);
+      assert.equal(result.status, 1, command);
+      const error = body(result.stderr).error;
+      assert.equal(error.code, "MODEL_SCHEMA_INVALID");
+      assert.ok(error.details.some((detail) => detail.keyword === "additionalProperties" && detail.path === "/metadata/<unexpected-property>"), result.stderr);
+      assert.ok(!result.stderr.includes("ghp_"), `${command} leaked the property name`);
+    }
+  });
+});
