@@ -825,7 +825,8 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
       entityEncodedHref: "<link rel=\"icon\" href=\"https&#58;//evil.example/i.png\">",
       styleAttribute: "<div style=\"background:url(//evil.example/a)\"></div>",
       handler: "<img alt=\"\" src=\"#\" onerror=\"this.src='https://evil.example/p'\">",
-      scriptFetch: "<script>fetch('/x')</script>"
+      scriptFetch: "<script>fetch('/x')</script>",
+      quotedGreaterThan: "<link title=\">\" rel=\"stylesheet\" href=\"https://evil.example/a.css\">"
     };
     for (const [name, vector] of Object.entries(vectors)) {
       const injected = html.replace("</head>", `${vector}\n</head>`);

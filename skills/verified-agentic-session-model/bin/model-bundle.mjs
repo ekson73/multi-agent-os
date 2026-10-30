@@ -2099,7 +2099,8 @@ function parseAttributes(tag) {
 function remoteResourceRefs(html) {
   const found = [];
   const flag = (offset, reason, excerpt) => found.push({ offset, reason, excerpt: excerpt.slice(0, 80) });
-  const contexts = /<!--[\s\S]*?-->|(<script\b[^>]*>)([\s\S]*?)<\/script\s*>|(<style\b[^>]*>)([\s\S]*?)<\/style\s*>|<[a-zA-Z][^>]*>/giu;
+  // Quote-aware start tags: a ">" inside a quoted attribute value does not end the tag.
+  const contexts = /<!--[\s\S]*?-->|(<script\b(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)<\/script\s*>|(<style\b(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)<\/style\s*>|<[a-zA-Z](?:"[^"]*"|'[^']*'|[^'">])*>/giu;
   for (const match of html.matchAll(contexts)) {
     if (match[0].startsWith("<!--")) continue;
     const tag = match[1] ?? match[3] ?? match[0];
