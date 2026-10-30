@@ -1114,11 +1114,34 @@ put(".gemini/antigravity/brain/%s/task.md" % BID, raw=b"\xff\xfe broken", home=b
 put(".gemini/antigravity-ide/brain/%s/task.md" % BID, raw=b"# Task\n- [ ] mirror MIRROR-OK-7Q\n", home=bh)
 bctx = mod.Ctx(bh, time.time(), dict(mod.LIMITS), [], b"k" * 32)
 bst = {x.id: x for x in mod.build_stores(bctx, [])}
-bst["antigravity/brain"].units()
+prim = bst["antigravity/brain"].units()
 mirror = bst["antigravity-ide/brain"].units()
 ok(len(mirror) == 1 and "MIRROR-OK-7Q" in " ".join(m["text"] for m in mirror[0].load()[1]),
    "a malformed primary brain copy does not hide the valid IDE mirror of the same conversation")
+mh = os.path.join(FIX, "home-brain-many")
+for i in range(6):
+    for root in ("antigravity", "antigravity-ide"):
+        put(".gemini/%s/brain/c0ffee22-0000-4000-8000-00000000000%d/task.md" % (root, i), raw=b"# Task\n- [ ] dup\n", home=mh)
+mctx = mod.Ctx(mh, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+mst = {x.id: x for x in mod.build_stores(mctx, [])}
+mprim = mst["antigravity/brain"].units()
+ok(mst["antigravity-ide/brain"].units() == [] and mctx.receipt["antigravity-ide/brain"]["sessions_duplicate_skipped"] == 6
+   and all(u._kept is None for u in mprim),
+   "mirror deduplication skips valid duplicates without retaining the primary transcripts")
 
+cctx = mod.Ctx(rx_home, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+cstore = mod.Store("export/chatgpt/0", "openai", "openai.chatgpt-export", rx_home, "zip", "acct-x", kind="export")
+_n = lambda i, par, role, **m: {"id": i, "parent": par, "message": dict({"author": {"role": role}}, **m)}  # noqa: E731
+conv = {"conversation_id": "c1", "current_node": "d", "mapping": {
+    "a": _n("a", None, "user", content={"content_type": "text", "parts": ["visible QUESTION-7Q"]}),
+    "b": _n("b", "a", "assistant", channel="analysis", content={"content_type": "text", "parts": ["REASONING-7Q"]}),
+    "c": _n("c", "b", "assistant", recipient="python", content={"content_type": "code", "text": "TOOLARGS-7Q"}),
+    "d": _n("d", "c", "assistant", content={"content_type": "text", "parts": ["visible ANSWER-7Q"]})}}
+cmeta, cmsgs = mod.load_chatgpt_conv(cctx, cstore, "x.json", 0, conv)
+ctext = " ".join(m["text"] for m in cmsgs)
+ok("QUESTION-7Q" in ctext and "ANSWER-7Q" in ctext and "REASONING-7Q" not in ctext and "TOOLARGS-7Q" not in ctext
+   and any(m["kind"] == "tool_call" for m in cmsgs),
+   "ChatGPT analysis-channel and tool-directed messages are not emitted as dialogue (tool name kept)")
 # 15. passes 1 and 2 never touch the network: any socket creation raises
 import socket as _socket
 _orig_socket = _socket.socket

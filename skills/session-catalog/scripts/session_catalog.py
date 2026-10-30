@@ -1227,16 +1227,29 @@ def load_agy_history(ctx: Ctx, store: "Store", path: str, fh) -> Dict[str, tuple
     return {cid: (meta, emitters[cid].result()) for cid, meta in metas.items()}
 
 
-def _brain_usable(ctx: "Ctx", unit: "Unit") -> bool:
-    """The primary brain copy loaded (cached, so it is read once) into dialogue that ended before high_water."""
-    try:
-        meta, msgs = unit.load(keep=True)
-    except Exception:
-        return False
-    if meta is None or not msgs:
-        return False
-    stamps = [m["ts"] for m in msgs if m["ts"]]
-    return bool(stamps) and max(stamps) < iso(ctx.high_water)
+def _brain_usable(ctx: "Ctx", files: List[str]) -> bool:
+    """Whether the primary brain copy can stand in for its mirror: at least one artifact is past
+    high_water and opens (no-follow, bound to the walked object) as nonempty UTF-8 within the file
+    cap. A compact verdict: nothing is parsed, retained or counted, so deduplicating a large mirror
+    neither holds every primary transcript in memory nor spends the record budget twice."""
+    cap = ctx.limits["max_file_bytes"]
+    for f in files:
+        if ctx.mtime(f) >= ctx.high_water:
+            continue
+        try:
+            fd, st = ctx.open_source(f, ctx.walked.get(f))
+        except OSError:
+            continue
+        with os.fdopen(fd, "rb") as fh:
+            if st.st_mtime >= ctx.high_water or st.st_size > cap:
+                continue
+            raw = fh.read(cap + 1)
+        try:
+            if len(raw) <= cap and raw.decode("utf-8").strip():
+                return True
+        except UnicodeDecodeError:
+            continue
+    return False
 
 
 def load_brain(ctx: Ctx, store: "Store", files: List[str], sid: str) -> tuple:
@@ -1454,6 +1467,14 @@ def load_chatgpt_conv(ctx: Ctx, store: "Store", path: str, idx: int, conv: dict)
         c = m.get("content") if isinstance(m.get("content"), dict) else {}
         parts = c.get("parts") if isinstance(c.get("parts"), list) else [c.get("text")]
         ts = m.get("create_time")
+        recipient, channel, ctype = m.get("recipient"), m.get("channel"), c.get("content_type")
+        if role == "assistant" and recipient not in (None, "all"):
+            e.tool_call(ts, idx, recipient)  # tool-directed: arguments are a tool payload, only the name is kept
+            continue
+        if role in ("user", "assistant") and (channel not in (None, "final") or
+                                              ctype not in (None, "text", "multimodal_text")):
+            e.drop(ts, idx)  # hidden reasoning (analysis/commentary channel, thoughts) or a non-prose payload
+            continue
         if role in ("user", "assistant"):
             e.text(role, [p for p in parts if isinstance(p, str)], ts, idx)
             for p in parts:
@@ -1767,7 +1788,7 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]], scope: Optional[List[
                         reason="full trajectories are protobuf blobs inside SQLite with no public schema; "
                                "not parsed (this tool never opens SQLite)"))
 
-    primary_brain: Dict[str, Unit] = {}  # conversation id -> the primary (antigravity) unit
+    primary_brain: Dict[str, List[str]] = {}  # conversation id -> the primary (antigravity) artifact files
     for name in ("antigravity", "antigravity-ide"):
         base = J(".gemini", name)
         stores.append(Store(name + "/conversations", "google", "google.antigravity",
@@ -1792,7 +1813,7 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]], scope: Optional[List[
                 u = Unit(os.path.dirname(files[0]), lambda files=files, sid=sid: load_brain(ctx, s, files, sid),
                          max(ctx.mtime(f) for f in files))
                 if s.id == "antigravity/brain":
-                    primary_brain[sid] = u
+                    primary_brain[sid] = files
                 units.append(u)
             return units
         s.enumerate = _brain
