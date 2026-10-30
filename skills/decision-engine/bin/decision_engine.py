@@ -70,7 +70,7 @@ _GUARD_RE = re.compile(
 _HUMAN_ACT_RE = re.compile(
     r"\b(?:(?:alterar|mudar|modificar|conceder|revogar|change|modify|grant|revoke)\s+"
     r"(?:(?:a|as|o|os|the)\s+)?(?:(?:permiss(?:ao|oes)|privilegios?|acesso|configurac(?:ao|oes)|"
-    r"permissions?|privileges?|access|settings?)\s+(?:d[ao]s?|de|of|on|to|for)\s+"
+    r"permissions?|privileges?|access|settings?)\s+(?:d[ao]s?|de|n[ao]s?|a|of|on|to|for)\s+"
     r"(?:contas?|accounts?|usuarios?|users?)|(?:provider\s+)?account\s+"
     r"(?:permissions?|settings?))|"
     r"(?:ativar|desativar|habilitar|desabilitar|redefinir|enable|disable|reset)\s+"

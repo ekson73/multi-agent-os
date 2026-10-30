@@ -25,6 +25,8 @@ HUMAN_ACTS = (
     "Use real personal data",
     "Usar dados reais do cliente",
     "Alterar permissões de conta",
+    "Alterar permissões na conta",
+    "Conceder permissão à conta",
 )
 TECHNICAL_CONTROLS = (
     "Escolher biblioteca de parsing",
@@ -314,6 +316,7 @@ def test_human_act_guard_reads_the_existing_title_fields(field):
     assert out["verdicts"][0]["rule"] == "R2-guard"
 
 
+@pytest.mark.skipif(not FUSE.is_file(), reason="synopsis-panel not installed")
 @pytest.mark.parametrize("override", [False, True])
 def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
         tmp_path, monkeypatch, override):
