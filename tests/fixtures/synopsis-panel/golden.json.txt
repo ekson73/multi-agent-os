@@ -34,6 +34,7 @@
     "domains": {},
     "hitl_unattached": [
       {
+        "idade": "6 d",
         "id": "H-0901",
         "sev": "NORMAL",
         "tipo": "negocio",
@@ -48,6 +49,7 @@
         "human": "👤"
       },
       {
+        "idade": "8 d",
         "id": "H-0902",
         "sev": "URGENTE",
         "tipo": "credencial",
@@ -62,6 +64,7 @@
         "human": "👤"
       },
       {
+        "idade": "9 d",
         "id": "H-0903",
         "sev": "ALTA",
         "tipo": "envio",
@@ -76,6 +79,7 @@
         "human": "👤"
       },
       {
+        "idade": "7 d",
         "id": "H-0904",
         "sev": "ALTA",
         "tipo": "gasto",
@@ -90,6 +94,7 @@
         "human": "👤"
       },
       {
+        "idade": "5 d",
         "id": "H-0905",
         "sev": "URGENTE",
         "tipo": "irreversivel",

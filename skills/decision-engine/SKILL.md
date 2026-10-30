@@ -82,6 +82,8 @@ As quatro classes reconhecem também gerúndios PT/EN, sem pretensão de flexão
 A negação operacional só neutraliza o ato quando ligada diretamente ao verbo;
 urgência e propostas retóricas `why not` / `por que não` não declinam a ação.
 Perguntas técnicas sem pedido sensível continuam técnicas.
+As relações de permissão aceitam artigos PT/EN após a preposição e contrações como
+`ao`/`aos`/`à`/`às`, além de `para`/`pra`: o objeto continua restrito a conta/usuário.
 Antes de agir, preserve a confirmação exigida pelo efeito e pela autoridade da ação,
 independentemente de `route`; nenhum veredito concede consentimento.
 
@@ -97,6 +99,11 @@ FUSE="$MAOS_DIR/skills/synopsis-panel/bin/synopsis-fuse.py"
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format json \
   | python3 "$DE" - --format tree        # ou --format json (envelope decision-engine/verdict/v1)
 ```
+
+Resolva `DE` e `FUSE` na mesma árvore/revisão revisada. Os campos que o envelope
+preserva estão no [contrato dos itens JSON do synopsis-panel](../synopsis-panel/SKILL.md#contrato-dos-itens-json).
+Títulos e opções devem produzir a mesma rota e recomendação na entrada direta e no
+pipe; o escopo continua sendo o recorte explícito do digest, sem conceder consentimento.
 
 Saída JSON:
 

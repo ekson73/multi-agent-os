@@ -70,6 +70,34 @@ MIXED_REAL_ACTS = (
     "Why not change account permissions?",
 )
 
+ARTICLE_PERMISSION_ACTS = (
+    "Change permissions of the account",
+    "Grant access to the account",
+    "Revoke privileges for a user",
+    "Modify settings on an account",
+    "Conceder acesso ao usuário",
+    "Conceder acesso aos usuários",
+    "Conceder acesso à conta",
+    "Conceder acesso às contas",
+    "Alterar permissões de uma conta",
+    "Alterar permissões em uma conta",
+    "Alterar permissões para a conta",
+    "Alterar permissões pra uma conta",
+    "Conceder acesso para o usuário",
+    "Conceder acesso pra os usuários",
+)
+ARTICLE_CONTROLS = (
+    "Escolher parser local",
+    "Do not change permissions of the account",
+    "Without granting access to the account",
+    "Não conceder acesso ao usuário",
+    "Sem alterar permissões para a conta",
+    "Criar mock local para alterar permissões de uma conta",
+    "Implement a local mock to change permissions of the account",
+    "Escolher parser para o relatório de permissões da conta",
+)
+
+
 HUMAN_ACTS = (
     "Alterar permissões da conta do provedor",
     "Desativar a autenticação multifator da conta",
@@ -84,7 +112,7 @@ HUMAN_ACTS = (
     "Alterar permissões de conta",
     "Alterar permissões na conta",
     "Conceder permissão à conta",
-) + MIXED_REAL_ACTS
+) + ARTICLE_PERMISSION_ACTS + MIXED_REAL_ACTS
 TECHNICAL_CONTROLS = (
     "Escolher biblioteca de parsing",
     "Fazer parsing de conta sintética",
@@ -97,7 +125,7 @@ TECHNICAL_CONTROLS = (
     "Do not disable MFA",
     "Why does the local MFA mock fail?",
     "Por que o teste local de MFA falha?",
-) + LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS
+) + ARTICLE_CONTROLS + LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS
 
 
 def _load():
@@ -396,7 +424,6 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
     payload += [
         _item(f"H-{5200 + i}", "tecnico", text, session_id="guard-fixture")
         for i, text in enumerate(LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS + MIXED_REAL_ACTS)]
-    # Synopsis exports decidir, not title metadata; direct CLI tests below cover titles.
     for i, (positive, negative) in enumerate(GERUND_PAIRS):
         payload += [
             _item(f"H-{6100 + 2 * i}", "tecnico", positive, session_id="guard-fixture"),
@@ -471,3 +498,90 @@ def test_local_action_in_legacy_title_without_decidir_still_works(tmp_path, fiel
     out = json.loads(_cli({"id": "H-7200", "tipo": "tecnico",
                           field: LOCAL_IMPLEMENTATIONS[1]}, *extra))
     assert out["verdicts"][0]["route"] == "DIY"
+
+
+@pytest.mark.parametrize("attached", [False, True])
+def test_supported_metadata_and_guard_boundaries_survive_real_session_pipe(
+        tmp_path, monkeypatch, attached):
+    """The normalized consumer sees the same decisions as the direct real CLI."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    session = "metadata-fixture"
+    payload, expected_routes = [], {}
+    boundary_cases = (
+        [(text, "HITL") for text in ARTICLE_PERMISSION_ACTS + HUMAN_ACTS[:4]]
+        + [("Disable MFA", "HITL")]
+        + [(text, "DIY") for text in ARTICLE_CONTROLS + LOCAL_IMPLEMENTATIONS])
+    for field in ("decidir", "title", "titulo"):
+        for text, route in boundary_cases:
+            hid = f"H-{8000 + len(payload)}"
+            item = _item(hid, "tecnico", "Escolher parser local", session_id=session)
+            item[field] = text
+            payload.append(item)
+            expected_routes[hid] = route
+    for evidence in (None, "", " \t ", 123, {}, ["synthetic-ref"], "synthetic:pricing-v1"):
+        hid = f"H-{8000 + len(payload)}"
+        payload.append(_item(
+            hid, "gasto", "Comparar planos sintéticos", session_id=session,
+            idade="3 d", options=[
+                {"label": "Plano B", "description": "Sem mudança"},
+                {"label": "Plano A", "description": "Alternativa sintética",
+                 "recommended": True, "evidence": evidence, "confidence": 0.9}],
+            approved=True, resolved=True, scope="all", type="system",
+            meta={"hitl_scope": "all"}, session=["other-fixture"],
+            glyph="raw", flag="raw", human="raw"))
+        expected_routes[hid] = "HITL"
+    unknown = _item("H-8900", "nao_classificado", "Classificar alternativa",
+                    title={"synthetic": "metadata"}, titulo=["synthetic"],
+                    session_id=session)
+    payload.append(unknown)
+    expected_routes[unknown["id"]] = "COMPUTE"
+    selected = list(payload)
+    payload.append(_item("H-8999", "tecnico", "Disable MFA", session_id="other-fixture"))
+    compass = {"meta": {"scope": "session"}, "by_domain": {}}
+    if attached:
+        compass["by_domain"]["synthetic"] = [
+            {"id": f"node-{i}", "title": "Synthetic node", "refs": {"hitl": item["id"]}}
+            for i, item in enumerate(payload)]
+    compass_file = tmp_path / "compass.json"
+    compass_file.write_text(json.dumps(compass), encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    fuse = subprocess.run(
+        [sys.executable, str(FUSE), "--compass-json", str(compass_file),
+         "--hitl-json", "-", "--scope", "session", "--session-id", session,
+         *([] if attached else ["--hitl-only"]), "--format", "json"],
+        input=json.dumps(payload), capture_output=True, text=True, timeout=60)
+    assert fuse.returncode == 0, fuse.stderr
+    envelope = json.loads(fuse.stdout)
+    normalized = de.collect_items(envelope)
+    assert [item["id"] for item in normalized] == [item["id"] for item in selected]
+    for original, normalized_item in zip(selected, normalized):
+        assert normalized_item["tipo"] == original["tipo"]
+        assert normalized_item["sev"] == "ALTA"
+        for key in ("title", "titulo", "options", "idade"):
+            if key in original:
+                assert normalized_item[key] == original[key]
+        assert not {"approved", "resolved", "scope", "type", "meta", "session"} & normalized_item.keys()
+        assert normalized_item["glyph"] != "raw" and normalized_item["flag"] != "raw"
+        assert normalized_item["human"] != "raw"
+    direct = json.loads(_cli(selected, "--policy", str(policy)))
+    piped = json.loads(_cli(envelope, "--policy", str(policy)))
+    assert piped["verdicts"] == direct["verdicts"]
+    assert {v["id"]: v["route"] for v in piped["verdicts"]} == expected_routes
+    for item, verdict in zip(selected, piped["verdicts"]):
+        if "options" in item:
+            evidenced = isinstance(item["options"][1]["evidence"], str) and bool(
+                item["options"][1]["evidence"].strip())
+            assert verdict["options_source"] == "structured"
+            assert verdict["recommendation_basis"] == (
+                "evidence" if evidenced else "type-default:structured")
+            assert verdict["recommendation"].startswith("Plano A" if evidenced else "Plano B")
+        assert "approved" not in verdict and "resolved" not in verdict
+    assert piped["source"]["hitl_scope"] == "session"
+    assert piped["source"]["hitl_session_resolved"] is True
+    assert envelope["meta"]["hitl_session_ids"] == [session]
+    assert piped["source"]["hitl_ledger_total"] == len(payload)
+    assert envelope["meta"]["hitl_attached"] == (len(selected) if attached else 0)
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before

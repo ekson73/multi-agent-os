@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Evaluate local intent per existing source field without benign title contamination,
   retaining real/production/unknown-target context across fields. Guard recognized
   PT/EN gerunds and rhetorical proposals; genuine operational negations remain DIY.
+- Account/user permission relations accept PT/EN articles after prepositions,
+  including `ao`/`aos`, `para`/`pra`, while keeping negation and local-test boundaries.
+- Synopsis JSON preserves the existing `title`/`titulo`, structured `options`
+  (including evidence/confidence) and `idade` fields without type coercion or raw
+  metadata overrides of canonical fields/scope. Direct and real session-scoped CLI
+  pipe regressions cover attached/orphan items, recommendation evidence and controls.
 - Real CLI and session-scoped synopsis pipe regressions cover both policies,
   technical aliases, boundaries and precedence. Refs #555, parent PR #556.
 
