@@ -21,9 +21,9 @@ Rules, evaluated in this order (first match wins):
                     leaks, no rotation". Overridable with --policy.
   R1 human-type     tipo in {credencial, gasto, irreversivel, envio, negocio}
                     -> HITL with recommendation + alternatives.
-  R2 guard          technical item whose text names an irreversible-in-production,
-                    spend or external-send act -> HITL (a mislabelled type never
-                    downgrades a human gate).
+  R2 guard          technical item naming production/spend/send or an explicit
+                    account/security/real-personal-data act -> HITL. This lexical
+                    guard is advisory, not a general authorization check.
   R3 technical      tipo in the technical aliases -> DIY (the agent decides and
                     records; technical decisions are not HITL).
   R4 unknown        anything else (missing/unrecognised tipo) -> COMPUTE: the agent
@@ -64,6 +64,25 @@ _GUARD_RE = re.compile(
     r"enviar|envio|mandar|send|publicar|postar|post|e-?mail|whatsapp|telegram|"
     r"slack|discord|sms)\b", re.IGNORECASE)
 
+# Action + sensitive object, not words such as "conta" or "dados" alone.
+# Fold accents at the call site; local implementation and synthetic parsing
+# remain technical unless the text actually requests one of these acts.
+_HUMAN_ACT_RE = re.compile(
+    r"\b(?:(?:alterar|mudar|modificar|conceder|revogar|change|modify|grant|revoke)\s+"
+    r"(?:(?:a|as|o|os|the)\s+)?(?:(?:permiss(?:ao|oes)|privilegios?|acesso|configurac(?:ao|oes)|"
+    r"permissions?|privileges?|access|settings?)\s+(?:d[ao]s?|de|of|on|to|for)\s+"
+    r"(?:contas?|accounts?|usuarios?|users?)|(?:provider\s+)?account\s+"
+    r"(?:permissions?|settings?))|"
+    r"(?:ativar|desativar|habilitar|desabilitar|redefinir|enable|disable|reset)\s+"
+    r"(?:(?:a|o|the)\s+)?(?:mfa|2fa|autenticacao\s+(?:multifator|de dois fatores)|"
+    r"multi[- ]factor authentication|two[- ]factor authentication)|"
+    r"(?:aceitar|aprovar|confirmar|autorizar|accept|approve|confirm|authorize)\s+"
+    r"(?:(?:a|o|the)\s+)?(?:(?:verificacao|checagem) de seguranca d[oa] "
+    r"(?:provedor|plataforma)|provider[- ](?:safety|security) (?:check|verification))|"
+    r"(?:usar|utilizar|processar|coletar|analisar|use|process|collect|analyze)\s+"
+    r"(?:(?:os|the)\s+)?(?:dados pessoais reais|dados reais d[oa]s? clientes?|pii real|"
+    r"real (?:pii|personal data|customer data)))\b")
+
 _NEG_RE = re.compile(r"\b(n[aã]o|nunca|sem|not|never|no|without)\s+(\w+\s+)?$", re.IGNORECASE)
 
 
@@ -85,6 +104,12 @@ def _fold(text: str) -> str:
     """Lower-case and strip accents, so 'irreversível' == 'irreversivel'."""
     norm = unicodedata.normalize("NFKD", text or "")
     return "".join(c for c in norm if not unicodedata.combining(c)).strip().lower()
+
+
+def _human_authority_act(text: str) -> bool:
+    folded = _fold(text)
+    return any(not _NEG_RE.search(folded[:m.start()])
+               for m in _HUMAN_ACT_RE.finditer(folded))
 
 
 def _load_card_options(fuse_path: pathlib.Path = _FUSE_PATH):
@@ -195,9 +220,11 @@ def decide(item: dict, policy: dict | None = None) -> dict:
         out.update(_hitl_verdict(item, "R1-human-type",
                                  f"tipo '{tipo}' é um dos 5 tipos HITL do SSOT"))
         return out
-    if tipo in TECH_TYPES and (_GUARD_RE.search(text) or _MONEY_RE.search(text)):
+    if tipo in TECH_TYPES and (_GUARD_RE.search(text) or _MONEY_RE.search(text)
+                               or _human_authority_act(text)):
         out.update(_hitl_verdict(item, "R2-guard",
-                                 "item técnico cita ato irreversível/produção, gasto ou envio"))
+                                 "item técnico cita ato irreversível/produção, gasto, envio "
+                                 "ou ato de conta/segurança/dados pessoais reais"))
         return out
     if tipo in TECH_TYPES:
         out.update(route="DIY", rule="R3-technical", denied=False,

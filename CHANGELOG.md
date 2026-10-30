@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Fixed — `decision-engine`: explicit human-authority acts in technical items
+
+- `R2-guard` now keeps account permissions/settings, MFA changes, provider-safety
+  acceptance and real-personal-data use visible as HITL even with a technical type.
+  Action/object matching preserves synthetic parsing and local technical work.
+  R0/default policy and R1 precedence remain unchanged; routing never grants consent.
+- Real CLI and session-scoped synopsis pipe regressions cover both policies,
+  technical aliases, boundaries and precedence. Refs #555, parent PR #556.
+
 ### Added — `skills/decision-engine` 0.1.0: route each HITL item to DIY, COMPUTE or HITL
 
 - New thin skill `skills/decision-engine/` (`bin/decision_engine.py`, stdlib-only, read-only).

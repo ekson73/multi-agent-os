@@ -13,6 +13,31 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "bin" / "decision_engine.py"
 FUSE = ROOT.parent / "synopsis-panel" / "bin" / "synopsis-fuse.py"
 
+HUMAN_ACTS = (
+    "Alterar permissões da conta do provedor",
+    "Desativar a autenticação multifator da conta",
+    "Aceitar a verificação de segurança do provedor",
+    "Usar dados pessoais reais do cliente na análise",
+    "Conceder permissão da conta",
+    "Change provider account permissions",
+    "Disable multi-factor authentication",
+    "Accept the provider safety check",
+    "Use real personal data",
+    "Usar dados reais do cliente",
+    "Alterar permissões de conta",
+)
+TECHNICAL_CONTROLS = (
+    "Escolher biblioteca de parsing",
+    "Fazer parsing de conta sintética",
+    "Implementar biblioteca de autenticação local sem conta real",
+    "Analisar fixture de dados pessoais sintéticos",
+    "Usar dados pessoais sintéticos",
+    "Usar dados sintéticos do cliente",
+    "Implementar biblioteca local sem alterar permissões da conta",
+    "Não desativar autenticação multifator",
+    "Do not disable MFA",
+)
+
 
 def _load():
     spec = importlib.util.spec_from_file_location("decision_engine", SCRIPT)
@@ -240,3 +265,91 @@ def test_a_broken_backend_is_not_reported_as_absent(tmp_path):
 
 def test_tree_output_shows_the_recommendation_basis():
     assert "[base: type-default" in _cli([_item("H-2002", "gasto")], "--format", "tree")
+
+
+@pytest.mark.parametrize("tipo", [*de.TECH_TYPES, "TÉCNICO"])
+@pytest.mark.parametrize("override", [False, True])
+def test_explicit_human_acts_stay_visible_but_technical_work_stays_diy(
+        tmp_path, tipo, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    payload = [_item(f"H-{3000 + i}", tipo, text)
+               for i, text in enumerate(HUMAN_ACTS + TECHNICAL_CONTROLS)]
+    verdicts = json.loads(_cli(payload, *extra))["verdicts"]
+    assert len(verdicts) == len(payload)
+    for i, v in enumerate(verdicts):
+        expected = ("HITL", "R2-guard") if i < len(HUMAN_ACTS) else ("DIY", "R3-technical")
+        assert (v["route"], v["rule"]) == expected, payload[i]
+        assert v["denied"] is False
+        assert "approved" not in v and "resolved" not in v
+        if v["route"] == "HITL":
+            assert v["recommendation"] and v["alternatives"]
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_human_act_guard_keeps_rule_precedence_and_existing_guards(tmp_path, override):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    extra = ("--policy", str(policy)) if override else ()
+    payload = [
+        _item("H-4000", "credencial", "Token exposto; " + HUMAN_ACTS[0]),
+        _item("H-4001", "negocio", HUMAN_ACTS[0]),
+        _item("H-4002", "desconhecido", HUMAN_ACTS[0]),
+        _item("H-4003", "tecnico", "Apagar tabela em produção"),
+        _item("H-4004", "tecnico", "Comprar licença por R$ 500"),
+        _item("H-4005", "tecnico", "Enviar mensagem ao cliente"),
+    ]
+    verdicts = json.loads(_cli(payload, *extra))["verdicts"]
+    first = ("HITL", "R1-human-type", False) if override else ("DIY", "R0-leaked-secret", True)
+    assert [(v["route"], v["rule"], v["denied"]) for v in verdicts] == [
+        first, ("HITL", "R1-human-type", False), ("COMPUTE", "R4-unknown", False),
+        *(("HITL", "R2-guard", False) for _ in range(3))]
+    assert all("approved" not in v and "resolved" not in v for v in verdicts)
+
+
+@pytest.mark.parametrize("field", ["titulo", "title"])
+def test_human_act_guard_reads_the_existing_title_fields(field):
+    out = json.loads(_cli(_item("H-4100", "tecnico", "", **{field: HUMAN_ACTS[0]})))
+    assert out["verdicts"][0]["rule"] == "R2-guard"
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
+        tmp_path, monkeypatch, override):
+    """Both real CLIs, synthetic input only, no collector or live ledger."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    compass = tmp_path / "compass.json"
+    compass.write_text("{}", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"leaked_secret": "escalate"}', encoding="utf-8")
+    payload = [
+        _item(f"H-{5000 + i}", "tecnico", text, session_id="guard-fixture")
+        for i, text in enumerate(HUMAN_ACTS[:4] + TECHNICAL_CONTROLS[:4])]
+    payload += [
+        _item("H-5100", "credencial", "Token exposto", session_id="guard-fixture"),
+        _item("H-5101", "tecnico", HUMAN_ACTS[0], session_id="other-fixture"),
+    ]
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    fuse = subprocess.run(
+        [sys.executable, str(FUSE), "--hitl-only", "--compass-json", str(compass),
+         "--hitl-json", "-", "--scope", "session", "--session-id", "guard-fixture",
+         "--format", "json"],
+        input=json.dumps(payload), capture_output=True, text=True, timeout=60)
+    assert fuse.returncode == 0, fuse.stderr
+    envelope = json.loads(fuse.stdout)
+    assert envelope["schema"] == "synopsis-panel/v1"
+    out = json.loads(_cli(envelope, *(("--policy", str(policy)) if override else ())))
+    routes = {v["id"]: (v["route"], v["denied"]) for v in out["verdicts"]}
+    assert routes == {
+        **{f"H-{5000 + i}": ("HITL", False) for i in range(4)},
+        **{f"H-{5004 + i}": ("DIY", False) for i in range(4)},
+        "H-5100": ("HITL", False) if override else ("DIY", True),
+    }
+    assert out["source"]["hitl_scope"] == "session"
+    assert out["source"]["hitl_session_resolved"] is True
+    assert out["source"]["hitl_ledger_total"] == len(payload)
+    assert not out["source"].get("hitl_scope_unresolved")
+    assert all("approved" not in v and "resolved" not in v for v in out["verdicts"])
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before

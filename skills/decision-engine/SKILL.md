@@ -52,7 +52,7 @@ item, who should act and what the recommended answer is.
 |---|---|---|
 | `R0-leaked-secret` | `credencial` sobre segredo/PII já vazado, exposto ou comprometido (rotação planejada NÃO conta) | `DIY`, `denied: true` (sem rotação) |
 | `R1-human-type` | tipo é um dos 5 do SSOT | `HITL` com recomendação |
-| `R2-guard` | item técnico que cita produção/irreversível, gasto ou envio | `HITL` |
+| `R2-guard` | item técnico que cita produção/irreversível, gasto, envio ou ato explícito de conta/segurança/uso de dados pessoais reais | `HITL` |
 | `R3-technical` | tipo técnico (`tecnico`, `tatico`, `operacional`, ...) | `DIY` |
 | `R4-unknown` | tipo ausente ou desconhecido | `COMPUTE` (classificar e recalcular) |
 
@@ -65,6 +65,14 @@ A política `R0` vem do operador: vazamento já existente é ignorado, sem pedir
 Para voltar ao comportamento de escalar, passe `--policy` com
 `{"leaked_secret": "escalate"}`. Política inválida (chave ou valor desconhecido, JSON
 quebrado) sai com exit `2`; nunca é adivinhada.
+
+O guard `R2` reconhece ação + objeto: mudar permissões/configurações da conta,
+ativar/desativar MFA, aceitar verificação de segurança do provedor ou usar dados
+pessoais reais. `conta` ou `dados` isolados não bastam: parsing de conta sintética,
+fixtures de dados sintéticos e implementação local de autenticação continuam técnicos.
+É uma proteção lexical limitada, não uma classificação universal de HUMAN_DOMAIN.
+Antes de agir, preserve a confirmação exigida pelo efeito e pela autoridade da ação,
+independentemente de `route`; nenhum veredito concede consentimento.
 
 `options_source` diz de onde vieram as opções: `structured`, `ledger-text` ou
 `type-generic` (do `synopsis-panel`), `fallback:synopsis-panel-error` (instalado mas falhou ao carregar), ou `fallback:synopsis-panel-absent` quando o
