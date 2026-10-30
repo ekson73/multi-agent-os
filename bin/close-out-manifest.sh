@@ -140,6 +140,10 @@ section_body_empty() { # rc 0 when "## <section>" has no non-blank line before t
     END { exit found ? 1 : 0 }' "$1"
 }
 
+# shellcheck disable=SC2088 # a literal "~" is exactly what is being matched here
+tilde() { # expand a leading "~" only; never touches $HOME otherwise (set -u safe when unset)
+  case "$1" in "~"|"~/"*) printf '%s%s' "${HOME-}" "${1#\~}" ;; *) printf '%s' "$1" ;; esac
+}
 squash() { # collapse repeated slashes: //tmp, //private/tmp and /usr//tmp name the same dirs
   local p="$1"
   while case "$p" in *//*) true ;; *) false ;; esac; do p="${p//\/\//\/}"; done
@@ -163,7 +167,7 @@ is_ephemeral() { # temp/scratch roots, including the canonical session temp root
     /tmp|/tmp/*|/private/tmp|/private/tmp/*|/var/tmp|/var/tmp/*|/private/var/tmp|/private/var/tmp/*) return 0 ;;
     # a session scratchpad dir (a path component named exactly "scratchpad"), not any name that
     # merely starts with it: ~/scratchpad-archive is a durable dir
-    */scratchpad|*/scratchpad/*) return 0 ;;
+    scratchpad|scratchpad/*|*/scratchpad|*/scratchpad/*) return 0 ;;
     # macOS per-user temp (/var/folders/<x>/<y>/T): ephemeral even when $TMPDIR points elsewhere
     /var/folders/*/T|/var/folders/*/T/*|/private/var/folders/*/T|/private/var/folders/*/T/*) return 0 ;;
     "$t"|"$t"/*) return 0 ;;
@@ -190,10 +194,16 @@ cmd_check() {
   done
   unset IFS
   # FEAT-2: a pending delegate may only be closed over as an operator-authorised PARTIAL
-  local gate partial=false
+  local gate partial=false pab
   gate="$(field "$manifest" "Delegates gate" delegates_gate)"
-  if [ "$gate" = "PARTIAL" ] && [ -n "$(field "$manifest" "Delegates gate" partial_authorized_by)" ]; then
+  pab="$(field "$manifest" "Delegates gate" partial_authorized_by)"
+  if [ "$gate" = "PARTIAL" ] && [ -n "$pab" ]; then
     partial=true
+    # who + when + where: an ISO date and at least two more words (e.g. "operator in-session 2026-10-07")
+    if ! printf '%s' "$pab" | grep -qE '(^|[^0-9])[0-9]{4}-[0-9]{2}-[0-9]{2}([^0-9]|$)' \
+       || [ "$(printf '%s' "$pab" | wc -w | tr -d ' ')" -lt 3 ]; then
+      missing="${missing}partial-authorization-incomplete;"
+    fi
     grep -m1 -E '^#[[:space:]]' "$manifest" | grep -qE '^#[[:space:]]+PARTIAL' || missing="${missing}partial-title;"
   elif [ "$gate" != "PASS" ]; then missing="${missing}delegates_gate!=PASS;"
   fi
@@ -201,8 +211,10 @@ cmd_check() {
   for k in session_id link command; do
     [ -n "$(field "$manifest" Recovery "$k")" ] || missing="${missing}field:${k};"
   done
-  local mp; mp="$(field "$manifest" Self-location manifest_path)"; mp="${mp/#\~/$HOME}"
+  local mp; mp="$(tilde "$(field "$manifest" Self-location manifest_path)")"
   if [ -z "$mp" ]; then missing="${missing}field:manifest_path;"
+  elif case "$mp" in /*) false ;; *) true ;; esac; then
+    missing="${missing}manifest-path-not-absolute;" # a recipient in another cwd must find it
   elif is_ephemeral "$mp" || is_ephemeral "$(canon "$mp")"; then
     missing="${missing}ephemeral-manifest-path;" # a close-out artifact must survive temp cleanup
   elif ! { [ -f "$mp" ] && { [ "$mp" -ef "$manifest" ] || cmp -s "$mp" "$manifest"; }; }; then
@@ -221,19 +233,19 @@ cmd_check() {
   local sid link cmd tr
   sid="$(field "$manifest" Recovery session_id)"; link="$(field "$manifest" Recovery link)"
   cmd="$(field "$manifest" Recovery command)"
-  case "$link" in ""|http://*|https://*) ;; *) missing="${missing}link-not-url;" ;; esac
+  case "$link" in ""|http://[!/]*|https://[!/]*) ;; *) missing="${missing}link-not-url;" ;; esac # non-empty host
   if [ -n "$sid" ] && [ -n "$cmd" ]; then
     case "$cmd" in *"$sid"*) ;; *) missing="${missing}command-lacks-session-id;" ;; esac
   fi
   tr="$(field "$manifest" Recovery transcript_path)"
-  [ -z "$tr" ] || [ -f "${tr/#\~/$HOME}" ] || missing="${missing}transcript-missing;"
+  [ -z "$tr" ] || [ -f "$(tilde "$tr")" ] || missing="${missing}transcript-missing;"
   # FEAT-17/22: every backticked absolute path must exist and be durable, unless its line
   # declares it "(ephemeral)"
   local line p x
   while IFS= read -r line || [ -n "$line" ]; do # the last line counts even without a newline
     { printf '%s\n' "$line" | grep -oE '`(/|~/)[^`]*`' || true; } | tr -d '`' | while IFS= read -r p; do
       case "$line" in *"(ephemeral)"*) continue ;; esac
-      x="${p/#\~/$HOME}"
+      x="$(tilde "$p")"
       # judged at the spelled path AND its real destination (symlinks followed)
       if is_ephemeral "$x" || is_ephemeral "$(canon "$x")"; then printf 'ephemeral-link:%s;' "$p"
       elif [ ! -e "$x" ]; then printf 'broken-link:%s;' "$p"
@@ -290,7 +302,7 @@ EOF
 # ids); an isolated 11-digit run IS matched as a CPF when its check digits are valid (cpf_bare_hit).
 PHONE_SUB='(9[0-9]{4}|[2-5][0-9]{3})'
 PII_RE='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'\
-'|(\+?55[ .-]*\(?[1-9][1-9]\)?[ .-]*'"$PHONE_SUB"'[ .-]?[0-9]{4})'\
+'|((^|[^0-9])\+?55[ .-]*\(?[1-9][1-9]\)?[ .-]*'"$PHONE_SUB"'[ .-]?[0-9]{4}([^0-9]|$))'\
 '|((^|[^0-9])\([1-9][1-9]\) ?'"$PHONE_SUB"'[ .-]?[0-9]{4}([^0-9]|$))'\
 '|((^|[^0-9])[1-9][1-9][ .-]'"$PHONE_SUB"'[ .-]?[0-9]{4}([^0-9]|$))'\
 '|((^|[^0-9])[1-9][1-9][ .-]?'"$PHONE_SUB"'[ .-][0-9]{4}([^0-9]|$))'\
@@ -348,7 +360,11 @@ pii_scan() {
   return 1
 }
 pii_hit() { pii_scan "$1"; }
-is_binary() { ! tr -d '\000' < "$1" | cmp -s - "$1"; }
+is_binary() { # a NUL byte, or (when iconv exists) bytes that are not valid UTF-8 text
+  ! LC_ALL=C tr -d '\000' < "$1" | cmp -s - "$1" && return 0
+  command -v iconv >/dev/null 2>&1 || return 1
+  ! iconv -f UTF-8 -t UTF-8 < "$1" >/dev/null 2>&1
+}
 
 cmd_persist() {
   local dest="" apply=0 srcs=() refused=0

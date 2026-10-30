@@ -26,7 +26,8 @@ bad() { FAIL=$((FAIL+1)); printf '  ❌ %s\n     got: %s\n' "$1" "${2:-<empty>}"
 TMP="$(mktemp -d)"
 # manifests are checked from a durable (non-temp) dir: a manifest_path under a temp root is refused
 # ... and outside the checkout, so a checkout that itself lives under a temp root still works
-MDIR_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}"; mkdir -p "$MDIR_ROOT"
+# not $XDG_CACHE_HOME: it may itself live under /tmp, where check/persist refuse by design
+MDIR_ROOT="$HOME/.cache"; mkdir -p "$MDIR_ROOT"
 MDIR="$(mktemp -d "$MDIR_ROOT/close-out-manifest-test.XXXXXX")"
 # persist destinations are durable too: persist refuses a --dest under a temp root
 DST="$MDIR/dst"; mkdir -p "$DST"
@@ -600,6 +601,35 @@ OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$DST/g7dir/../g7ok" 
 if [ "$RC" -eq 1 ]; then ok "any '..' component in --dest is refused"; else bad "'..' --dest must be refused" "rc=$RC out=$OUT"; fi
 OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$DST/g7..ok/" --src "$TMP/g1/a.md" 2>&1)"; RC=$?
 if [ "$RC" -eq 0 ]; then ok "a name merely containing '..' and a trailing slash is accepted"; else bad "'g7..ok/' must be accepted" "rc=$RC out=$OUT"; fi
+
+echo "── close-out-manifest: review round (#478)"
+# R1 relative manifest_path is refused even when it resolves from the current dir
+( cd "$MDIR" && sed "s#^manifest_path: .*#manifest_path: rel.md#" "$TMP/m.md" > rel.md && bash "$CM" check --manifest rel.md ) > "$TMP/r1.out" 2>/dev/null; RC=$?
+if [ "$RC" -eq 2 ] && grep -q 'manifest-path-not-absolute' "$TMP/r1.out"; then ok "relative manifest_path ⇒ rc 2"; else bad "relative manifest_path must fail" "rc=$RC out=$(cat "$TMP/r1.out")"; fi
+# R2 PARTIAL authorisation must carry who/when/where
+sed -e 's/^# Close-out manifest/# PARTIAL Close-out manifest/' -e 's/^delegates_gate: PASS/delegates_gate: PARTIAL\
+partial_authorized_by: yes/' "$TMP/m.md" > "$TMP/m-pyes.md"
+OUT="$(chk "$TMP/m-pyes.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'partial-authorization-incomplete'; then ok "PARTIAL authorised by 'yes' ⇒ rc 2"; else bad "incomplete PARTIAL authorisation must fail" "rc=$RC out=$OUT"; fi
+# R3 a scheme-only link is not a usable URL
+sed 's#^link: .*#link: https://#' "$TMP/m.md" > "$TMP/m-lnk.md"
+OUT="$(chk "$TMP/m-lnk.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'link-not-url'; then ok "host-less link ⇒ rc 2"; else bad "host-less link must fail" "rc=$RC out=$OUT"; fi
+# R4 HOME unset does not crash check on an absolute manifest_path
+d="$MDIR/home.md"; sed "s#^manifest_path: .*#manifest_path: $d#" "$TMP/m.md" > "$d"
+OUT="$(env -u HOME bash "$CM" check --manifest "$d" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ]; then ok "check works with HOME unset"; else bad "HOME unset must not crash check" "rc=$RC out=$OUT"; fi
+# R5 phone-shaped digits embedded in a longer id are not PII
+mkdir -p "$TMP/r5"; printf 'id 20265511912345678234\n' > "$TMP/r5/a.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$DST/r5" --src "$TMP/r5/a.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 0 ]; then ok "long id embedding +55-shaped digits is not PII"; else bad "embedded digits must not match as phone" "rc=$RC out=$OUT"; fi
+# R6 invalid UTF-8 without NUL is refused as binary
+printf '\377\376\375\n' > "$TMP/r5/b.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$DST/r6" --src "$TMP/r5/b.md" --apply 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q 'refused-binary'; then ok "non-UTF-8 source without NUL refused as binary"; else bad "non-UTF-8 source must be refused" "rc=$RC out=$OUT"; fi
+# R7 a relative --dest starting at a scratchpad component is ephemeral
+OUT="$( cd "$MDIR" && MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest scratchpad/reports --src "$TMP/r5/a.md" --apply 2>&1)"; RC=$?
+if [ "$RC" -eq 1 ] && [ ! -e "$MDIR/scratchpad" ]; then ok "relative scratchpad/ --dest refused"; else bad "relative scratchpad dest must be refused" "rc=$RC out=$OUT"; fi
 
 echo ""
 echo "  pass=$PASS fail=$FAIL"

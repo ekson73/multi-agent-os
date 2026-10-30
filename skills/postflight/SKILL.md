@@ -88,7 +88,7 @@ turns that volatile state into durable, hand-off-able artifacts **before** the l
 
 ```
 [GATE (P0, if delegates)] → SWEEP (P1) → DEBRIEF (P2) → TICKET-SYNC (P2.5) → HANDOFF (P3) → [SPAWN (P3.5, optional, default-ON)] → [BROADCAST (P3.6, opt-in)] → [MANIFEST (P3.7, if delegates or ephemeral reports)]
-Each step is SAFE-or-DEFER. Never clobber. Never block. HANDOFF requires SWEEP+DEBRIEF (DoR).
+Each step is SAFE-or-DEFER. Never clobber. Never block — except the P0 GATE, which is fail-closed by design. HANDOFF requires SWEEP+DEBRIEF (DoR).
 DEBRIEF hunts the COMPLETE 10-item taxonomy (references/close-out-hunt-checklist.md): fails · errors ·
 warnings · risks · mitigations · gaps · pendings · decisions-not-taken · unasked-Qs · unanswered-Qs.
 TICKET-SYNC needs the P2 atoms + runs BEFORE the seed (so the continuation ticket lands in it);
