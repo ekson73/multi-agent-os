@@ -127,7 +127,7 @@ of phase 2).
 
 - **Engine adapter.** The reusable workflow calls the review agent through one adapter interface: input = the
   stripped PR checkout + the review prompt, output = a verdict file the publish job validates. Each engine is
-  one adapter (its CLI, its read-only flags, its credential name). This repository ships the interface, a neutral
+  one adapter (its CLI, its read-only flags, its credential name). Phase 2 ships here only the interface, a neutral
   example adapter and its tests; it sets no engine as the default.
 - **Real config is local.** Which engine, the fallback order, which App, which secret names and which
   subscription per trust boundary live in the caller repository (a config file on its default branch) or on the
