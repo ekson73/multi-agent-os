@@ -1046,7 +1046,9 @@ def load_codex(ctx: Ctx, store: "Store", path: str, fh, imported: Dict[str, str]
             continue  # event_msg duplicates response_item dialogue; the rest is harness state
         pt = _s(p.get("type"))
         if pt == "message":
-            if p.get("role") in ("user", "assistant"):
+            if p.get("role") == "assistant" and p.get("channel") not in (None, "final"):
+                e.drop(ts, ln)  # analysis/commentary channel: hidden reasoning never crosses the boundary
+            elif p.get("role") in ("user", "assistant"):
                 e.text(p["role"], blocks_parts(p.get("content")), ts, ln)
                 e.attachments(p["role"], p.get("content"), ts, ln)
             else:

@@ -1188,6 +1188,21 @@ put(".gemini/antigravity/brain/c0ffee44-0000-4000-8000-000000000009/task.md", ra
 rctx2 = mod.Ctx(rh, time.time() - 86400, dict(mod.LIMITS), [], b"k" * 32)
 rs2 = mod._assess(rctx2, next(x for x in mod.build_stores(rctx2, []) if x.id == "antigravity/brain"))
 ok(rs2.status == "supported", "recent (deferred) brain conversations do not use up the samples (%s: %s)" % (rs2.status, rs2.reason))
+ch = os.path.join(FIX, "home-codex-ch")
+CR = "019a0000-0000-7000-8000-00000000c0de"
+put(".codex/sessions/2026/01/02/rollout-2026-01-02T10-00-00-%s.jsonl" % CR, [
+    {"type": "session_meta", "timestamp": T0 % 1, "payload": {"id": CR, "cwd": PROJ, "cli_version": "0.146.0"}},
+    {"type": "response_item", "timestamp": T0 % 2, "payload": {"type": "message", "role": "user",
+                                                               "content": [{"type": "input_text", "text": "visible CXQ-7Q"}]}},
+    {"type": "response_item", "timestamp": T0 % 3, "payload": {"type": "message", "role": "assistant", "channel": "analysis",
+                                                               "content": [{"type": "output_text", "text": "CXREASON-7Q"}]}},
+    {"type": "response_item", "timestamp": T0 % 4, "payload": {"type": "message", "role": "assistant",
+                                                               "content": [{"type": "output_text", "text": "visible CXA-7Q"}]}}], home=ch)
+cxctx = mod.Ctx(ch, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+cxu = next(x for x in mod.build_stores(cxctx, []) if x.id == "codex/sessions").units()
+cxt = " ".join(m["text"] for m in cxu[0].load()[1]) if cxu else ""
+ok("CXQ-7Q" in cxt and "CXA-7Q" in cxt and "CXREASON-7Q" not in cxt,
+   "Codex analysis-channel assistant messages are dropped, final ones kept (%d units)" % len(cxu))
 # 15. passes 1 and 2 never touch the network: any socket creation raises
 import socket as _socket
 _orig_socket = _socket.socket
