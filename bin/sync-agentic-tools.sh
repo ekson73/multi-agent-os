@@ -82,6 +82,11 @@ for repo in "${REPOS[@]}"; do
         say "TRUE-DUP (identical to maos canonical): $base"; continue
       fi
       link "$f" "$RULES_DIR/org-$base"   # toolkit overlay of a maos rule -> namespaced
+      # Migration: an earlier namespace left a second link to the SAME target; remove it.
+      for _old in "$RULES_DIR"/*-"$base"; do
+        [ -L "$_old" ] && [ "$_old" != "$RULES_DIR/org-$base" ] && [ "$(readlink "$_old")" = "$f" ] || continue
+        say "PRUNE (legacy namespace duplicate): $_old"; if [ "$APPLY" = 1 ]; then rm "$_old"; fi
+      done
       continue
     fi
     link "$f" "$RULES_DIR/$base"

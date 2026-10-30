@@ -2,20 +2,19 @@
 name: enhance-pipeline
 version: "0.2.0"
 description: |
-  Drive ONE feature/enhancement through the full divergent→convergent→deliver
-  lifecycle: EXPAND (analyze · internal+external research · find gaps/fails/errors/
-  logical-fails/pendings · compare · critique · ideate) → FILTER (filter · select ·
-  debate · refine · critique · correct) → HARMONIZE (debate · converge · de-entropy ·
-  harmonize) → DELIVER (plan · execute · test · validate · deploy). A thin preset that
-  COMPOSES existing primitives (find-docs, converge, audit, auto-pilot, quiesce, Task
-  fan-out, WebSearch) — reimplements nothing. Sibling of auto-pilot (one goal), quiesce
-  (the session), converge (N proposals). Accepts: --feature, --blocks, --driver,
-  --dry-run, --output, --auto-merge[-reason], --autonomy-threshold, --max-pdca.
-  Use when the operator wants a feature taken from idea → researched → critiqued →
-  converged → planned → shipped as one governed pass: "enhance X end-to-end",
-  "research and ship this feature", "full pipeline on Y", "dynamic workflow for Z".
-  Triggers: "enhance-pipeline", "/enhance-pipeline", "dynamic workflow", "research and
-  ship", "full lifecycle on", "divergent to convergent to deliver".
+  Drive ONE feature/enhancement through the full divergent→convergent→deliver lifecycle:
+  EXPAND (analyze · internal+external research · find gaps/fails/errors/logical-fails/
+  pendings · compare · critique · ideate) → FILTER (filter · select · debate · refine ·
+  critique · correct) → HARMONIZE (debate · converge · de-entropy · harmonize) → DELIVER
+  (plan · execute · test · validate · deploy). A thin preset that COMPOSES existing primitives
+  (find-docs, converge, audit, auto-pilot, quiesce, Task fan-out, WebSearch); reimplements
+  nothing. Sibling of auto-pilot (one goal), quiesce (the session), converge (N proposals).
+  Accepts: --feature, --blocks, --driver, --dry-run, --output, --auto-merge[-reason],
+  --autonomy-threshold, --max-pdca. Triggers: the operator wants a feature taken from idea
+  → researched → critiqued → converged → planned → shipped as one governed pass; "enhance
+  X end-to-end", "research and ship this feature", "full pipeline on Y", "dynamic workflow
+  for Z", "enhance-pipeline", "/enhance-pipeline", "full lifecycle on", "divergent to
+  convergent to deliver".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch
 ---
 

@@ -38,13 +38,15 @@ if [ -f "$_lp_file" ]; then
   while IFS= read -r _lp || [ -n "$_lp" ]; do
     case "$_lp" in
       ''|'#'*) continue ;;
-      *) _lp_configured=1; PATTERNS+=("$_lp") ;;
     esac
+    # Whitespace-only lines are blank, not a whitespace ERE (it would flag every space).
+    [ -z "${_lp//[[:space:]]/}" ] && continue
+    _lp_configured=1; PATTERNS+=("$_lp")
   done < "$_lp_file"
 fi
 if [ -n "${MAOS_LAYER_PURITY_PATTERNS:-}" ]; then
-  while IFS= read -r _lp; do
-    if [ -n "$_lp" ]; then
+  while IFS= read -r _lp || [ -n "$_lp" ]; do
+    if [ -n "${_lp//[[:space:]]/}" ]; then
       _lp_configured=1
       PATTERNS+=("$_lp")
     fi
@@ -141,6 +143,12 @@ _lp_unconfigured_gate
 # printf-join (not an `IFS='|'` subshell): subshell-IFS is safe but trips a global-IFS lint;
 # printf is clearer and lint-clean. Trailing '|' stripped via parameter expansion.
 JOINED_RE=$(printf '%s|' "${PATTERNS[@]}"); JOINED_RE="${JOINED_RE%|}"
+# A malformed ERE makes grep exit 2, which the scan loop would read as "no match" (false clean).
+_lp_rc=0; printf '' | grep -Ei "$JOINED_RE" >/dev/null 2>&1 || _lp_rc=$?
+if [ "$_lp_rc" -ge 2 ]; then
+  echo "check-layer-purity: invalid layer-purity regex in configured patterns" >&2
+  exit 2
+fi
 
 VIOLATIONS=0
 MISSING_FILES=0

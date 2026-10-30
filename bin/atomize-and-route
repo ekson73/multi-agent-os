@@ -102,7 +102,7 @@ TAXONOMY_JSON='{
   "fact":            {"format":"markdown-or-notebooklm",  "destination_template":"~/.claude/docs/<slug>.md",                  "gate":"prefer NotebookLM source for research/reference material"},
   "reference":       {"format":"markdown-or-notebooklm",  "destination_template":"~/.claude/docs/<slug>.md",                  "gate":"prefer NotebookLM source for research/reference material"},
   "decision":        {"format":"markdown+frontmatter",    "destination_template":"~/.claude/docs/decisions/<slug>.md",       "gate":"ADR-style; cite decision-capture skill"},
-  "work":            {"format":"tracker-item",            "destination_template":"tracker:<work-jira|linear|gh-issue>",       "gate":"L4 routing: Acme->Jira, personal->Linear, repo->GH Issue"},
+  "work":            {"format":"tracker-item",            "destination_template":"tracker:<work-jira|linear|gh-issue>",       "gate":"L4 routing: work org->its tracker, personal->Linear, repo->GH Issue"},
   "gap":             {"format":"tracker-item-or-ledger",  "destination_template":"tracker-or-taxis-queue",                    "gate":"loose-end-triage-queue tiers; never silent-drop"},
   "pendency":        {"format":"tracker-item-or-ledger",  "destination_template":"tracker-or-taxis-queue",                    "gate":"loose-end-triage-queue tiers; never silent-drop"},
   "idea":            {"format":"markdown-dendron",        "destination_template":"~/notes-vault/pages/<slug>.md",              "gate":"durable-personal; use plans/ instead if scratch/session-scoped"},
@@ -112,6 +112,12 @@ TAXONOMY_JSON='{
   "question":        {"format":"markdown-or-tracker",     "destination_template":"~/.claude/projects/<enc>/memory/<slug>.md","gate":"tracker only if independently actionable"},
   "answer":          {"format":"markdown-or-tracker",     "destination_template":"~/.claude/projects/<enc>/memory/<slug>.md","gate":"tracker only if independently actionable"}
 }'
+
+# Durable vault root is installation config (default ~/notes-vault). Paths with " or \ are
+# rejected so the substitution can never break the JSON table.
+NOTES_VAULT="${MAOS_NOTES_VAULT:-~/notes-vault}"
+case "$NOTES_VAULT" in *'"'*|*'\'*) echo "MAOS_NOTES_VAULT must not contain quotes or backslashes" >&2; exit 1 ;; esac
+TAXONOMY_JSON="${TAXONOMY_JSON//\~\/notes-vault/$NOTES_VAULT}"
 
 VALID_SCOPES="self user project work community corporate durable-personal"
 
@@ -152,10 +158,10 @@ resolve_scope_prefix() {
     self)             echo "self-scope (session-local, not persisted beyond this turn)" ;;
     user)             echo "user-scope (~/.claude, auto-loaded cross-project)" ;;
     project)          echo "project-scope (this repo's own memory/docs)" ;;
-    work)             echo "work-scope (Acme: Jira VKS, corp toolkit)" ;;
+    work)             echo "work-scope (work org tracker, corp toolkit)" ;;
     community)        echo "community-scope (multi-agent-os)" ;;
     corporate)        echo "corporate-scope (ai-toolkit)" ;;
-    durable-personal) echo "durable-personal-scope (~/notes-vault, git-backed)" ;;
+    durable-personal) echo "durable-personal-scope (${NOTES_VAULT}, git-backed)" ;;
     *) echo "" ;;
   esac
 }

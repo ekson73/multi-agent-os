@@ -40,6 +40,10 @@ TEXT=""
 #   SPEAK_GEMINI_KEY="<gemini api key>"
 #   SPEAK_ELEVEN_KEY="<elevenlabs api key>"
 SPEAK_LOCAL_ENV="${SPEAK_LOCAL_ENV:-$HOME/.config/maos/speak.env}"
+# Migration: installs that kept keys at the previous default path still load them.
+if [ ! -f "$SPEAK_LOCAL_ENV" ] && [ -f "$HOME/.config/eko/speak.env" ]; then
+  SPEAK_LOCAL_ENV="$HOME/.config/eko/speak.env"
+fi
 if [ -f "$SPEAK_LOCAL_ENV" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in SPEAK_*=*) ;; *) continue;; esac

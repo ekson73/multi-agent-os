@@ -119,6 +119,9 @@ assert_equals "personal" "$(MAOS_PERSONAL_SSH_ALIAS=gh-list MAOS_PERSONAL_GH_OWN
 assert_equals "work"     "$(MAOS_PERSONAL_SSH_ALIAS=gh-list MAOS_WORK_GH_OWNERS="other-org,acme-org" seed_active_world "$REPO10")" "comma-separated work owners"
 assert_equals "work"     "$(MAOS_PERSONAL_SSH_ALIAS=gh-list MAOS_WORK_GH_OWNERS="other-org acme-org" seed_active_world "$REPO10")" "space-separated work owners"
 assert_equals "personal" "$(MAOS_PERSONAL_SSH_ALIAS="gh-me" seed_active_world "$(REPO8="${TEST_ROOT}/custom-alias"; mk_repo "$REPO8" "git@gh-me:OWNER/some-repo.git"; printf '%s' "$REPO8")")" "custom personal SSH alias (MAOS_PERSONAL_SSH_ALIAS) -> personal"
+# ERE metacharacters in the alias must match literally (only dots were escaped before).
+REPO11="${TEST_ROOT}/meta-alias"; mk_repo "$REPO11" "git@gh+me:OWNER/some-repo.git"
+assert_equals "personal" "$(MAOS_PERSONAL_SSH_ALIAS="gh+me" seed_active_world "$REPO11")" "alias with ERE metacharacter (gh+me) -> personal"
 
 # =============================================================================
 # SECTION 2 — postflight-precompact.sh emits active_world on the skeleton

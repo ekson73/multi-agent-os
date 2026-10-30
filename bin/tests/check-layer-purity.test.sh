@@ -82,5 +82,14 @@ o="$(base_env env MAOS_LAYER_PURITY_PATTERNS_FILE="$TMP/patterns.txt" bash "$BIN
 eq "0" "$rc" "configured patterns file: scan exits 0 on a clean file"
 hasnt "no patterns configured" "$o" "configured patterns file: no unconfigured warning"
 
+# Malformed ERE must fail (exit 2), never read as a clean scan.
+printf 'mentions LGPD\n' > "$TMP/lgpd.txt"
+o="$(base_env env MAOS_LAYER_PURITY_PATTERNS='[' bash "$BIN" "$TMP/lgpd.txt" 2>&1)"; rc=$?
+eq "2" "$rc" "invalid configured ERE: exits 2 instead of clean"
+# Whitespace-only pattern lines are ignored, not loaded as a whitespace ERE.
+printf 'two words here\n' > "$TMP/spaces.txt"
+o="$(base_env env MAOS_LAYER_PURITY_PATTERNS=$'no-such-token\n ' bash "$BIN" "$TMP/spaces.txt" 2>&1)"; rc=$?
+eq "0" "$rc" "whitespace-only pattern line: ignored (spaces not flagged)"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

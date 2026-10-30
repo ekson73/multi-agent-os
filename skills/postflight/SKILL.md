@@ -1,23 +1,22 @@
 ---
 name: postflight
 description: |
-  Use at the END of a session/action — especially before the operator compacts or
-  clears the conversation — to close the workspace out cleanly and hand the work off.
-  Responsibilities: (P1 SWEEP) a boy-scout exit-hygiene sweep that persists/fixes
-  loose ends across git, docs, ADRs, changelogs, memories, rules and tickets; (P2 DEBRIEF)
-  calculate the session map (objectives N-Tree, gaps, pendings, undecided, next actions
-  by Eisenhower); (P2.5 TICKET-SYNC) reconcile the backlog with the session — bounded
-  gap->ticket triage + an idempotent continuation ticket — delegated to a capability-detected
-  ticketing primitive; (P3 HANDOFF) emit an ai-agnostic continuation seed (carrying the DNA
+  For the END of a session/action — especially before the operator compacts or clears the
+  conversation — to close the workspace out cleanly and hand the work off.
+  Responsibilities: (P1 SWEEP) boy-scout exit-hygiene sweep that persists/fixes loose ends
+  across git, docs, ADRs, changelogs, memories, rules, tickets; (P2 DEBRIEF) calculate the
+  session map (objectives N-Tree, gaps, pendings, undecided, next actions by Eisenhower);
+  (P2.5 TICKET-SYNC) reconcile the backlog with the session — bounded gap->ticket triage +
+  an idempotent continuation ticket — delegated to a capability-detected ticketing
+  primitive; (P3 HANDOFF) emit an ai-agnostic continuation seed (carrying the DNA
   Geracional) a fresh amnesic agent can resume from; (P3.5 SPAWN, optional, default-ON) launch
-  a fresh, pre-seeded `claude` continuation session so the work continues across the
-  compact/clear boundary; (P3.6 BROADCAST, opt-in) inject a bounded, structured, idempotent
-  continuation **back-pointer marker** (to the P2.5 ticket + P3 seed) into work artifacts
-  (commit trailer · PR body · caller-named docs) so a fresh amnesic agent that lands on the
-  artifact discovers the pending work — a structured back-pointer, never a free-form TODO
-  (reconciled with exit-hygiene by ADR-010). The end-of-session counterpart to the `preflight` skill. Reads
-  whatever governance is present at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/
-  memories) and adapts.
+  a pre-seeded `claude` continuation session so work continues across the compact/clear
+  boundary; (P3.6 BROADCAST, opt-in) inject a bounded, structured, idempotent continuation
+  **back-pointer marker** (to the P2.5 ticket + P3 seed) into work artifacts (commit
+  trailer · PR body · caller-named docs) so an agent that lands on the artifact discovers the
+  pending work — never a free-form TODO (reconciled with exit-hygiene by ADR-010). The
+  end-of-session counterpart to the `preflight` skill. Reads whatever governance is present
+  at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories), adapts.
 version: 0.10.1
 triggers:
   - postflight
@@ -255,8 +254,8 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   remote emits `unknown`, never defaults to `personal`)). **For `active_world` specifically:
   DERIVE it — do not copy the template's `"unknown"` literal verbatim.** Run `git remote get-url
   origin` yourself and apply the SAME identity rule `lib/seed-io.sh`'s `seed_active_world()`
-  uses (`ekson73` org → `personal`; `vek-im` org → `work`; anything else, or no verified
-  GitHub-org match → `unknown`) — the template's `"unknown"` is a SAFE FALLBACK for an agent that
+  uses (org listed in `$MAOS_PERSONAL_GH_OWNERS` → `personal`; org listed in `$MAOS_WORK_GH_OWNERS`
+  → `work`; anything else, unset lists, or no verified GitHub-org match → `unknown`) — the template's `"unknown"` is a SAFE FALLBACK for an agent that
   cannot check, never a shortcut for one that can. Populate
   the template — do NOT re-derive the shape inline. Short excerpt:
 

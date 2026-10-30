@@ -3,25 +3,25 @@ name: council-gate
 version: "1.0.0"
 allowed-tools: [Task, Read, Bash, Skill, Grep]
 description: |
-  Pre-HITL democratic council-authorization gate (soul-name Boule). Everything destined
-  for HITL fallback passes through this gate FIRST. On a deterministically-cleared,
-  reversible, non-HUMAN_DOMAIN action where a DEMOCRATIC council of role-advisors
-  converges (verifier > generator, independent) AND survives an independent red-team
-  refutation at autonomy_score >= 0.90 under an operator-ratified arming lease, the gate
-  authorizes the action IN PLACE OF the human (executes + audits). Otherwise it falls back
-  to standard HITL — but never with a blank ask: always ranked, contestable recommendations
-  + confidence + an audit trail the human can check without re-doing the work. Two-layer: a
-  DETERMINISTIC deny-set (hooks + gitleaks + convergence-guard + CASC + non-negotiable
-  Guardrails) enforced out-of-band and evaluated FIRST, independent of confidence — the
-  prompt-injectable council NEVER enforces the hard boundary; the PROBABILISTIC council only
-  deliberates within the already-cleared safe band. Triple-checked (deterministic deny-set ·
-  council convergence · red-team refutation). SHIPS UNARMED (consultative until operator
-  ratification). Composes existing primitives (persona-pipeline, perspective-trio,
-  cascade-resolver, convergence-engine/convergence-guard, governance-auditor, decision-capture);
-  builds no new engine. Use when a decision would otherwise fall back to a human and you want a
-  democratic council to clear the genuinely-safe/reversible class autonomously while handing
-  back only the residue that matters. Triggers: "before you ask me", "council decide this",
-  "authorize in place of human", "pre-HITL gate", "should this go to the human".
+  Pre-HITL democratic council-authorization gate (soul-name Boule). Everything destined for
+  HITL fallback passes through this gate FIRST. On a deterministically-cleared, reversible,
+  non-HUMAN_DOMAIN action where a DEMOCRATIC council of role-advisors converges (verifier >
+  generator, independent) AND survives an independent red-team refutation at autonomy_score
+  >= 0.90 under an operator-ratified arming lease, the gate authorizes the action IN PLACE
+  OF the human (executes + audits). Otherwise falls back to standard HITL — never a blank
+  ask: ranked, contestable recommendations + confidence + an audit trail the human can
+  check without re-doing the work. Two-layer: a DETERMINISTIC deny-set (hooks · gitleaks ·
+  convergence-guard · CASC · non-negotiable Guardrails) enforced out-of-band, evaluated
+  FIRST, independent of confidence — the prompt-injectable council NEVER enforces the hard
+  boundary; the PROBABILISTIC council deliberates only within the already-cleared safe
+  band. Triple-checked (deny-set · convergence · refutation). SHIPS UNARMED (consultative until ratification). Composes existing
+  primitives (persona-pipeline, perspective-trio, cascade-resolver,
+  convergence-engine/convergence-guard, governance-auditor, decision-capture); builds no
+  engine. Triggers: a decision would otherwise fall back to a human, the
+  genuinely-safe/reversible class should clear autonomously, handing the operator back only the residue that
+  matters; "before you ask me", "council decide this", "authorize in place of human",
+  "pre-HITL gate".
+
 ---
 
 # /council-gate — Pre-HITL Democratic Council-Authorization Gate (*Boule*)

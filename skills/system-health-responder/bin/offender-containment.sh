@@ -67,7 +67,7 @@ EOF
 protected() { local c; c="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"; local p
   # substring match errs CONSERVATIVE (over-protect = skip a containment we could've done — never contain a
   # protected tool). EXCEPTION: `claude` matches WHOLE-string only, else it over-matches legit claude-branded
-  # plugins/marketplaces (`claude-plugins-official`, `claude-code-concierge`) that are NOT the runtime.
+  # plugins/marketplaces (`claude-plugins-official`, `claude-concierge`, `claude-code-concierge` alias) that are NOT the runtime.
   for p in "${PROTECTED[@]}"; do
     if [ "$p" = "claude" ]; then [ "$c" = "claude" ] && return 0; continue; fi
     case "$c" in *"$p"*) return 0;; esac

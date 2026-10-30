@@ -49,7 +49,7 @@ Use `protocols/delegation/provider-matrix.md` for every external call. Detection
 # ticket provider (same rule as ticket_provider_for in plugin-scripts/gaac/delegate.sh):
 # key prefix in $MAOS_JIRA_KEY_PREFIXES → jira; in $MAOS_LINEAR_KEY_PREFIXES → linear;
 # empty → none; anything else → auto
-TICKET_PROVIDER=$(bash "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/gaac/delegate.sh" init --ticket="${TICKET:-}" --provider=none 2>/dev/null | sed -n "s/^TICKET_PROVIDER=//p")
+TICKET_PROVIDER=$(bash "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/gaac/delegate.sh" init --ticket="${TICKET:-}" --provider=none 2>/dev/null | sed -nE "s/^TICKET_PROVIDER=(jira|linear|auto|none)$/\1/p" | head -n1)
 # VCS provider
 case "$(git config --get remote.origin.url 2>/dev/null)" in
   *bitbucket.org*) VCS_PROVIDER=bitbucket ;;

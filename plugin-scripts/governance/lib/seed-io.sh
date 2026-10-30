@@ -105,7 +105,8 @@ seed_active_world() {
   local repo="$1" remote org o alias alias_re raw
   local -a _owners=()
   alias="${MAOS_PERSONAL_SSH_ALIAS:-github.com-personal}"
-  alias_re="$(printf '%s' "$alias" | sed 's/[.]/\\./g')"
+  # Escape EVERY ERE metacharacter (not only dots): an alias like gh+me must match literally.
+  alias_re="$(printf '%s' "$alias" | sed 's/[][\\.^$*+?(){}|#]/\\&/g')"
   # `git remote get-url` EXPANDS this machine's own `url.<x>.insteadOf` rewrites by default —
   # so a personal repo cloned the normal way (`git@github.com:OWNER/X.git`) reports back as
   # the operator's OWN personal-identity SSH alias `git@github.com-personal:OWNER/X.git`

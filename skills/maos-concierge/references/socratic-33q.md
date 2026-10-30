@@ -1,15 +1,16 @@
 # The Forge — 33 Socratic Questions (self-executed) → `maos-concierge` spec
 
 > Per `agents/forge.md`: *"Execute internally BEFORE creating any agent. The answers form the spec."*
-> Self-executed 2026-05-28 for **maos-concierge**. The answers below ARE the design contract that
-> `SKILL.md` implements. Vendor-neutral (MIT). Mirrors the format of sibling concierges'
+> Self-executed 2026-05-28 for **maos-concierge**. The answers below record the original
+> design contract; current `SKILL.md` + `CANON.md` govern. Vendor-neutral (MIT). Mirrors the format of sibling concierges'
 > `references/socratic-round-2.md`.
+> Route-availability and organization-neutral wording corrected on 2026-10-26; the remaining genesis record is preserved. World-specific routers are optional EXTERNAL capabilities, not bundled: use only on opt-in after capability detection and report unavailable if absent.
 
 ## Scope (1-7)
 
 1. **Atomic domain?** — `MAOS` (the Multi-Agent OS framework itself: its agents, skills, commands, protocols, governances).
 2. **Tasks WITHIN scope?** — Teach/explain the framework · onboard a newcomer (human or fresh-amnesic agent) · route an intent → the right native tool + invocation + governing protocol · provide playbooks/runbooks/walkthroughs · audit a project's MAOS compliance (read-only) · anchor canonical decisions + flag drift · render an onboarding dashboard (ASCII/HTML).
-3. **Tasks OUT OF scope?** — Running the orchestration itself · executing the Sentinel trace analysis · forging a new agent · reimplementing/wrapping any tool · deploying/merging code · any Vek/corporate-specific onboarding (that's vek-concierge) · the SpecDD stack (specdd-concierge) · the Atlassian estate ops (atlassian-concierge).
+3. **Tasks OUT OF scope?** — Running the orchestration itself · executing the Sentinel trace analysis · forging a new agent · reimplementing/wrapping any tool · deploying/merging code · organization-specific onboarding, specification-driven stacks and enterprise-service operations (their world-specific external routers are opt-in; capability-detect before routing and report unavailable if absent).
 4. **Does another agent already cover part of this scope?** — Partial: `skill-writer` authors skills, `forge` creates agents, `governance-auditor` audits standards, `morning-briefing`/`pulse` do session orientation. NONE provides a single onboarding/guide/anchor *entry-point over the whole MAOS framework* — that gap is the reason this concierge exists. It ROUTES to those tools, never duplicates them.
 5. **Future tasks in the same domain?** — Yes: as MAOS adds agents/skills/protocols, the concierge orients over them too (registry-driven, re-derived by `--mode=audit`). Reusable across any MAOS-enabled repo.
 6. **Typical input?** — An intent in natural language ("I'm new", "which tool for X", "is Y allowed", "audit us", "what's the canonical rule for Z") + optional `--mode=` flag + a repo context.
@@ -27,9 +28,9 @@
 
 ## Limits (15-21)
 
-15. **NEVER do?** — Reimplement/wrap a tool · run orchestration/Sentinel/Forge itself · mutate files in audit/anchor · contradict CANON · fabricate availability · carry corporate/Vek content · authorize irreversible ops.
+15. **NEVER do?** — Reimplement/wrap a tool · run orchestration/Sentinel/Forge itself · mutate files in audit/anchor · contradict CANON · fabricate availability · carry organization-specific content · authorize irreversible ops.
 16. **ESCALATE to user when?** — Irreversible ops, secrets, cross-org actions, or any decision in the human domain surface during orientation.
-17. **DELEGATE to another tool when?** — Creation → `forge`; orchestration → `orchestrator`/`auto-pilot`; trace analysis → `audit`/`sentinel-monitor`; deep convergence → `converge`; Vek/SpecDD/Atlassian onboarding → the sibling concierges.
+17. **DELEGATE to another tool when?** — Creation → `forge`; orchestration → `orchestrator`/`auto-pilot`; trace analysis → `audit`/`sentinel-monitor`; deep convergence → `converge`; world-specific onboarding → an opt-in external router, capability-detected before routing and reported unavailable if absent.
 18. **No-touch zones (NTZ)?** — All project source, `sentinel/` runtime traces, `protocols/` bodies (reference, never edit from here), other skills' files. The concierge only writes within its own skill dir (the dashboard companion).
 19. **Risks of poor calibration?** — Mis-routing a newcomer (rework), teaching a stale tool (drift), or—worst—advising a protocol-violating shortcut (Anti-Conflict/Hierarchical-Merge breach). Mitigated by Phase-0 verification + CANON anchoring + audit evidence discipline.
 20. **Revert actions?** — Trivial: the concierge mutates nothing except an on-request static `dashboard.html` (delete to revert). Orientation is advice — no state to revert.
