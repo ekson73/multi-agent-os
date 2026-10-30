@@ -159,12 +159,21 @@ regexes = [
     '''^aws:///[^\s'"]+#[A-Z0-9_]+$''',
     # Case-sensitive and exact. (?-i) holds even if an earlier alternative
     # in the joined OR-list turned case-folding on. A lowercase or mixed-case
-    # alphanumeric secret must NOT match.
-    '''(?-i)^[A-Z][A-Z0-9_]*$''',
+    # alphanumeric secret must NOT match. At least one '_' segment is required
+    # (identifier shape, SOME_CONSTANT_NAME), so a bare all-caps literal such
+    # as ABABABAB or PASSW0RD still fires.
+    '''(?-i)^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$''',
     # Code reference: UPPER_CONSTANT.attr (SECRET_PARAM_RE.match), not a credential.
     '''(?-i)^[A-Z][A-Z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$''',
     # password = os.getenv("NAME") — the call parenthesis is not part of the value.
     '''^os\.getenv$''',
+    # Code references, not literals: bare shell expansion ($APP_SECRET_VALUE),
+    # os.environ["X"] / os.environ.get("X") (value stops at the quote or '('),
+    # process.env.X, and member access on self/request/settings/config.
+    '''^\$[A-Za-z_][A-Za-z0-9_]*$''',
+    '''^os\.environ(?:\.get)?\[?$''',
+    '''^process\.env\.[A-Za-z_][A-Za-z0-9_]*$''',
+    '''^(?:self|request|settings|config)\.[A-Za-z_][A-Za-z0-9_.]*\[?$''',
 ]
 
 [[rules]]
