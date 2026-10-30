@@ -237,7 +237,7 @@ DE="$(dirname "$(dirname "$(dirname "$FUSE")")")/decision-engine/bin/decision_en
 # (SCOPE vazio = o default da sessão). O passo 2 nunca muda a fatia do ledger.
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \
   ${SESSION_ID:+--session-id "$SESSION_ID"} ${SCOPE:+--scope "$SCOPE"} --format json \
-  | python3 "$DE" - --format tree
+  | python3 "$DE" - --format tree --sort gut
 ```
 
 O envelope do engine carrega o `source` do digest (`hitl_scope`,

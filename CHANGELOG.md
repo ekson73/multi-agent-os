@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Fixed — `decision-engine`: HITL recommendation from the item's own evidence, plus GUT priority
+
+- Before, every R1/R2 verdict without a structured option recommended the type's first
+  disposition (`type-default`), so on the real ledger all 11 open items got the same
+  answer as their type. Now the engine reads the row's `decidir` text: deferral date,
+  open precondition / unblock step, "não determinável … fechar exige", command + undo,
+  a written recommendation, or a ready plan. It returns a concrete recommendation,
+  alternatives and `confidence`, or says `sem evidência` explicitly (`confidence:
+  "nenhuma"`, `evidence_note`). Routing (R0-R4) is unchanged; the 5 types stay HITL.
+- Every verdict carries `priority` (GUT, 1-5 each, score = product). `--sort gut` orders
+  the output; default order is unchanged. `--today` fixes the reference date.
+- Evidence words that are directly negated (`não adiado`, `sem plano pronto`, `sem undo`)
+  are not evidence.
+- Tests: new behavioural tests; mutation-checked (evidence off, flat urgency, no sort,
+  undo not required, negation off: each turns tests red). Refs ekson73/eko-backlog#228.
 ### Fixed — `bin/sync-agentic-tools.sh`: a missing source repo is reported, not skipped in silence
 
 - #518 changed the toolkit default to `~/Projects/ai-toolkit` and dropped the old variable.
