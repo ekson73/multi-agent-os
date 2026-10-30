@@ -1203,6 +1203,14 @@ cxu = next(x for x in mod.build_stores(cxctx, []) if x.id == "codex/sessions").u
 cxt = " ".join(m["text"] for m in cxu[0].load()[1]) if cxu else ""
 ok("CXQ-7Q" in cxt and "CXA-7Q" in cxt and "CXREASON-7Q" not in cxt,
    "Codex analysis-channel assistant messages are dropped, final ones kept (%d units)" % len(cxu))
+bctx2 = mod.Ctx(rx_home, time.time(), dict(mod.LIMITS, max_records=2, max_record_bytes=16), [], b"k" * 32)
+list(bctx2.jsonl("s", "p", io.BytesIO(b"".join(b"x" * 40 + b"\n" for _ in range(8)))))
+ok(len(bctx2.quarantine) <= 3 and bctx2.records_total == 2,
+   "oversized JSONL lines spend the --max-records budget (%d quarantined)" % len(bctx2.quarantine))
+mjs = put(".claude.json", raw=b'{"x": 1}', home=rx_home)
+ectx = mod.Ctx(rx_home, time.time(), dict(mod.LIMITS), ["*/.claude.json"], b"k" * 32)
+ok(ectx.read_small(mjs) is None and mod.Ctx(rx_home, time.time(), dict(mod.LIMITS), [], b"k" * 32).read_small(mjs),
+   "an --exclude-path'd metadata file is not read")
 # 15. passes 1 and 2 never touch the network: any socket creation raises
 import socket as _socket
 _orig_socket = _socket.socket

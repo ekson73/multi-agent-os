@@ -611,6 +611,8 @@ class Ctx:
     def read_small(self, path: str, cap: Optional[int] = None) -> Optional[bytes]:
         """A small metadata file (account id, project map) through the same no-follow open."""
         cap = cap or self.limits["max_record_bytes"]
+        if self.excluded(path):  # --exclude-path covers metadata too: callers fall back to "not recorded"
+            return None
         try:
             fd, _st = self.open_source(path, self.walked.get(path))
         except OSError:
@@ -818,17 +820,19 @@ class Ctx:
             if not chunk:
                 break
             lineno += 1
-            if len(chunk) > cap and not chunk.endswith(b"\n"):
-                while chunk and not chunk.endswith(b"\n"):  # drain the rest of the oversized record
-                    chunk = fh.readline(cap + 1)
-                self.quarantine_(store, path, "record-over-size-cap", lineno)
+            oversized = len(chunk) > cap and not chunk.endswith(b"\n")
+            if not oversized and not chunk.strip():
                 continue
-            if not chunk.strip():
-                continue
+            # every nonblank record, oversized ones included, spends the run budget (bounds quarantine growth)
             if self.records_total >= self.limits["max_records"]:
                 self.quarantine_(store, path, "run-record-cap", lineno)
                 return
             self.records_total += 1
+            if oversized:
+                while chunk and not chunk.endswith(b"\n"):  # drain the rest of the oversized record
+                    chunk = fh.readline(cap + 1)
+                self.quarantine_(store, path, "record-over-size-cap", lineno)
+                continue
             try:
                 obj = json.loads(chunk)
             except ValueError:
