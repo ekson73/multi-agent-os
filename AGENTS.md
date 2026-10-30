@@ -42,7 +42,7 @@ claude --plugin-dir .
 - **Config**: JSON with `_comment` fields for documentation
 - **Naming**: lowercase-hyphenated for skills/commands/agents. **Sandwich Namespacing 5-layer pattern**:
   - **For skills/agents**: no `maos-` prefix in filename — Claude Code runtime auto-namespaces via plugin id (e.g., subagents surface as `maos:orchestrator`)
-  - **For commands**: runtime auto-namespace is **empirically unreliable** (verified 2026-05-21: `/status` collided with Claude Code built-in `/status`). Use function-specific filenames (e.g., `agentic-status` not `status`) + declare namespace prefix in `.claude-plugin/plugin.json` `command_namespace` block (Layer 2) + lint against `vendor_reserved_audit.claude_code_builtins` (Layer 4 reference: [ekson73/vek-dot-claude:docs/vendor-reserved-words.md](https://github.com/ekson73/vek-dot-claude/blob/main/docs/vendor-reserved-words.md))
+  - **For commands**: runtime auto-namespace is **empirically unreliable** (verified 2026-05-21: `/status` collided with Claude Code built-in `/status`). Use function-specific filenames (e.g., `agentic-status` not `status`) + declare namespace prefix in `.claude-plugin/plugin.json` `command_namespace` block (Layer 2) + lint against `vendor_reserved_audit.claude_code_builtins` (Layer 4 reference: [OWNER/user-dotfiles:docs/vendor-reserved-words.md](https://github.com/OWNER/user-dotfiles/blob/main/docs/vendor-reserved-words.md))
 - **Delegation**: spawning sub-agents goes through `skills/delegate-governance/SKILL.md` (or `plugin-scripts/gaac/delegate.sh init|dna|finalize`) — canonical entry point for the GaaS/GaaC framework
 
 ## Testing Instructions
@@ -82,7 +82,7 @@ Before committing any changes:
 - **GaaS principle**: deterministic hooks > probabilistic prompts
 - **Sentinel**: 10 detection rules, enforcement modes (soft/moderate/strict)
 - **Skills are Agent Skills standard**: compatible with Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, Goose, and 25+ other tools
-- **No `maos-` prefix** in filenames for skills+agents (Claude Code runtime auto-namespaces via plugin name `maos`). For commands, runtime auto-namespace is unreliable; prefix declaration lives in `.claude-plugin/plugin.json` `command_namespace` block (Sandwich Namespacing Layer 2), not in filename. Defense-in-depth: vendor-reserved-words lint reference at sister-repo `ekson73/vek-dot-claude:docs/vendor-reserved-words.md` (Layer 4)
+- **No `maos-` prefix** in filenames for skills+agents (Claude Code runtime auto-namespaces via plugin name `maos`). For commands, runtime auto-namespace is unreliable; prefix declaration lives in `.claude-plugin/plugin.json` `command_namespace` block (Sandwich Namespacing Layer 2), not in filename. Defense-in-depth: vendor-reserved-words lint reference at sister-repo `OWNER/user-dotfiles:docs/vendor-reserved-words.md` (Layer 4)
 - **Framework Consumption Model**: this repo is source of truth; consumers reference, don't duplicate
 
 ## Security
@@ -96,7 +96,7 @@ Before committing any changes:
 
 > This repo is **CONSUMED** by other repos/users — it does **not** deploy to environments. Model = **GitHub Flow + SemVer**. See [`docs/adrs/ADR-004-github-flow-branching.md`](./docs/adrs/ADR-004-github-flow-branching.md).
 
-- **Trunk**: `main` is always releasable. **No environment branches** (no `homolog`/`ppe`/`prd` here — those exist only in Class A *deployed apps* like `vek-sales`/`vek-list`).
+- **Trunk**: `main` is always releasable. **No environment branches** (no `homolog`/`ppe`/`prd` here — those exist only in Class A *deployed apps* like `example-app`/`org-list`).
 - **Work**: branch `feature/<id>-slug` · `fix/<id>-slug` · `hotfix/<id>-slug` · `docs/` · `chore/` off `main` → PR → **squash-merge** → **delete branch**.
 - **Release PRs**: a `.claude-plugin/plugin.json` version delta travels in a separate, rebased PR containing exactly one commit whose subject is `chore(release): ...`; it changes only the manifest `version` field and adds exactly one matching, additive `CHANGELOG.md` section. Repository squash is configured as `COMMIT_OR_PR_TITLE + COMMIT_MESSAGES`, so that single commit subject survives on `main`. README/CLAUDE versions remain derived by `version-sync`. The trusted-base workflow is authoritative evidence for maintainers, but remains advisory until a dedicated publisher identity or organization-level required workflow can authenticate its verdict without same-repository status spoofing.
 - **Agents MUST**: never commit to `main` directly · always open a PR · never create env-branches here · treat tagging/release as a human/operator gate.

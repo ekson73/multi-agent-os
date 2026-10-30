@@ -67,8 +67,8 @@ LGPD/GDPR-compliant backup/PITR.
 ## Dogfooding
 
 Validate via ≥1 real RLS policy + migration applied to a Supabase project before promotion.
-Note: corporate Vek binding (vek-list / vek-sales specifics) lives in vek-ai-toolkit's
-vek-supabase-architect — this community agent stays product-agnostic.
+Note: corporate Acme binding (org-list / example-app specifics) lives in ai-toolkit's
+org-supabase-architect — this community agent stays product-agnostic.
 
 ## Autonomy
 

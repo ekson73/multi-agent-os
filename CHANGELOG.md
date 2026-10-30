@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   digest itself is unchanged.
 - `.github/workflows/decision-engine-tests.yml`: runs the suite (rules, mutation-check,
   real `synopsis-fuse` pipe, absent backend, invalid policy). Ref #555, eko-backlog #228.
+
+### Changed — org-agnostic core: agents, protocols, runtime and tests
+
+- Agents, protocols, rules, hooks, `bin/`, `plugin-scripts/`, `mcp-tools/`, packaging, ontology and their tests no longer carry maintainer-, employer- or client-specific identifiers. Neutral placeholders replace them (`OWNER`, `WORKSPACE`, `Acme`, `org-*`, `TICKET-n`, `$HOME`).
+- The person-agent language rule is generic: `Responde no idioma configurado do usuário.` (`MAOS_USER_LOCALE`, falling back to the language the user writes in).
+- Installation config replaces hard-coded values: `MAOS_JIRA_KEY_PREFIXES` / `MAOS_LINEAR_KEY_PREFIXES` (ticket routing in `plugin-scripts/gaac/delegate.sh`), `MAOS_PERSONAL_GH_OWNERS` / `MAOS_WORK_GH_OWNERS` / `MAOS_PERSONAL_SSH_ALIAS` (`seed_active_world`), `MAOS_LAYER_PURITY_PATTERNS` / `MAOS_LAYER_PURITY_PATTERNS_FILE` (`bin/check-layer-purity`, CI reads the `LAYER_PURITY_PATTERNS` repository variable), `MAOS_TOOLKIT_DIR` (`bin/sync-agentic-tools.sh`), `$SCM_WRITE_ACCOUNT` (provider matrix) and `~/.config/maos/`.
+- **Upgrade note:** without that config, ticket keys resolve to `auto` and `active_world` resolves to `unknown` (fail-closed). Prefix and owner lists accept spaces or commas. Layer purity with no patterns configured warns locally and scans only its neutral default, fails in CI, and on a pull request from a fork emits `::warning::` and skips. Set the variables locally, and the `LAYER_PURITY_PATTERNS` repository variable for CI, to keep the previous routing and org-pattern behaviour.
 ### Changed — GitNexus sub-skills: one layout (EKO-156, #522)
 
 - The six GitNexus sub-skills move from `.claude/skills/gitnexus/<name>/` to
@@ -1172,6 +1179,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (never run by the concierge's `wacli:*` path or the delegate); admission gets a new-account
   exception so `accounts add` probes `accounts list` instead of a not-yet-existing account.
 
+### Added — `session-catalog`: read-only catalog of past AI-harness sessions
+
+New skill `skills/session-catalog/` with a stdlib-only reader
+(`scripts/session_catalog.py`). It builds one normalized, private index of historical
+sessions from Claude Code (CLI, Desktop, Cowork), Codex (CLI and app), omp, prime-agent,
+Gemini CLI, Antigravity and agy, and from ChatGPT/claude.ai data exports. From that index
+it can stream topic-scoped, redacted text.
+
+- **Two capabilities, one ships.** Read-only catalog/import ships. Live
+  attach/adopt/resume of a running session is documented as a future, separately gated
+  capability and is not implemented.
+- **Fail-closed matrix per store.** Each store gets a status (`supported` /
+  `unavailable` / `unverified`) with its reason, an account fingerprint and a receipt.
+  Unknown record types or versions are quarantined as metadata, never guessed. Exit
+  codes separate `complete` (0), `partial` (3), `unsupported` (4) and `blocked` (5).
+- **Privacy at ingestion.** It strips control envelopes, hidden reasoning, tool
+  arguments and attachments, and redacts secrets and PII before text reaches any output.
+  Probable credentials become value-free security findings. The index holds pointers and
+  opaque HMAC ids, never message text. Output goes to 0700/0600 files outside any git
+  repo, under a per-root lock. The reader makes no network calls and never opens SQLite.
+- **Containment bound to the opened file (v0.2.0, after the independent security
+  review).** Sources are reached from the declared home through directory descriptors,
+  opening every component `O_NOFOLLOW`. A store root that is, or passes through, a
+  symlink is refused. Each open is checked with `fstat` against the `(device, inode)`
+  recorded while listing, and hard-linked sources are refused. Output roots and the
+  findings path are canonicalized: a git work tree reached through an ancestor alias,
+  anything at or below a temp root, or the skill directory is refused, and the `--allow-git-output` override is
+  removed. Redaction now also masks token-shaped secrets split across fields or messages
+  and quoted secrets with spaces. Record types and suspicious tool names leave only as
+  digests. Claude/Codex/pi records without a verified version, and invalid UTF-8 in
+  exports, are quarantined. `--max-*` limits must be positive, and `--max-records` covers
+  exports. Exports stream one conversation at a time, each export gets its own opaque
+  identity. "Past session" is now an explicit contract: no change within the horizon
+  (24 h by default). Open file handles are not inspected, so a transcript an idle process
+  still holds open is read up to its last complete record, and a truncated tail is
+  quarantined. SKILL.md and every receipt (`past_session_contract`) state this. A closed
+  stdout ends `extract` as `partial` with its receipt, one unreadable
+  store file marks only that store, and the receipt records the tool version, schema and
+  commit/dirty state.
+- **Outputs never land on inputs; scope is mandatory and minimal (bot round).** An output
+  root that overlaps a store root, a harness metadata file or a supplied export is
+  refused, and so is a `--security-findings` file that is or lies inside one; before this,
+  either would have been rename-replaced. An unmarked output root that already holds
+  output-named files is refused. `index` now requires `--project`/`--mention` like
+  `extract`. With `--surface`, stores outside the scope are never built, so their account
+  metadata is never read. Exports must be one top-level JSON array, and every decoded
+  element is held to `--max-record-bytes`. Whole-document Gemini recordings count against
+  `--max-records`, and `index` streams its rows instead of holding them. `/root` and the
+  configured `--home` are redacted like `/Users/*` and `/home/*`. The one-run lock is now a
+  kernel `flock`, released when the holder dies, so there is no stale-lock race.
+  `--security-findings` may not name the output root's own control files, an invalid
+  `--mention`/`--grep` regex is a usage error before anything is prepared, and a ChatGPT
+  conversation whose `current_node` does not walk to the root (missing, dangling parent,
+  self- or longer cycle) is quarantined. Output and control files (lock, receipt, index,
+  quarantine, key, marker, findings) must be regular, singly-linked and owned by the user,
+  so a hard-linked `.lock` can no longer be truncated. The process home is refused like
+  `--home`. `--max-files` stops discovery itself, and a Gemini JSONL recording without its
+  header is quarantined instead of being named after the file. A findings path that aliases
+  a control file by case or identity, or names an existing directory, is refused before
+  anything is read. Credential-shaped session ids are stored as opaque digests. A relative
+  `--project` resolves against the working directory. Each directory listing is read only
+  up to a bound derived from the remaining `--max-files` budget (ceiling 100 000), so one
+  huge directory is never materialized; exceeding it quarantines `directory-entry-cap`.
+  A transcript `cwd` that is present but not a non-empty string quarantines its record
+  (`malformed-field:cwd`); on a Codex or pi session header it quarantines the whole
+  session, and after a malformed Codex `turn_context` later items belong to no project.
+  An absent `cwd` behaves as before, and a
+  conversation whose loader fails is quarantined alone while the rest of its export is read.
+  An assignment-shaped tool name (`password=…`) is screened before its delimiters are
+  stripped and becomes an opaque digest. An `--export` outside `--surface` is refused
+  (exit 2) before its path is stat'ed, and opaque-store samples (`.pb`/`.data`) changed
+  after the high-water mark are deferred instead of opened. The suite's touched-path check
+  accepts the ancestor probes of a temp root that does not exist (Linux).
+- **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
+  every adapter. It adds adversarial redaction cases, symlink, root-symlink and
+  hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,
+  outputs landing on inputs, oversized, binary, invalid-UTF-8 and non-array exports, a
+  hostile zip, caps, the flock lock, closed-pipe and no-socket checks, a pinned past-session
+  contract (an idle writer holding an old transcript open), and a gitleaks-style scan of
+  every output. An instrumentation pass records
+  every path the reader opens, stats or writes during stores/index/extract, and asserts
+  that each stays inside the fixture roots and the output dir, with every source open
+  `O_NOFOLLOW`. Doc-vs-CLI exit-code/version checks and source immutability are also
+  covered. It is macOS-exercised; Linux is expected to work but untested.
 
 ### Added
 - `skills/tutorial-forge/SKILL.md` (v0.1.0) — forge de tutoriais multi-capítulo parametrizáveis (analogias-first, leigo-friendly)

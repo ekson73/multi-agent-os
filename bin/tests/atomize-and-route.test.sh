@@ -53,7 +53,7 @@ o="$("$BIN" route --type insight --scope project --dry-run --json 2>/dev/null)"
 has 'memory' "$o" 'insight resolves under memory/'
 
 o="$("$BIN" route --type idea --scope durable-personal --dry-run --json 2>/dev/null)"
-has 'eko-engram' "$o" 'idea resolves under eko-engram'
+has 'notes-vault' "$o" 'idea resolves under notes-vault'
 
 o="$("$BIN" route --type work --scope work --dry-run --json 2>/dev/null)"
 has 'tracker' "$o" 'work resolves to a tracker destination'

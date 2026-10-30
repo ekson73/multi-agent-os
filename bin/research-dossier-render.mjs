@@ -69,7 +69,7 @@ const RENDERER_ID = 'research-dossier v0.2.0';
 
 // ── self-heal-relay (Anima: "self-heal-relay", soul-name "Phoenix") ──────────
 // Pattern doc: docs/self-heal-relay.md · upstream standard:
-// ~/.kiro/steering/eko-executable-scripts.md §prop-6. Zero-dep (Node builtins only).
+// ~/.kiro/steering/executable-scripts.md §prop-6. Zero-dep (Node builtins only).
 //
 // On an UNCAUGHT exception (uncaughtException / unhandledRejection) OR an exit-2
 // IO/usage fault, this renderer captures a run log + writes an UNTRUSTED-labelled
@@ -163,7 +163,7 @@ function selfHealRelay(err, code) {
       + `Root-cause the fault and fix \`${selfPath}\`. Preserve its exit-code semantics `
       + 'EXACTLY: 0 ok, 1 = legitimate GATE FAILURE (never weaken/bypass a gate), '
       + '2 = usage/IO error. Keep it zero-dependency (Node builtins only) and keep both '
-      + 'gates deterministic. Follow the eko-executable-scripts standard in '
+      + 'gates deterministic. Follow the executable-scripts standard in '
       + '~/.kiro/steering/. Keep changes minimal and show a diff.\n');
   } catch (e) {
     process.stderr.write(`✖ self-heal could not write temp files: ${e.message}\n`);

@@ -44,7 +44,7 @@ item, who should act and what the recommended answer is.
 | roteia cada item HITL: `DIY` · `COMPUTE` · `HITL` | **não** muta o ledger (`hitl-punch-list.py` + `punch-list.md`) |
 | anexa recomendação + alternativas aos itens `HITL` | **não** autoriza nada: `HITL` continua sendo do humano |
 | reusa as opções por tipo do `synopsis-panel` (`_card_options`) | **não** reimplementa render, opções ou agregação |
-| regras fixas, mesma entrada = mesma saída | **não** usa modelo: o candidato Laya foi medido e rejeitado (eko-backlog #225) |
+| regras fixas, mesma entrada = mesma saída | **não** usa modelo: o candidato Laya foi medido e rejeitado no backlog (#555 cita a medição) |
 
 ## Regras (a primeira que casa vence)
 
@@ -94,14 +94,14 @@ Exit `2` = entrada inválida. Exit `0` em qualquer outra situação, inclusive 0
 
 ## Decisões de forja (agentic-tool-pipeline, resumidas)
 
-- **Nome**: `decision-engine`, o nome que o operador e os tickets já usam (eko-backlog
-  #225, #228). Registro de máquina; um nome novo quebraria a busca.
+- **Nome**: `decision-engine`, o nome que o operador e os tickets já usam (#555
+  e o backlog de construção). Registro de máquina; um nome novo quebraria a busca.
 - **Tipo**: skill com `bin/`, no padrão `synopsis-panel`. Um command sozinho não teria
   testes; um MCP seria serviço novo sem necessidade.
-- **Rejeitado**: (1) modelo local Laya como roteador, medido em #225 com 50,0% de
+- **Rejeitado**: (1) modelo local Laya como roteador, medido no backlog com 50,0% de
   concordância contra 77,8% do "sempre a opção A"; (2) estender o `synopsis-fuse.py`,
   que é read-only e só desenha, e ganharia uma segunda responsabilidade.
-- **Fora do MVP** (#228): drivers de modelo (`ModelAdapter`), gravar o veredito no
+- **Fora do MVP**: drivers de modelo (`ModelAdapter`), gravar o veredito no
   ledger, backtest contra decisões reais do operador.
 
 ## Testes
@@ -116,7 +116,7 @@ teste falhar.
 
 ## §Refs
 
-- Ticket: multi-agent-os #555 · eko-backlog #228 (construção) · #225 (cascata e backtest do engine).
+- Ticket: #555.
 - Motor composto: `../synopsis-panel/bin/synopsis-fuse.py` (`_card_options`).
 - Entrada: `../../commands/hitl-digest.md` (passo 2 opcional).
 - Captura de decisão técnica (`R3`): `../decision-capture/SKILL.md`.

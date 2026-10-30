@@ -3,7 +3,7 @@
  *
  * Does not vendor the full skill corpus into OpenCode hooks.
  * Skills/agentic-tools remain in-repo and are consumed via:
- *   - Claude: maos plugin / eko-plugin-marketplace
+ *   - Claude: maos plugin / plugin-marketplace
  *   - Pi: `pi install git:github.com/ekson73/multi-agent-os@main`
  *   - Skills CLI: `npx skills add ekson73/multi-agent-os`
  *

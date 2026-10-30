@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MAOS — memory-gateway · the ONE writer to the memory corpus (ADR-013, EKO-116)
+# MAOS — memory-gateway · the ONE writer to the memory corpus (ADR-013, TICKET-116)
 # ----------------------------------------------------------------------------
 # WHY: an amnesic-agent ecosystem needs a SINGLE, crash-safe, deterministic
 #   front-door to persistent memory. Ad-hoc Edit/Write on topic files means:

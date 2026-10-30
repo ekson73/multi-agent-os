@@ -6,7 +6,7 @@
 #  * @impact   dry-run DEFAULT · NEVER --force · NEVER -D · NEVER touches WIP or the main worktree ·
 #  *           idempotent · good-neighbor (defers on index.lock) · session transcripts out of scope.
 #  * @usage    reap-sessions.sh [--repo-dir DIR] [--stale-days N] [--apply] [--json]
-#  * Stdlib + git only. AAIF cross-vendor. Layer-pure (no akasha/Vek deps). bash 3.2 safe. LF.
+#  * Stdlib + git only. AAIF cross-vendor. Layer-pure (no knowledge-vault/work deps). bash 3.2 safe. LF.
 #  */
 set -euo pipefail
 

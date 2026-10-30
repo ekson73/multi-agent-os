@@ -333,14 +333,14 @@ só nele deixa o defeito entrar.
 
 ⚠️ **NUNCA use `--merge` incondicionalmente.** O método é **resolvido a partir da autoridade
 local do repositório**. Ratificado pelo operador em 2026-09-17, após inventário read-only dos
-46 repositórios ativos (`vek-im` + `ekson73`).
+46 repositórios ativos (`acme-org` + `maintainer`).
 
 **Eixo 1 — política declarada** (o que o repo *diz*). Procure cláusula normativa em
 `docs/adrs/*`, `CONTRIBUTING.md`, `AGENTS.md`, `CLAUDE.md`.
 
 - ⛔ **Leia a cláusula, não conte a palavra.** `squash` aparece tanto em *"use squash-merge"*
   quanto em *"por que merge commit, **não** squash"*. Contagem de ocorrências classifica ao
-  contrário — defeito real, medido em `vks-jss-sales-api`.
+  contrário — defeito real, medido em `example-sales-api`.
 - No inventário, **5 de 46** repos tinham declaração explícita e **41 não tinham nenhuma**.
   Snapshot é ponto de partida, **não** substituto da verificação: **sempre reconfira o repo
   em que você está operando.**

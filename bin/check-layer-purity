@@ -11,28 +11,80 @@
 #   bin/check-layer-purity --json       # machine-readable output
 #
 # Exit codes:
-#   0 = clean (zero violations)
-#   1 = violations found
+#   0 = clean (zero violations), or skipped on a fork pull request with no patterns
+#   1 = violations found, or CI with no patterns configured
 #   2 = usage error / file not found
 set -euo pipefail
 
-# Organization-specific strings to flag (case-insensitive)
-# Add new patterns here; one regex per line, anchored as needed.
+# Organization-specific strings to flag (case-insensitive), one ERE per entry.
+# The framework ships only a neutral default. Real organization names, project keys
+# and domains are installation config and are never compiled into this file.
+#   MAOS_LAYER_PURITY_PATTERNS       newline-separated EREs
+#                                    (in CI: the LAYER_PURITY_PATTERNS repository variable)
+#   MAOS_LAYER_PURITY_PATTERNS_FILE  file with one ERE per line, '#' comments allowed
+#                                    (default: ~/.config/maos/layer-purity-patterns.txt)
+# /**
+#  * Unconfigured patterns must not look like a clean scan.
+#  * @context The neutral default (\bLGPD\b) is always loaded, so an empty config used to exit 0.
+#  * @reason A green run with no org patterns hides that the promotion gate checked almost nothing.
+#  * @impact Local runs warn and still scan the default. CI fails. A fork pull request warns and skips.
+#  */
 PATTERNS=(
-  '\bvek\b'
-  '\bVKL-[0-9]+'
-  '\bVKS-[0-9]+'
   '\bLGPD\b'
-  '\bVSAF\b'
-  '\bvector(inf)?\b'
-  '\bvek-list\b'
-  '\bvek-sales\b'
-  '\bvek-ai-toolkit\b'
-  '\bvek-claude-plugins\b'
-  '\bvek-list-pilot\b'
-  'vek\.atlassian\.net'
-  'vectorinf\.com\.br'
 )
+_lp_configured=0
+_lp_file="${MAOS_LAYER_PURITY_PATTERNS_FILE:-${HOME:-}/.config/maos/layer-purity-patterns.txt}"
+if [ -f "$_lp_file" ]; then
+  while IFS= read -r _lp || [ -n "$_lp" ]; do
+    case "$_lp" in
+      ''|'#'*) continue ;;
+    esac
+    # Whitespace-only lines are blank, not a whitespace ERE (it would flag every space).
+    [ -z "${_lp//[[:space:]]/}" ] && continue
+    _lp_configured=1; PATTERNS+=("$_lp")
+  done < "$_lp_file"
+fi
+if [ -n "${MAOS_LAYER_PURITY_PATTERNS:-}" ]; then
+  while IFS= read -r _lp || [ -n "$_lp" ]; do
+    if [ -n "${_lp//[[:space:]]/}" ]; then
+      _lp_configured=1
+      PATTERNS+=("$_lp")
+    fi
+  done <<< "$MAOS_LAYER_PURITY_PATTERNS"
+fi
+
+# CI is GitHub Actions, or any runner that exports CI=true.
+_lp_in_ci() {
+  [ "${GITHUB_ACTIONS:-}" = "true" ] || [ "${CI:-}" = "true" ]
+}
+
+# Fork pull requests do not carry the upstream repository variable.
+_lp_fork_pr() {
+  [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] || return 1
+  [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "${GITHUB_EVENT_PATH}" ] || return 1
+  local fork="false"
+  if command -v jq >/dev/null 2>&1; then
+    fork="$(jq -r 'if .pull_request.head.repo.fork == true then "true" else "false" end' "${GITHUB_EVENT_PATH}" 2>/dev/null || echo false)"
+  fi
+  [ "$fork" = "true" ]
+}
+
+# Fork pull_request is the only CI event that skips. The fork head is checked
+# after merge, on push to main, where a missing LAYER_PURITY_PATTERNS fails.
+# workflow_dispatch does not run a fork head; a pre-merge check is a local or
+# trusted-branch checkout.
+_lp_unconfigured_gate() {
+  [ "$_lp_configured" -eq 0 ] || return 0
+  if _lp_in_ci; then
+    if _lp_fork_pr; then
+      echo "::warning::Layer Purity check skipped: no patterns configured (pull request from a fork; LAYER_PURITY_PATTERNS is not set)."
+      exit 0
+    fi
+    echo "error: Layer Purity: no patterns configured. Set MAOS_LAYER_PURITY_PATTERNS, MAOS_LAYER_PURITY_PATTERNS_FILE, or the LAYER_PURITY_PATTERNS repository variable. Refusing to pass silently." >&2
+    exit 1
+  fi
+  echo "warning: Layer Purity: no patterns configured (MAOS_LAYER_PURITY_PATTERNS, MAOS_LAYER_PURITY_PATTERNS_FILE, or the CI variable LAYER_PURITY_PATTERNS). Scanning the neutral default only." >&2
+}
 
 MODE="text"
 FILES=()
@@ -85,10 +137,18 @@ done
 
 [ ${#FILES[@]} -eq 0 ] && { echo "Usage: $(basename "$0") <file>... | --hooks | --candidates [--json]" >&2; exit 2; }
 
+_lp_unconfigured_gate
+
 # Build combined regex (alternation) for grep -E.
 # printf-join (not an `IFS='|'` subshell): subshell-IFS is safe but trips a global-IFS lint;
 # printf is clearer and lint-clean. Trailing '|' stripped via parameter expansion.
 JOINED_RE=$(printf '%s|' "${PATTERNS[@]}"); JOINED_RE="${JOINED_RE%|}"
+# A malformed ERE makes grep exit 2, which the scan loop would read as "no match" (false clean).
+_lp_rc=0; printf '' | grep -Ei "$JOINED_RE" >/dev/null 2>&1 || _lp_rc=$?
+if [ "$_lp_rc" -ge 2 ]; then
+  echo "check-layer-purity: invalid layer-purity regex in configured patterns" >&2
+  exit 2
+fi
 
 VIOLATIONS=0
 MISSING_FILES=0
