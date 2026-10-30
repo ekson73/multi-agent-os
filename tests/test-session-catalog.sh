@@ -1132,6 +1132,14 @@ xctx = mod.Ctx(mh, time.time(), dict(mod.LIMITS), ["*/antigravity/brain/*/task.m
 xst = {x.id: x for x in mod.build_stores(xctx, [])}
 xst["antigravity/brain"].units()
 ok(len(xst["antigravity-ide/brain"].units()) == 6, "an --exclude-path'd primary brain copy does not suppress its mirror")
+nh = os.path.join(FIX, "home-brain-nul")
+NID = "c0ffee33-0000-4000-8000-000000000000"
+put(".gemini/antigravity/brain/%s/task.md" % NID, raw=b"# Task\x00 nul\n", home=nh)
+put(".gemini/antigravity-ide/brain/%s/task.md" % NID, raw=b"# Task\n- [ ] NUL-MIRROR-7Q\n", home=nh)
+nctx = mod.Ctx(nh, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+nst = {x.id: x for x in mod.build_stores(nctx, [])}
+nst["antigravity/brain"].units()
+ok(len(nst["antigravity-ide/brain"].units()) == 1, "a binary (NUL) primary brain artifact does not suppress its text mirror")
 sctx = mod.Ctx(mh, time.time(), dict(mod.LIMITS, max_file_bytes=4, max_record_bytes=1024), [], b"k" * 32)
 sst = {x.id: x for x in mod.build_stores(sctx, [])}
 su = sst["antigravity/brain"].units()

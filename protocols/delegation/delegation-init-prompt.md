@@ -103,6 +103,13 @@ The CLI prepends a header with detected values before cat-ing this file. Expecte
 - `WORKTREE`: `<path>` or `(main — RO only)`
 - `AGENT_HEX`: 4 hex chars for this delegation (sub-agent seq, not orchestrator prime)
 - `PARENT_SESSION`: orchestrator session id
+- `DEPTH_REMAINING`: added by the delegator, not the CLI — its own value − 1
+  (the root uses cap − 1; `skills/agentic-delegation` §4.1). If absent, the child
+  is a leaf.
+- `AUTHORITY_SCOPE` + `AUTHORITY_ORIGIN`: delegator-set, only when granting
+  authority; the scope is a subset of the delegator's, the origin is the
+  operator's original grant passed down unchanged. A scope without an origin
+  counts as missing (§4.1).
 
 The delegated agent echoes these back in the first line of its output (one line, key=value) to confirm inheritance.
 
@@ -119,4 +126,5 @@ On rejection: emit a single-line refusal with the specific rule violated, do **n
 
 ---
 
-*Source of truth: `protocols/delegation/delegation-init-prompt.md` | Version 1.0 | 2026-04-18*
+*Source of truth: `protocols/delegation/delegation-init-prompt.md` | Version 1.1 | 2026-10-21*
+*v1.1 (2026-10-21): dynamic section gains the `DEPTH_REMAINING` header field (delegator-set, its own value − 1; absent = leaf).*

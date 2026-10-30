@@ -14,34 +14,28 @@
 #     contains any ambiguous-class member that is NOT itself in the canonical
 #     whitelist, propose the substitution with HIGH confidence
 #
-# Version: 1.0.0 (2026-05-28)
+# The shipped entry is synthetic. Do not commit a real roster here.
+#
+# Version: 1.1.0 (2026-10-22)
 # Cross-vendor AAIF
 
 schema_version: 1.0.0
-updated: "2026-05-28"
+updated: "2026-10-22"
 
 substitutions:
-  # ---- Founding empirical case ----
+  # ---- Synthetic founding example ----
 
-  - canonical: "Nelvael Modelo Ficticio"
-    canonical_short: "Nelvael"
+  - canonical: "P2"
+    canonical_short: "P2"
     ambiguous_class:
-      - "Nilson"
-      - "Nielson"
-      - "Nelson"
-      - "Nielsen"
-      - "Nilsson"
-    context: vek-daily
+      - "Ptwo"
+    context: synthetic-daily
     confidence: 0.90
-    source: |
-      operator correction 2026-05-28 — "Nilson não existe — era má interpretação
-      do Loom/Other Scriptors, existe [Emilson, Nelvael]"
+    source: "synthetic example — ASR rendered pseudonym P2 as Ptwo"
     notes: |
-      ASR substitution pattern: rare-name "Nelvael" (low corpus frequency in
-      transcriber training data) gets replaced by phonetically-near common
-      first names. Triggered when canonical "Nelvael Modelo Ficticio" appears
-      in the Invitees block but a member of ambiguous_class appears in body
-      text without being itself in the whitelist.
+      ASR substitution pattern used by the golden fixture: pseudonym P2 is
+      present on the Invitees list, and the body contains Ptwo, which is not
+      itself on the whitelist. Pass 1 proposes Ptwo -> P2 at confidence 0.90.
 
 # Future entries: populated via PDCA cycles. Operator-approved additions only
-# (per [C07] v2.1.0).
+# (per [C07] v2.1.0). Real personal names stay in a local overlay.

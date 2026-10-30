@@ -1247,7 +1247,8 @@ def _brain_usable(ctx: "Ctx", files: List[str]) -> bool:
                 continue
             raw = fh.read(cap + 1)
         try:
-            if len(raw) <= cap and raw.decode("utf-8").strip():
+            # the same gates load_brain's admit() applies: a primary it would reject never stands in
+            if len(raw) <= cap and not looks_binary(raw[:8192]) and raw.decode("utf-8").strip():
                 return True
         except UnicodeDecodeError:
             continue
@@ -1929,7 +1930,8 @@ def _assess(ctx: Ctx, store: Store) -> Store:
         rc = ctx.receipt[store.id]
         excl = [f for f in files if ctx.excluded(f)]  # --exclude-path: never opened, not even to sample
         rc["files_excluded"] += len(excl)
-        files = [f for f in files if f not in set(excl)]
+        excl_set = set(excl)
+        files = [f for f in files if f not in excl_set]
         if not files:
             store.status, store.reason = "unavailable", "every file is excluded by --exclude-path"
             return store

@@ -104,6 +104,81 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
+# Cycle 3 — DNA payload v1.2: authority fields are optional and additive
+# ---------------------------------------------------------------------------
+echo "Cycle 3 — DNA payload v1.2 (authority)..."
+
+# 3a. the two new fields are in the payload spec
+for field in depth_remaining authority_scope; do
+    if grep -q "^${field}:" "$DNA_PROMPT"; then
+        pass "DNA payload v1.2 field present: ${field}"
+    else
+        fail "DNA payload v1.2 field missing: ${field}"
+    fi
+done
+
+# 3b. both are documented as optional, and absence is fail-closed (leaf, no extra authority)
+if grep -q "DNA Payload v1.2" "$DNA_PROMPT" \
+   && grep -qi "optional" "$DNA_PROMPT" \
+   && grep -qi "If absent, leaf" "$DNA_PROMPT" \
+   && grep -qi "treated as absent (fail-closed)" "$DNA_PROMPT"; then
+    pass "v1.2 fields documented (parser-optional) with fail-closed absence"
+else
+    fail "v1.2 optional/fail-closed semantics not documented"
+fi
+
+# 3c. authority_scope is bounded by the parent (subset, never widens)
+if grep -qi "subset" "$DNA_PROMPT" && grep -qi "never widen" "$DNA_PROMPT"; then
+    pass "authority_scope documented as subset of parent, never widened"
+else
+    fail "authority_scope bound (subset / never widen) not documented"
+fi
+
+# 3d. consumers unaffected: delegate.sh still emits the doc verbatim, and the
+#     v1.1 template line parent_agent_id (one v1.1 field, as a proxy) and the
+#     v1.2 depth_remaining line are still there (old readers keep working)
+if DNA_OUT=$(bash "$DELEGATE" dna 2>/dev/null) \
+   && echo "$DNA_OUT" | grep -q "^parent_agent_id:" \
+   && echo "$DNA_OUT" | grep -q "^depth_remaining:"; then
+    pass "delegate.sh dna output still carries the v1.1 template and the v1.2 template lines (spec text, not live values)"
+else
+    fail "delegate.sh dna output lost a v1.1 or v1.2 template line"
+fi
+
+# 3e. no runtime script parses the payload fields (they are prompt text, not a wire format);
+#     if this ever changes, the new reader must be added to this test
+readers=$(grep -rlE "depth_remaining|authority_scope" "${PLUGIN_ROOT}/plugin-scripts" "${PLUGIN_ROOT}/bin" "${PLUGIN_ROOT}/hooks" 2>/dev/null || true)
+if [ -z "$readers" ]; then
+    pass "no runtime script parses the v1.2 fields (additive by construction)"
+else
+    fail "runtime readers of v1.2 fields found — extend this test to cover them: $readers"
+fi
+
+# 3f. the depth rule is the fail-closed form (no undefined "disagree" case), and
+#     the payload points to the §4.1 Known weakness; a reverted copy must fail
+dna_depth_rule_ok() {  # <file> -> 0 when the current rule text is present
+    local f="$1" flat
+    flat=$(tr '\n' ' ' < "$f" | tr -s ' ')
+    echo "$flat" | grep -qF 'Delegate only if `depth_remaining` ≥ 1 and `depth` < cap; else leaf.' \
+      && echo "$flat" | grep -qF '§4.1 Known weakness' \
+      && ! echo "$flat" | grep -qiE 'if they disagree|Stricter of it and'
+}
+if dna_depth_rule_ok "$DNA_PROMPT"; then
+    pass "DNA depth rule is fail-closed (depth_remaining ≥ 1 and depth < cap) and points to §4.1 Known weakness"
+else
+    fail "DNA depth rule text drifted (expected 'Delegate only if depth_remaining ≥ 1 and depth < cap; else leaf.')"
+fi
+FIXT=$(mktemp)
+sed -e 's#Delegate only if#Stricter of it and `depth` applies; if they disagree, leaf. Delegate only if#' "$DNA_PROMPT" > "$FIXT"
+if dna_depth_rule_ok "$FIXT"; then
+    fail "fixture: reverted 'disagree' wording was NOT detected"
+else
+    pass "fixture: reverted 'disagree' wording is detected"
+fi
+rm -f "$FIXT"
+echo ""
+
+# ---------------------------------------------------------------------------
 # Cross-cutting
 # ---------------------------------------------------------------------------
 echo "Cross-cutting checks..."
@@ -131,7 +206,7 @@ echo ""
 # ---------------------------------------------------------------------------
 echo "========================================"
 if [ "$ERRORS" -eq 0 ]; then
-    echo "  Status: ✓ PASSED (2 cycles green)"
+    echo "  Status: ✓ PASSED (3 cycles green)"
     exit 0
 else
     echo "  Status: ✗ FAILED — $ERRORS error(s)"

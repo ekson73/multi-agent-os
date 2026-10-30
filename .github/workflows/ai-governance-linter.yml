@@ -68,9 +68,8 @@ jobs:
         #     that are not personal data).
         #   - `**/README.md` — READMEs commonly document env-var shapes
         #     (e.g., `BITBUCKET_EMAIL=...`).
-        #   - `.claude-plugin/plugin.json` — the plugin manifest's `email`
-        #     field is the operator-managed plugin author contact; replacing
-        #     it is a separate decision outside Phase B scope.
+        #   - `.claude-plugin/plugin.json` — manifest contact is the public
+        #     issues URL, not a personal mailbox.
         run: |
           set -euo pipefail
           python skills/pii-masking/linter_pii.py \
@@ -88,3 +87,12 @@ jobs:
             --exclude ".claude-plugin/plugin.json" \
             --root . \
             --fail-on-match
+
+      - name: PII scope check (transcript-corrector)
+        # Emails and checksum-valid CPFs: skills/pii-masking/linter_pii.py,
+        # scoped to skills/transcript-corrector. Removed personal names:
+        # salted SHA-256 denylist, compared against token windows. The
+        # workflow prints file:line and a type tag, never the matched text.
+        run: |
+          set -euo pipefail
+          python skills/transcript-corrector/scripts/check-pii-scope.py
