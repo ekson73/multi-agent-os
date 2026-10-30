@@ -163,7 +163,7 @@ Predefined rules that analyze traces for anomalies:
 | Rule | Condition | Severity | Action |
 |------|-----------|----------|--------|
 | Loop Detection | Same task delegated 2+ times | HIGH | Alert + Block |
-| Depth Violation | delegation_depth > 3 | HIGH | Alert + Block |
+| Depth Violation | delegation_depth > 2 | HIGH | Alert + Block |
 | Task Drift | output unrelated to task | MEDIUM | Alert |
 | Error Cascade | 2+ consecutive errors | HIGH | Alert + Escalate |
 | Stagnation | execution > 5min | MEDIUM | Alert |
@@ -250,7 +250,7 @@ cat .claude/sentinel/config.json
 
 Key settings:
 - `detection.loop.similarity_threshold`: 0.85
-- `detection.depth.max_delegation_depth`: 3
+- `detection.depth.max_delegation_depth`: 2
 - `hooks.enforcement_mode`: "soft"
 
 ### 3. Test Audit Skill
