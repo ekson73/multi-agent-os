@@ -13,6 +13,8 @@ MODE="${1:-sync}"
 V="$(jq -r '.version' .claude-plugin/plugin.json)"
 OC=packaging/opencode-maos/package.json
 bad=0
+# full SemVer: core + optional -prerelease + optional +build
+SV='[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?'
 
 check() { # name actual
   if [ "$2" != "$V" ]; then echo "::error::$1 has '$2', plugin.json has '$V'"; bad=1; fi
@@ -21,10 +23,10 @@ check() { # name actual
 if [ "$MODE" = "--check" ]; then
   check package.json "$(jq -r '.version' package.json)"
   [ -f "$OC" ] && check "$OC" "$(jq -r '.version' "$OC")"
-  check "README.md badge" "$(grep -oE 'Version-[0-9]+\.[0-9]+\.[0-9]+-blue' README.md | head -1 | sed -E 's/Version-(.*)-blue/\1/')"
+  check "README.md badge" "$(grep -oE "Version-${SV}-blue" README.md | head -1 | sed -E 's/Version-(.*)-blue/\1/')"
   for f in README.md CLAUDE.md; do
-    grep -qE 'Multi-Agent OS v[0-9]+\.[0-9]+\.[0-9]+' "$f" || check "$f footer" ""
-    for got in $(grep -oE 'Multi-Agent OS v[0-9]+\.[0-9]+\.[0-9]+' "$f" | sed 's/.* v//' | sort -u); do
+    grep -qE "Multi-Agent OS v${SV}" "$f" || check "$f footer" ""
+    for got in $(grep -oE "Multi-Agent OS v${SV}" "$f" | sed 's/.* v//' | sort -u); do
       check "$f footer" "$got"
     done
   done
@@ -38,9 +40,9 @@ fi
 
 # sync mode: portable in-place edit (GNU and BSD sed)
 sedi() { sed -E "$1" "$2" > "$2.tmp" && mv "$2.tmp" "$2"; }
-sedi "s/Version-[0-9]+\.[0-9]+\.[0-9]+-blue/Version-${V}-blue/g" README.md
-sedi "s/Multi-Agent OS v[0-9]+\.[0-9]+\.[0-9]+/Multi-Agent OS v${V}/g" README.md
-sedi "s/Multi-Agent OS v[0-9]+\.[0-9]+\.[0-9]+/Multi-Agent OS v${V}/g" CLAUDE.md
+sedi "s/Version-${SV}-blue/Version-${V}-blue/g" README.md
+sedi "s/Multi-Agent OS v${SV}/Multi-Agent OS v${V}/g" README.md
+sedi "s/Multi-Agent OS v${SV}/Multi-Agent OS v${V}/g" CLAUDE.md
 for j in package.json "$OC"; do
   [ -f "$j" ] || continue
   jq --arg v "$V" '.version = $v' "$j" > "$j.tmp" && mv "$j.tmp" "$j"
