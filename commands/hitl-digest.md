@@ -224,6 +224,36 @@ python3 "$FUSE" --hitl-md "$LEDGER" --this-session-only --include pending --pend
 > echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md /tmp/ledger.md --format tree
 > ```
 
+## Passo 2 opcional: rotear com o `decision-engine`
+
+O digest acima continua igual e read-only. Quando o agente quiser saber, por item, quem
+age e qual a resposta recomendada, ele passa o JSON do digest para a skill
+[`decision-engine`](../skills/decision-engine/SKILL.md). Ela devolve `DIY`, `COMPUTE` ou
+`HITL` por item, com recomendação e alternativas, e não muta nada.
+
+```bash
+DE="$(dirname "$(dirname "$(dirname "$FUSE")")")/decision-engine/bin/decision_engine.py"
+# Mesmo recorte do digest: a mesma identidade (HITL_SESSION_ID) e o mesmo --scope
+# (SCOPE vazio = o default da sessão). O passo 2 nunca muda a fatia do ledger.
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \
+  ${SESSION_ID:+--session-id "$SESSION_ID"} ${SCOPE:+--scope "$SCOPE"} --format json \
+  | python3 "$DE" - --format tree
+```
+
+O envelope do engine carrega o `source` do digest (`hitl_scope`,
+`hitl_scope_unresolved`, `hitl_ledger_total`): escopo não resolvido continua sendo dito
+como tal, nunca como fila vazia.
+
+Antes do passo 2, ligue `SESSION_ID` e `SCOPE` ao que o digest mostrado usou: o
+`--session-id` dele e o `--scope` dele (vazio = o default da sessão). Use
+`SCOPE=all` só quando o painel mostrado leu o ledger inteiro (`--scope all`, ou
+`--with-pendencies` sem `--this-session-only`); um painel restrito à sessão nunca é
+ampliado no passo 2. A saída `tree` mostra a base de cada recomendação
+(`evidence` ou `type-default`).
+
+Só os itens `HITL` sobem ao operador. `DIY` o agente resolve e registra; `COMPUTE`
+o agente classifica e recalcula. Sem o `decision-engine` instalado, pule este passo.
+
 ## Modo AskUserQuestion (`--format ask-user-question`)
 
 Garantias do contrato:

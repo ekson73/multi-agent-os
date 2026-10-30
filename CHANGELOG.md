@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added — `skills/decision-engine` 0.1.0: route each HITL item to DIY, COMPUTE or HITL
+
+- New thin skill `skills/decision-engine/` (`bin/decision_engine.py`, stdlib-only, read-only).
+  Reads the `synopsis-fuse.py --hitl-only --format json` envelope (or a list / one item) and
+  returns `decision-engine/verdict/v1`: per item `route`, `rule`, `reason`, `recommendation`,
+  `recommendation_basis`, `alternatives`, `denied`. Fixed rules: leaked-secret `credencial`
+  → DIY denied (no rotation, overridable with `--policy`); the 5 SSOT types → HITL with a
+  recommendation; technical text naming production/spend/send → HITL guard; technical →
+  DIY; unknown type → COMPUTE. Option texts are reused from `synopsis-panel` `_card_options`.
+- `commands/hitl-digest.md`: optional step 2 pipes the digest JSON into the engine; the
+  digest itself is unchanged.
+- `.github/workflows/decision-engine-tests.yml`: runs the suite (rules, mutation-check,
+  real `synopsis-fuse` pipe, absent backend, invalid policy). Ref #555, eko-backlog #228.
+
 ### Changed — org-agnostic core: agents, protocols, runtime and tests
 
 - Agents, protocols, rules, hooks, `bin/`, `plugin-scripts/`, `mcp-tools/`, packaging, ontology and their tests no longer carry maintainer-, employer- or client-specific identifiers. Neutral placeholders replace them (`OWNER`, `WORKSPACE`, `Acme`, `org-*`, `TICKET-n`, `$HOME`).
