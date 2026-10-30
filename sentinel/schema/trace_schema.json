@@ -130,7 +130,7 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 5,
-          "description": "Delegation depth in agent hierarchy (0 = orchestrator, max 5)"
+          "description": "Observed delegation depth (0 = orchestrator). The schema accepts up to 5 so violations can be recorded; the enforced cap is sentinel/config.json max_delegation_depth"
         }
       }
     },
