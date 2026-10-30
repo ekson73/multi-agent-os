@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `decision-engine`: read the short `Rec. A:` form as a written recommendation
+
+- A ledger row written as `Rec. A: <x>; alt. B: ...` (H-0073, 2026-10-30) fell to the
+  type default (`Fornecer ou rotacionar`, `confidence: "nenhuma"`). The written-
+  recommendation trigger now also takes `Rec.` with an optional option letter, and the
+  text ends at the first `. ` or `; `, so the alternatives are not read into it.
+- Tests: two new; mutation-checked (old regex turns the first red).
+
 ### Fixed — `decision-engine`: HITL recommendation from the item's own evidence, plus GUT priority
 
 - Before, every R1/R2 verdict without a structured option recommended the type's first

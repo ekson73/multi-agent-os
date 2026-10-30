@@ -75,7 +75,7 @@ Evidência do próprio item (R1 e R2). Sem opção estruturada, o motor lê o te
 | `evidence:pre-condicao` | `Desbloqueio …:`, `antes do gate,` ou `BLOQUEADO …:` | `Manter pendente: antes, <passo>` | alta |
 | `evidence:nao-determinavel` | `não determinável … fechar exige <x>` | `Manter pendente: fechar exige <x>` | media |
 | `evidence:comando+undo` | `Comando: \`…\`` **e** `Undo: …` | `<sim do tipo> com o comando registrado (undo: …)` | media |
-| `evidence:recomendacao-registrada` | `Recomendação: <x>` | `<x>` | media |
+| `evidence:recomendacao-registrada` | `Recomendação: <x>` ou `Rec. A: <x>` (até `. ` ou `; `) | `<x>` | media |
 | `evidence:plano` | `plano pronto` | `<sim do tipo> seguindo o plano registrado` | baixa |
 
 Comando sem undo não é evidência para executar. Sem nenhum gatilho, a recomendação

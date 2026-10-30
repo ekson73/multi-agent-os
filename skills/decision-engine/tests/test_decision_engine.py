@@ -309,6 +309,22 @@ def test_a_recommendation_written_in_the_row_is_used():
     assert v["recommendation_basis"] == "evidence:recomendacao-registrada"
 
 
+def test_the_short_rec_letter_form_is_a_written_recommendation():
+    # Real row H-0073 (2026-10-30): "Rec. A: ...; alt. B: ...". Before, this fell to
+    # the type default ("Fornecer ou rotacionar", confiança nenhuma).
+    v = de.decide(_item("H-0108", "credencial",
+                        "Portão preso. Rec. A: GitHub App gratuito na vaga REVISOR (x.mjs); "
+                        "alt. B: 2ª conta na lista. Undo A: esvaziar a constante."),
+                  today=TODAY)
+    assert v["recommendation_basis"] == "evidence:recomendacao-registrada"
+    assert v["recommendation"] == "GitHub App gratuito na vaga REVISOR (x.mjs)"
+
+
+def test_a_word_ending_in_rec_is_not_a_recommendation():
+    v = de.decide(_item("H-0108", "negocio", "Ver o spec. Prec.: nada aqui"), today=TODAY)
+    assert v["recommendation_basis"] != "evidence:recomendacao-registrada"
+
+
 def test_without_evidence_the_verdict_says_so_explicitly():
     v = de.decide(_item("H-0109", "negocio", "Nomes da família do operador"), today=TODAY)
     assert v["confidence"] == "nenhuma" and v["evidence"] == []
