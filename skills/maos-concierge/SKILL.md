@@ -3,20 +3,21 @@ name: maos-concierge
 version: "1.1.0"
 description: |
   Concierge / onboarding / guide / router / capability-detector / governance-anchor for the
-  ENTIRE Multi-Agent OS (MAOS) framework — its agents, skills, commands, protocols, and governances
-  (Orchestration · The Forge + RBAD + Goldilocks · Sentinel Protocol · Anti-Conflict · Hierarchical
-  Merge · Worktree Policy · TTL Policy · Status Maps · GaaS/GaaC Delegation · maos-mcp-hub gateways).
-  Use when a human or agent wants to LEARN MAOS, ONBOARD onto it, find WHICH tool/agent/command/protocol
-  to use for an intent, get a PLAYBOOK/RUNBOOK/WALKTHROUGH, AUDIT a project's MAOS usage, or re-find a
-  CANONICAL decision that drifted across sessions. It ROUTES + TEACHES + ANCHORS — it never reimplements
-  an agent/skill/protocol and never wraps an existing tool. 8 modes: explain (default — teach the
-  framework + landscape), onboard (guided ramp for a newcomer), guide (intent → right tool + playbook),
-  audit (read-only compliance vs MAOS protocols), anchor (surface canonical decisions, flag drift),
-  dashboard (ASCII onboarding-map; optional HTML companion), setup (MAOS Hub console — render the
-  derived registry views preset/category/use-case/context-aware/prose-intent/safe-mode and write the
-  enablement profile, conflict-checked + HITL-confirmed), config (inspect/adjust the persisted
-  hub profile SSOT). Vendor-neutral (AAIF cross-vendor) —
-  portable across Claude Code, Cursor, Codex, Gemini CLI, Copilot.
+  ENTIRE Multi-Agent OS (MAOS) framework — agents, skills, commands, protocols, governances
+  (Orchestration · The Forge + RBAD + Goldilocks · Sentinel Protocol · Anti-Conflict ·
+  Hierarchical Merge · Worktree Policy · TTL Policy · Status Maps · GaaS/GaaC Delegation ·
+  maos-mcp-hub gateways). For a human or agent wanting to LEARN MAOS, ONBOARD onto it, find
+  WHICH tool/agent/command/protocol fits an intent, get a PLAYBOOK/RUNBOOK/WALKTHROUGH,
+  AUDIT a project's usage, or re-find a CANONICAL decision drifted across sessions. ROUTES
+  + TEACHES + ANCHORS; never reimplements an agent/skill/protocol, never wraps an existing
+  tool. 8 modes: explain (default: teach framework + landscape), onboard (guided ramp for a
+  newcomer), guide (intent → right tool + playbook), audit (read-only compliance vs
+  protocols), anchor (surface canonical decisions, flag drift), dashboard (ASCII
+  onboarding-map; optional HTML companion), setup (MAOS Hub console: render derived
+  registry views preset/category/use-case/context-aware/prose-intent/safe-mode, write the
+  enablement profile, conflict-checked + HITL-confirmed), config (inspect/adjust the
+  persisted hub profile SSOT). Vendor-neutral (AAIF cross-vendor) — portable across Claude
+  Code, Cursor, Codex, Gemini CLI, Copilot.
 allowed-tools: Read, Glob, Grep, Bash, WebFetch
 evals:
   should_trigger:
@@ -35,7 +36,7 @@ evals:
     - "Execute the Sentinel audit trace analysis (delegate to the audit skill / sentinel-monitor)"
     - "Create a brand-new agent from scratch (delegate to The Forge — concierge routes TO it)"
     - "Reimplement a MAOS protocol or wrap an existing skill (DRY — the tools already exist)"
-    - "Onboard onto a Vek-specific stack / SpecDD flow (that is vek-concierge / specdd-concierge)"
+    - "Onboard onto an organization-specific stack / workflow (use that world's opt-in external router only after capability detection; report unavailable if absent)"
 ---
 
 # Skill: maos-concierge — Concierge & Governance-Anchor over the Multi-Agent OS framework
@@ -157,8 +158,9 @@ Inspect the persisted hub profile (`mcp-tools/maos-mcp-hub/profile.yaml` / `$MAO
 - Companions: [`AWARENESS-REGISTRY.md`](./AWARENESS-REGISTRY.md) · [`CANON.md`](./CANON.md) · [`references/socratic-33q.md`](./references/socratic-33q.md) · [`dashboard.html`](./dashboard.html)
 - Framework tools (cross-ref, never reimplement): `orchestrator` · `forge` · `sentinel-monitor` · `audit` · `agentic-delegation` · `delegate-governance` · `anti-conflict` · `hierarchical-merge` · `worktree-policy` · `ttl-policy` · `status-map` · `converge` · `agent-select` · `context-prep` · `auto-pilot` · `morning-briefing` · `pulse` · `quiesce`
 - Protocols: `protocols/` · `sentinel/detection_rules.md` · `protocols/delegation/` · `docs/framework-consumption.md` · The Forge `agents/forge.md` (33Q)
-- Sibling concierges (cross-vendor pattern): `claude-code-concierge` (the Claude-Code platform) · `walkthrough-concierge` (ASH) · `specdd-concierge` · `vek-concierge` (Vek layer) · `atlassian-concierge`
+- Sibling concierges: `claude-concierge` (the Claude product surfaces) · `walkthrough-concierge` (ASH). Other world-specific routers are opt-in external capabilities: detect the concierge in that world before routing, report unavailable if absent, and never apply organization-specific routing by default.
 
 ## Changelog
+- 2026-10-26 — Removed organization-specific names/default routing from universal guidance and the genesis companion; world-specific external concierges remain opt-in and capability-detected. Layer-purity and escalation boundaries unchanged.
 - 2026-07-02 — v1.1.0 — T3 (WAVE 5, ADR-006/007): +2 modes `setup` (hub console — 6 registry views + conflict-checked, HITL-confirmed profile write via `lib/registry/console.py`) and `config` (profile SSOT inspect/validate). Composes T1 HubRegistry + T2 HubProfile; reimplements nothing.
 - 2026-05-28 — v1.0.0 — Bootstrap. Concierge/onboarding/guide/router/governance-anchor over the whole MAOS framework. 6 modes (explain/onboard/guide/audit/anchor/dashboard) + Landscape Decision Matrix + governance layer + AWARENESS-REGISTRY + CANON + self-executed 33Q + ASCII/HTML dashboard. Vendor-neutral (MIT, layer-pure — no corporate content). Anti-over-engineering: orients over existing tools, reimplements NOTHING. Origin: operator /enhance 2026-05-28 (concierge family — sibling of atlassian-concierge/specdd-concierge).

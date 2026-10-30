@@ -3,16 +3,17 @@ name: sprint-carryover
 version: "0.1.0"
 description: |
   RELOCATE stranded open backlog from past/closed sprints INTO the active sprint. Given the
-  operator's IDENTITY, their ai-bot-agents, and/or their department, DISCOVER open items still on a
-  past sprint owned by any of those owner-sets, PRESENT the candidate move-set as a table, and — only
-  on explicit operator GO — MOVE each to the active sprint, then REPORT what migrated. dry-run is the
-  DEFAULT: a bare invocation discovers, renders the table, and writes NOTHING. Level-triggered: each
-  pass re-derives the candidate set from the tracker, so a re-run after a partial move is a no-op.
-  Thin conductor: COMPOSES work-compass for the discovery fan-out + the operator's own open items;
-  sprint/owner enrichment beyond that seed is this skill's own tracker-native query.
-  Triggers: "sprint-carryover", "carry over the backlog", "roll over stranded tickets", "move
-  unfinished items to the current sprint", "sprint rollover", "carregar o backlog", "levar pendências
-  para o sprint atual", "rollover de sprint".
+  operator's IDENTITY, their ai-bot-agents, and/or their department, DISCOVER open items
+  still on a past sprint owned by any of those owner-sets, PRESENT the candidate move-set
+  as a table, and — only on explicit operator GO — MOVE each to the active sprint, then
+  REPORT what migrated. dry-run is the DEFAULT: a bare invocation discovers, renders the
+  table, writes NOTHING. Level-triggered: each pass re-derives the candidate set from the
+  tracker, so a re-run after a partial move is a no-op. Thin conductor: COMPOSES
+  work-compass for the discovery fan-out + the operator's own open items; sprint/owner
+  enrichment beyond that seed is this skill's own tracker-native query. Triggers:
+  "sprint-carryover", "carry over the backlog", "roll over stranded tickets", "move
+  unfinished items to the current sprint", "carregar o backlog", "levar
+  pendências para o sprint atual", "rollover de sprint".
 allowed-tools: Task, Read, Bash, Grep, Glob, AskUserQuestion
 ---
 

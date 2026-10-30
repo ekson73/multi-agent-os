@@ -14,6 +14,7 @@ Slash commands for the multi-agent-os plugin. Commands are auto-discovered by Cl
 | `/worktree` | `worktree.md` | Manage git worktrees |
 | `/delegate` | `delegate.md` | Delegate tasks to sub-agents |
 | `/founder-playbook` | `founder-playbook.md` | Diagnose AI-native startup stage + route to stage skills |
+| `/fleet-campaign` | `fleet-campaign.md` | Converge N provider-managed resources to ONE declared config state, in measured rounds |
 
 ## Command Categories
 
@@ -31,6 +32,10 @@ Slash commands for the multi-agent-os plugin. Commands are auto-discovered by Cl
 ### Startup Coaching
 
 - `/founder-playbook` — Diagnose AI-native startup stage; route to `founder-stage-*` skills
+
+### Fleet & bulk convergence
+
+- `/fleet-campaign` — One declared config state across N resources; surfaces disambiguated first, every member measured at source, every worker claim re-measured before accept
 
 ## Command Structure
 

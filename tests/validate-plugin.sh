@@ -711,6 +711,18 @@ else
     fail "bin/tests/research-dossier.test.sh missing"
 fi
 
+# context-budget: read-only per-source context measurement (disk + transcript modes).
+CB_TESTS="$PLUGIN_ROOT/bin/tests/context-budget.test.sh"
+if [ -f "$CB_TESTS" ]; then
+    if bash "$CB_TESTS" >/dev/null 2>&1; then
+        pass "bin/tests/context-budget.test.sh passes"
+    else
+        fail "bin/tests/context-budget.test.sh FAILED (run 'bash bin/tests/context-budget.test.sh')"
+    fi
+else
+    fail "bin/tests/context-budget.test.sh missing"
+fi
+
 # signoff skill + command frontmatter
 if [ -f "$PLUGIN_ROOT/skills/signoff/SKILL.md" ] && grep -q "^name: signoff$" "$PLUGIN_ROOT/skills/signoff/SKILL.md"; then
     pass "skills/signoff/SKILL.md has correct frontmatter"
@@ -775,6 +787,14 @@ if [ -x "$PLUGIN_ROOT/scripts/validate-skill-frontmatter.sh" ] || [ -f "$PLUGIN_
     fi
 else
     fail "scripts/validate-skill-frontmatter.sh missing"
+fi
+echo ""
+
+# Ticket-first public entry points and optional outbox adapter contract.
+if python3 "$PLUGIN_ROOT/tests/test-ticket-first-contract.py"; then
+    pass "ticket-first contract tests pass"
+else
+    fail "ticket-first contract tests FAILED"
 fi
 echo ""
 
