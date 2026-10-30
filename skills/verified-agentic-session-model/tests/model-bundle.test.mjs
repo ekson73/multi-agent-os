@@ -819,6 +819,8 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
     // Every fetch vector reviewers named must also be refused, one at a time.
     const vectors = {
       metaRefresh: "<meta http-equiv=\"refresh\" content=\"0;url=https://evil.example\">",
+      metaRefreshWithoutUrlKey: "<meta http-equiv=\"refresh\" content=\"0; //evil.example\">",
+      longAmbiguousTag: `<script-x a=${"a=".repeat(20000)} src=//evil.example/x></script-x>`,
       srcsetLaterCandidate: "<img alt=\"\" srcset=\"/a.png 1x, //evil.example/b.png 2x\">",
       srcdoc: "<iframe title=\"x\" srcdoc=\"&lt;p&gt;x&lt;/p&gt;\"></iframe>",
       cssEscapedUrl: "<style>body{background:url(https\\3A //evil.example/)}</style>",
@@ -847,7 +849,9 @@ test("standard HTML honors network_access_from_html: remote font loads are remov
       const current = JSON.parse(await readFile(manifestFile, "utf8"));
       current.subjects.find((item) => item.role === "diagram_html").digest.value = sha(Buffer.from(injected));
       await writeFile(manifestFile, `${JSON.stringify(current, null, 2)}\n`);
+      const startedAt = Date.now();
       const refused = run(["verify", manifestFile, "--archify-dir", stockArchify]);
+      assert.ok(Date.now() - startedAt < 15000, `${name}: verify must stay linear-time`);
       assert.equal(refused.status, 1, `${name}: ${refused.stdout}`);
       assert.equal(body(refused.stderr).error.code, "NETWORK_ACCESS_DENIED", `${name}: ${refused.stderr}`);
     }

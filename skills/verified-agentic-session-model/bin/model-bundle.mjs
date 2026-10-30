@@ -2090,44 +2090,84 @@ function cssFetches(css) {
   return /@import\b/iu.test(decoded) || /(?:url|image-set|image|src)\s*\(\s*["']?\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded) || /["']\s*(?:(?:https?|ftp|wss?):)?\/\//iu.test(decoded);
 }
 
-function parseAttributes(tag) {
+// Linear, stateful HTML start-tag tokenizer (no backtracking regex: Codex found the earlier
+// nested-repetition pattern exponential on crafted input). It returns null when a tag cannot
+// be tokenized (unterminated quote or no closing ">"), which the caller treats as a failure.
+function readStartTag(html, start) {
+  const n = html.length;
+  let i = start + 1;
+  const nameStart = i;
+  while (i < n && !/[\s/>]/u.test(html[i])) i += 1;
+  const name = html.slice(nameStart, i).toLowerCase();
   const attributes = [];
-  const body = tag.replace(/^<[a-zA-Z][^\s/>]*/u, "").replace(/\/?>$/u, "");
-  for (const match of body.matchAll(/([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gu)) {
-    attributes.push({ name: match[1].toLowerCase(), value: decodeAttributeEntities(match[2] ?? match[3] ?? match[4] ?? "") });
+  while (i < n) {
+    while (i < n && (/\s/u.test(html[i]) || html[i] === "/")) i += 1;
+    if (i >= n) return null;
+    if (html[i] === ">") return { name, attributes, end: i + 1 };
+    const attrStart = i;
+    while (i < n && !/[\s/>=]/u.test(html[i])) i += 1;
+    if (i === attrStart) i += 1; // a lone "=" or quote; skip it as the browser does
+    const attrName = html.slice(attrStart, i).toLowerCase();
+    let j = i;
+    while (j < n && /\s/u.test(html[j])) j += 1;
+    let value = "";
+    if (html[j] === "=") {
+      j += 1;
+      while (j < n && /\s/u.test(html[j])) j += 1;
+      if (html[j] === "\"" || html[j] === "'") {
+        const close = html.indexOf(html[j], j + 1);
+        if (close === -1) return null;
+        value = html.slice(j + 1, close);
+        j = close + 1;
+      } else {
+        const valueStart = j;
+        while (j < n && !/[\s>]/u.test(html[j])) j += 1;
+        value = html.slice(valueStart, j);
+      }
+      i = j;
+    }
+    attributes.push({ name: attrName, value: decodeAttributeEntities(value) });
   }
-  return attributes;
+  return null;
 }
+
+const RAW_TEXT_ELEMENTS = new Set(["script", "style"]);
 
 function remoteResourceRefs(html) {
   const found = [];
   const flag = (offset, reason, excerpt) => found.push({ offset, reason, excerpt: excerpt.slice(0, 80) });
-  // Start tags are tokenized quote-aware only after "=", so an apostrophe inside an unquoted
-  // value cannot open a fake quoted string. Any "<letter" not covered by a token fails closed.
-  const START = `(?:[^>=]|=\\s*(?:"[^"]*"|'[^']*'|[^\\s"'>][^\\s>]*|(?=>)))*>`;
-  const contexts = new RegExp(`<!--[\\s\\S]*?-->|(<script\\b${START})[\\s\\S]*?<\\/script\\s*>|(<style\\b${START})([\\s\\S]*?)<\\/style\\s*>|<[a-zA-Z]${START}`, "giu");
-  const covered = [];
-  for (const match of html.matchAll(contexts)) {
-    covered.push([match.index, match.index + match[0].length]);
-    if (match[0].startsWith("<!--")) continue;
-    const tag = match[1] ?? match[2] ?? match[0];
-    const element = tag.match(/^<([a-zA-Z][^\s/>]*)/u)[1].toLowerCase();
-    const attributes = parseAttributes(tag);
-    for (const { name, value } of attributes) {
-      if (name === "srcdoc") flag(match.index, "srcdoc", tag);
-      else if (name === "style" && cssFetches(value)) flag(match.index, "style attribute", tag);
-      else if (URL_ATTRIBUTES.has(name) && REMOTE_IN_VALUE.test(value.replace(/(?:^|(?<=[\s,]))data:\S*/giu, " "))) flag(match.index, name, tag);
+  const lower = html.toLowerCase();
+  let i = 0;
+  while (i < html.length) {
+    const lt = html.indexOf("<", i);
+    if (lt === -1) break;
+    if (html.startsWith("<!--", lt)) {
+      const close = html.indexOf("-->", lt + 4);
+      i = close === -1 ? html.length : close + 3;
+      continue;
     }
-    if (element === "meta" && attributes.some((item) => item.name === "http-equiv" && /refresh/iu.test(item.value))) {
-      const content = attributes.find((item) => item.name === "content")?.value ?? "";
-      if (/url\s*=/iu.test(content)) flag(match.index, "meta refresh", tag);
+    if (!/[a-zA-Z]/u.test(html[lt + 1] ?? "")) { i = lt + 1; continue; }
+    const tag = readStartTag(html, lt);
+    if (!tag) { flag(lt, "untokenizable tag", html.slice(lt, lt + 80)); break; }
+    const excerpt = html.slice(lt, tag.end);
+    for (const { name, value } of tag.attributes) {
+      if (name === "srcdoc") flag(lt, "srcdoc", excerpt);
+      else if (name === "style" && cssFetches(value)) flag(lt, "style attribute", excerpt);
+      else if (URL_ATTRIBUTES.has(name) && REMOTE_IN_VALUE.test(value.replace(/(?:^|(?<=[\s,]))data:\S*/giu, " "))) flag(lt, name, excerpt);
     }
-    if (match[3] !== undefined && cssFetches(match[3])) flag(match.index, "style", match[3]);
-  }
-  let span = 0;
-  for (const start of html.matchAll(/<[a-zA-Z]/gu)) {
-    while (span < covered.length && covered[span][1] <= start.index) span += 1;
-    if (span >= covered.length || covered[span][0] > start.index) flag(start.index, "untokenizable tag", html.slice(start.index, start.index + 80));
+    if (tag.name === "meta" && tag.attributes.some((item) => item.name === "http-equiv" && /refresh/iu.test(item.value))) {
+      // "url=" is optional in a refresh value: any target after the delay navigates.
+      const content = tag.attributes.find((item) => item.name === "content")?.value ?? "";
+      const target = content.replace(/^\s*[\d.]*\s*[;,]?\s*(?:url\s*=\s*)?["']?/iu, "").trim();
+      if (target.length > 0 || /url\s*=/iu.test(content)) flag(lt, "meta refresh", excerpt);
+    }
+    i = tag.end;
+    if (RAW_TEXT_ELEMENTS.has(tag.name)) {
+      const close = lower.indexOf(`</${tag.name}`, i);
+      const bodyEnd = close === -1 ? html.length : close;
+      if (tag.name === "style" && cssFetches(html.slice(i, bodyEnd))) flag(lt, "style", html.slice(i, bodyEnd));
+      i = close === -1 ? html.length : close + 2;
+    }
   }
   return found;
 }

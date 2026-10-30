@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   escape-decoded values, every `srcset` candidate, `srcdoc`, meta refresh, any `@import`).
   Text nodes, comments and script bodies are not scanned, so labels like `url(https://…)`
   are not false positives. CI installs pinned Archify v2.11.0 so these tests cannot skip.
+- Follow-up: the start-tag scan is a linear stateful tokenizer instead of a nested-repetition
+  regex (Codex: exponential time on a crafted tag), and a meta refresh is refused for any
+  target after the delay, with or without `url=` (Graphite).
 - Generator and manifest schema version move to 2.1.4. A regression test renders, asserts
   no remote fetch, then re-injects a remote stylesheet and asserts `verify` refuses it.
   Mutation-checked: removing either the render strip or the verify guard fails the test.
