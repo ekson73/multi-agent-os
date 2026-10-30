@@ -396,10 +396,7 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
     payload += [
         _item(f"H-{5200 + i}", "tecnico", text, session_id="guard-fixture")
         for i, text in enumerate(LOCAL_IMPLEMENTATIONS + DIRECT_NEGATIONS + MIXED_REAL_ACTS)]
-    payload += [
-        _item(f"H-{6000 + i}", "tecnico", LOCAL_IMPLEMENTATIONS[0],
-              title=metadata, session_id="guard-fixture")
-        for i, (metadata, route) in enumerate(METADATA_VALUES)]
+    # Synopsis exports decidir, not title metadata; direct CLI tests below cover titles.
     for i, (positive, negative) in enumerate(GERUND_PAIRS):
         payload += [
             _item(f"H-{6100 + 2 * i}", "tecnico", positive, session_id="guard-fixture"),
@@ -423,8 +420,6 @@ def test_human_domain_guard_through_real_session_scoped_synopsis_pipe(
            for i in range(len(LOCAL_IMPLEMENTATIONS) + len(DIRECT_NEGATIONS))},
         **{f"H-{5200 + len(LOCAL_IMPLEMENTATIONS) + len(DIRECT_NEGATIONS) + i}": ("HITL", False)
            for i in range(len(MIXED_REAL_ACTS))},
-        **{f"H-{6000 + i}": (route, False)
-           for i, (metadata, route) in enumerate(METADATA_VALUES)},
         **{f"H-{6100 + 2 * i}": ("HITL", False) for i in range(len(GERUND_PAIRS))},
         **{f"H-{6101 + 2 * i}": ("DIY", False) for i in range(len(GERUND_PAIRS))},
     }
