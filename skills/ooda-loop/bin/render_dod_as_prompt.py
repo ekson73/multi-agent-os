@@ -46,6 +46,9 @@ import tempfile
 CONTRACT = "skills/ooda-loop/templates/dod-as-prompt.schema.json"
 CONTRACT_VERSION = "1.0.0"
 DEFAULT_BAND_HIGH = 0.85
+DEFAULT_CONF_INCONCLUSIVE = 0.60  # same default as validate_envelope.py --conf-inconclusive
+DOD_INCONCLUSIVE_REASONS = {"low_confidence", "conflicting_hypotheses", "no_context_anchor",
+                            "ambiguous_scope", "stale_state", "no_goal_anchor"}
 CONTEXT_LOCK_KEYS = ("context", "purpose", "stakeholder", "targets")
 
 
@@ -77,6 +80,34 @@ def extract_spec(obj):
     if isinstance(obj.get("measurement_spec"), dict):
         return obj["measurement_spec"]
     die(3, "[SpecError] --spec has no measurement_spec (need meta+nodes, or .params.measurement_spec)")
+
+
+def resolve_provenance(args):
+    """Provenance gate fields (confidence, recovered_from, inconclusive) for the DoD envelope.
+    The DoD is a deterministic projection of the measurement_spec, so its confidence is inherited from
+    the driving handoff when one is given (a DoD cannot be more trustworthy than the goal it measures);
+    an explicit --for-goal is an operator-stated goal (direct source, confidence 1.0). Every source the
+    projection actually read is cited, so recovered_from is never empty."""
+    recovered = [{"source": "measurement_spec", "read": True, "ref": args.spec}]
+    confidence = 1.0
+    flag, reasons = False, []
+    explicit_goal = args.for_goal is not None and args.for_goal.strip()
+    if explicit_goal:
+        recovered.append({"source": "operator_prompt", "read": True, "ref": "--for-goal"})
+    if args.handoff:
+        recovered.append({"source": "handoff_as_prompt", "read": True, "ref": args.handoff})
+        h = load(args.handoff)
+        hp = (h.get("params") or {}) if isinstance(h, dict) else {}
+        hc = hp.get("confidence")
+        if not explicit_goal and isinstance(hc, (int, float)) and not isinstance(hc, bool) and 0.0 <= hc <= 1.0:
+            confidence = float(hc)
+        hi = hp.get("inconclusive")
+        if not explicit_goal and isinstance(hi, dict) and hi.get("flag") is True:
+            flag = True
+            reasons = [r for r in (hi.get("reasons") or []) if r in DOD_INCONCLUSIVE_REASONS]
+    if confidence < DEFAULT_CONF_INCONCLUSIVE and not flag:
+        flag, reasons = True, ["low_confidence"]
+    return confidence, recovered, {"flag": flag, "reasons": reasons}
 
 
 def resolve_for_goal(args):
@@ -122,7 +153,9 @@ def material_leaves(spec):
     return out
 
 
-def project(spec, for_goal, context_lock):
+def project(spec, for_goal, context_lock, provenance=None):
+    confidence, recovered_from, inconclusive = provenance or (
+        1.0, [{"source": "measurement_spec", "read": True, "ref": "spec"}], {"flag": False, "reasons": []})
     leaves = material_leaves(spec)
     if not leaves:
         die(3, "[SpecError] measurement_spec has no material (D/T) leaf — a DoD with no measurable "
@@ -159,6 +192,9 @@ def project(spec, for_goal, context_lock):
             "acceptance": acceptance,
             "kpis": kpis,
             "termination_predicate": termination_predicate,
+            "confidence": confidence,
+            "recovered_from": recovered_from,
+            "inconclusive": inconclusive,
         },
         "data": {
             "layer": "community",
@@ -207,7 +243,7 @@ def main():
     spec = extract_spec(load(args.spec))
     for_goal = resolve_for_goal(args)
     context_lock = resolve_context_lock(args, spec)
-    envelope = project(spec, for_goal, context_lock)
+    envelope = project(spec, for_goal, context_lock, resolve_provenance(args))
 
     if not args.no_validate:
         verdict = self_validate(envelope)
