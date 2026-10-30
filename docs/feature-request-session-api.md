@@ -2,7 +2,8 @@
 
 **Status**: Draft for submission to https://github.com/anthropics/claude-code/issues
 **Date**: 2026-01-09
-**Author**: Emilson de Queiroz Moraes (emilson.moraes@gmail.com)
+**Author**: Emilson de Queiroz Moraes
+**Contact**: https://github.com/ekson73/multi-agent-os/issues
 **Context**: Multi-agent orchestration system integration
 
 ---
@@ -249,7 +250,7 @@ We are willing to beta test this feature and provide feedback if Anthropic is in
 
 **Contact**:
 Emilson de Queiroz Moraes
-Email: emilson.moraes@gmail.com
+Contact: https://github.com/ekson73/multi-agent-os/issues
 Role: DevOps Engineer & AI Evangelist @ Acme Corp
 Location: Florianópolis, SC, Brazil
 

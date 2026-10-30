@@ -1,7 +1,7 @@
-# AWARENESS-REGISTRY.md — Claude-Code platform landscape (the concierge payload)
+# Claude Code surface reference — platform landscape (claude-concierge payload)
 
-> **Companion to** `SKILL.md` (claude-code-concierge). This is the `--mode=explain` + `--mode=guide` + `--mode=research` lookup table.
-> **Vendor-neutral** (MIT / AAIF cross-vendor). **Last verified**: 2026-06-13.
+> **Companion to** `../../SKILL.md` (claude-concierge). This is the `--mode=explain` + `--mode=guide` + `--mode=research` lookup table.
+> **Vendor-neutral** (MIT / AAIF cross-vendor). **Last verified**: 2026-10-26 (moved from claude-code-concierge/AWARENESS-REGISTRY.md).
 > **Convention**: this registry is *referenced*, not duplicated, by callers. Counts/paths are point-in-time — `--mode=doctor --health-check` re-derives from the live config and flags drift. The authoritative "how" is ALWAYS the current official docs (`--mode=research`), not this table — this orients; docs decide.
 
 ---
@@ -14,9 +14,9 @@ Tier 1  Agentic-tool TYPES       → MCP server · skill · command · agent/sub
 Tier 2  The SCOPE model          → enterprise/managed > project > user > local > defaults (precedence)
 Tier 3  The SOURCE model         → direct · plugin · marketplace · official (Claude/Anthropic)
 Tier 4  Official knowledge        → code.claude.com/docs · docs.claude.com · anthropics/* · each tool's own docs
-Tier 5  Lifecycle family         → preflight · postflight · auto-pilot · morning-briefing · pulse · auto-orchestrator · recap
+Tier 5  Lifecycle family         → preflight · postflight · auto-pilot · morning-briefing (including --mode=recap) · pulse · quiesce
 Tier 6  Genesis pair             → agentic-tool-forge (+ anima naming) → agentic-tool-evaluator → agentic-tool-trainer
-Tier 7  Sibling concierges       → maos-concierge · walkthrough-concierge · openclaw-concierge (route for THEIR domains)
+Tier 7  Sibling concierges       → maos-concierge · walkthrough-concierge · optional EXTERNAL openclaw-concierge (not bundled; capability-detect, report unavailable if absent)
 ```
 
 ## The agentic-tool TYPES (what can be installed/configured)
@@ -83,12 +83,10 @@ direct    (you author/place the file yourself)               ← you own the tru
 |---|---|
 | `preflight` | session/workspace orient + heal + isolate BEFORE work |
 | `postflight` | end-of-session sweep + debrief + handoff |
-| `morning-briefing` | cold-start state recap · `--dashboard`/`--next-actions` lean on it |
+| `morning-briefing` | cold-start state recap · `--mode=recap` for session recap · `--dashboard`/`--next-actions` lean on it |
 | `pulse` | mid-session re-orient · `--next-actions` |
 | `auto-pilot` | drive a goal end-to-end across sub-agents |
-| `auto-orchestrator` | autonomous multi-phase backlog work |
 | `quiesce` | drive the session to a clean/green/converged steady state |
-| `recap` | end-of-session recap |
 
 ## Genesis pair (cross-ref — the concierge ROUTES here for CREATION)
 
@@ -105,8 +103,8 @@ direct    (you author/place the file yourself)               ← you own the tru
 |---|---|
 | `maos-concierge` | the MAOS framework (agents/skills/commands/protocols/governances) |
 | `walkthrough-concierge` | ASH (Agentic Session Harness — journals/decisions/drift) |
-| `openclaw-concierge` | OpenClaw (multi-channel personal-AI gateway, MIT) |
-| **`claude-code-concierge`** (this) | the **Claude-Code platform itself** (install/scope/source/docs-research) |
+| `openclaw-concierge` (optional EXTERNAL dependency; not bundled) | OpenClaw (multi-channel personal-AI gateway, MIT); capability-detect before routing, report unavailable if not installed |
+| **`claude-concierge`** (this; `claude-code-concierge` = deprecated alias) | all six **Claude product surfaces** (claude.ai web · desktop · Claude Code · Projects · bots/agents · Duet): orient and route; for Claude Code also install/scope/source/docs-research |
 
 ## Core concepts (vocabulary the concierge teaches)
 
@@ -129,5 +127,5 @@ direct    (you author/place the file yourself)               ← you own the tru
 ## Refs
 
 - Official: `code.claude.com/docs` · `docs.claude.com` · `github.com/anthropics/*`
-- Companions: `CANON.md` (canonical decisions) · `references/socratic-33q.md` (this concierge's spec) · `dashboard.html`
-- Sibling registries: `maos-concierge/AWARENESS-REGISTRY.md`
+- Companions: `../../CANON.md` (canonical decisions) · `../socratic-33q.md` (this concierge's spec) · `../../dashboard.html`
+- Sibling registries: `../../../maos-concierge/AWARENESS-REGISTRY.md`
