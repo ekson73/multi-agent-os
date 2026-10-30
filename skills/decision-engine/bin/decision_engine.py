@@ -32,6 +32,7 @@ Rules, evaluated in this order (first match wins):
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import importlib.util
 import json
 import pathlib
@@ -210,20 +211,160 @@ def collect_items(doc) -> list[dict]:
     return found
 
 
-def _hitl_verdict(item: dict, rule: str, reason: str) -> dict:
+# ── item evidence: what the ledger row itself says, never invented ────────────────
+# Each matcher reads the item's own `decidir` text. The first kind that matches, in
+# this order, sets the recommendation. No match = the verdict says "sem evidência".
+_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+_ADIADO_RE = re.compile(r"\badiad[oa]s?\b", re.IGNORECASE)
+_REVISAR_RE = re.compile(r"\b(?:revisar|rever|retomar|revisit)\s+(?:em|on|at[eé])\s+"
+                         r"(\d{4}-\d{2}-\d{2})", re.IGNORECASE)
+# Open preconditions, most specific first: what unblocks it, then what must come
+# before the gate, then the bare blocking cause.
+_PRECOND_RES = tuple(re.compile(p + r"(.+?)(?:\.\s|$)", re.IGNORECASE) for p in (
+    r"\bdesbloqueio[^:]{0,30}:\s*",
+    r"\bantes\s+do\s+gate\s*[,:]?\s*",
+    r"\bbloquead[oa]\b[^:]{0,80}:\s*"))
+_UNDETERMINED_RE = re.compile(
+    r"n[aã]o\s+determin[aá]vel.*?(?:fechar|para\s+fechar)\s+exige\s+(.+?)(?:\.\s|$)",
+    re.IGNORECASE | re.DOTALL)
+_COMMAND_RE = re.compile(r"\bcomando\s*:\s*(`[^`]+`)", re.IGNORECASE)
+_UNDO_RE = re.compile(r"\bundo\s*:\s*(.+?)(?:\s+\||\.\s|;\s|$)", re.IGNORECASE)
+_TEXT_REC_RE = re.compile(r"\brecomenda[cç][aã]o\s*:\s*(.+?)(?:\.\s|$)", re.IGNORECASE)
+_PLAN_RE = re.compile(r"\bplano\s+pronto\b", re.IGNORECASE)
+_TREND_RE = re.compile(r"\b(destrava|trava|bloqueia|blocks|unblocks|crash|quebra)\w*",
+                       re.IGNORECASE)
+SNIPPET_MAX = 160
+
+
+def _affirmed(rx: re.Pattern, text: str):
+    """First match of rx not directly negated ('não adiado', 'sem plano pronto')."""
+    for m in rx.finditer(text or ""):
+        if not _NEG_RE.search(text[:m.start()]):
+            return m
+    return None
+
+
+def _snip(text: str, n: int = SNIPPET_MAX) -> str:
+    text = " ".join((text or "").split()).strip(" .;,")
+    return text if len(text) <= n else text[: n - 1].rsplit(" ", 1)[0] + "…"
+
+
+def _as_date(text: str):
+    m = _DATE_RE.search(text or "")
+    if not m:
+        return None
+    try:
+        return dt.date.fromisoformat(m.group(1))
+    except ValueError:
+        return None
+
+
+def _deferred_until(item: dict, today: dt.date):
+    """The future date the item is deferred to, or None. Needs the word 'adiado'."""
+    text = str(item.get("decidir", ""))
+    if not _affirmed(_ADIADO_RE, text):
+        return None
+    m = _REVISAR_RE.search(text)
+    when = _as_date(m.group(1)) if m else _as_date(str(item.get("prazo", "")))
+    return when if when and when > today else None
+
+
+def item_evidence(item: dict, today: dt.date) -> list[dict]:
+    """Every evidence kind the row carries, in precedence order."""
+    text = str(item.get("decidir", ""))
+    found: list[dict] = []
+    until = _deferred_until(item, today)
+    if until:
+        found.append({"kind": "adiado", "text": until.isoformat()})
+    for rx in _PRECOND_RES:
+        m = _affirmed(rx, text)
+        if m:
+            found.append({"kind": "pre-condicao", "text": _snip(m.group(1))})
+            break
+    m = _UNDETERMINED_RE.search(text)
+    if m:
+        found.append({"kind": "nao-determinavel", "text": _snip(m.group(1))})
+    cmd, undo = _affirmed(_COMMAND_RE, text), _affirmed(_UNDO_RE, text)
+    if cmd and undo:
+        found.append({"kind": "comando+undo", "text": _snip(undo.group(1), 80)})
+    m = _TEXT_REC_RE.search(text)
+    if m:
+        found.append({"kind": "recomendacao-registrada", "text": _snip(m.group(1))})
+    if _affirmed(_PLAN_RE, text):
+        found.append({"kind": "plano", "text": "plano pronto registrado"})
+    return found
+
+
+def _evidence_recommendation(ev: dict, yes: str, no: str) -> tuple[str, list[str], str]:
+    """(recommendation, alternatives, confidence) for the top evidence kind."""
+    keep = "Manter pendente"
+    kind, text = ev["kind"], ev["text"]
+    if kind == "adiado":
+        return f"Manter adiado até {text}", [yes, no], "alta"
+    if kind == "pre-condicao":
+        return f"Manter pendente: antes, {text}", [yes, no], "alta"
+    if kind == "nao-determinavel":
+        return f"Manter pendente: fechar exige {text}", [yes, no], "media"
+    if kind == "comando+undo":
+        return f"{yes} com o comando registrado (undo: {text})", [no, keep], "media"
+    if kind == "recomendacao-registrada":
+        return text, [yes, no, keep], "media"
+    return f"{yes} seguindo o plano registrado", [no, keep], "baixa"
+
+
+def priority(item: dict, today: dt.date) -> dict:
+    """GUT (Gravidade x Urgência x Tendência, 1-5 each, score = product).
+
+    G from the row's risk letter (R3/R2/R1), else its severity. U from the deadline
+    (past or 'expirado' = 5) or a deferral (1). T is 4 when the row says it blocks
+    something, 1 when deferred, else 3. Every input is a ledger field."""
+    risk = str(item.get("risk", "")).strip().upper()
+    sev = str(item.get("sev", "")).strip().upper()
+    g = {"R3": 5, "R2": 4, "R1": 3}.get(risk) or \
+        {"URGENTE": 5, "ALTA": 4, "NORMAL": 3}.get(sev, 3)
+    deferred = _deferred_until(item, today)
+    due = _as_date(str(item.get("prazo", "")))
+    if deferred:
+        u = 1
+    elif "expirado" in _fold(str(item.get("status", ""))):
+        u = 5
+    elif due:
+        days = (due - today).days
+        u = 5 if days < 0 else 4 if days <= 3 else 3 if days <= 14 else 2
+    else:
+        u = 2
+    t = 1 if deferred else 4 if _affirmed(_TREND_RE, str(item.get("decidir", ""))) else 3
+    return {"g": g, "u": u, "t": t, "score": g * u * t, "method": "GUT"}
+
+
+def _hitl_verdict(item: dict, rule: str, reason: str, today: dt.date | None = None) -> dict:
+    today = today or dt.date.today()
     # The option builder keys on the unaccented SSOT spelling ('irreversivel').
     folded = dict(item, tipo=_fold(str(item.get("tipo", ""))))
     opts, has_rec, source = _CARD_OPTIONS(folded, folded)
     labels = [o["label"] for o in opts]
+    evidence = item_evidence(item, today)
     if has_rec:
-        rec, basis = labels[0], "evidence"
+        rec, basis, alts, conf = labels[0], "evidence", labels[1:], "media"
+    elif evidence:
+        # The row's own facts pick the answer; the type's dispositions stay as
+        # alternatives so the human can still say yes/no to the act itself.
+        yes = labels[0]
+        no = labels[1] if len(labels) > 1 else "Recusar"
+        rec, alts, conf = _evidence_recommendation(evidence[0], yes, no)
+        basis = f"evidence:{evidence[0]['kind']}"
+        alts = [a for a in alts if a != rec]
     else:
         # No evidenced option: recommend the type's first disposition, flagged as a
         # type default so nobody reads it as an evidence-backed recommendation.
-        rec, basis = labels[0], f"type-default:{source}"
-    return {"route": "HITL", "rule": rule, "reason": reason,
-            "recommendation": rec, "recommendation_basis": basis,
-            "alternatives": labels[1:], "denied": False, "options_source": source}
+        rec, basis, alts, conf = labels[0], f"type-default:{source}", labels[1:], "nenhuma"
+    out = {"route": "HITL", "rule": rule, "reason": reason,
+           "recommendation": rec, "recommendation_basis": basis,
+           "alternatives": alts, "denied": False, "options_source": source,
+           "confidence": conf, "evidence": evidence}
+    if conf == "nenhuma":
+        out["evidence_note"] = "sem evidência no item: recomendação é só o padrão do tipo"
+    return out
 
 
 POLICY_VALUES = {"leaked_secret": ("deny-rotation", "escalate")}
@@ -243,7 +384,13 @@ def validate_policy(policy) -> dict:
     return dict(DEFAULT_POLICY, **policy)
 
 
-def decide(item: dict, policy: dict | None = None) -> dict:
+def decide(item: dict, policy: dict | None = None, today: dt.date | None = None) -> dict:
+    out = _route(item, policy, today or dt.date.today())
+    out["priority"] = priority(item, today or dt.date.today())
+    return out
+
+
+def _route(item: dict, policy: dict | None, today: dt.date) -> dict:
     pol = validate_policy(policy)
     tipo = _fold(str(item.get("tipo", "")))
     text = " ".join(str(item.get(k, "")) for k in ("decidir", "titulo", "title"))
@@ -259,14 +406,14 @@ def decide(item: dict, policy: dict | None = None) -> dict:
         return out
     if tipo in HUMAN_TYPES:
         out.update(_hitl_verdict(item, "R1-human-type",
-                                 f"tipo '{tipo}' é um dos 5 tipos HITL do SSOT"))
+                                 f"tipo '{tipo}' é um dos 5 tipos HITL do SSOT", today))
         return out
     if tipo in TECH_TYPES and (_GUARD_RE.search(text) or _MONEY_RE.search(text)
                                or any(_human_authority_act(str(item.get(k, "")), text)
                                       for k in ("decidir", "titulo", "title"))):
         out.update(_hitl_verdict(item, "R2-guard",
                                  "item técnico cita ato irreversível/produção, gasto, envio "
-                                 "ou ato de conta/segurança/dados pessoais reais"))
+                                 "ou ato de conta/segurança/dados pessoais reais", today))
         return out
     if tipo in TECH_TYPES:
         out.update(route="DIY", rule="R3-technical", denied=False,
@@ -300,6 +447,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="JSON file (synopsis-fuse envelope, item list, or one item); '-' = stdin")
     ap.add_argument("--policy", help="JSON file overriding the default policy")
     ap.add_argument("--format", choices=("json", "tree"), default="json")
+    ap.add_argument("--sort", choices=("input", "gut"), default="input",
+                    help="verdict order: input (document order, default) or gut (GUT score, highest first)")
+    ap.add_argument("--today", help="reference date YYYY-MM-DD for deadlines/deferrals (default: today)")
     args = ap.parse_args(argv)
 
     try:
@@ -307,11 +457,14 @@ def main(argv: list[str] | None = None) -> int:
         doc = json.loads(raw)
         policy = json.loads(pathlib.Path(args.policy).read_text("utf-8")) if args.policy else None
         validate_policy(policy)
+        today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"decision-engine: invalid input: {exc}", file=sys.stderr)
         return 2
 
-    verdicts = [decide(i, policy) for i in collect_items(doc)]
+    verdicts = [decide(i, policy, today) for i in collect_items(doc)]
+    if args.sort == "gut":
+        verdicts.sort(key=lambda v: -v["priority"]["score"])  # stable on ties
     source = scope_info(doc)
     if args.format == "tree":
         if source.get("hitl_scope_unresolved"):
@@ -322,8 +475,15 @@ def main(argv: list[str] | None = None) -> int:
             extra = f" (ledger tem {total}; escopo {source.get('hitl_scope')})" if total else ""
             print(f"decision-engine: 0 itens HITL na entrada{extra}")
         for v in verdicts:
+            p = v["priority"]
+            conf = f"; confiança: {v['confidence']}" if "confidence" in v else ""
             print(f"{v['id']} [{v['tipo']}] -> {v['route']} ({v['rule']}): {v['recommendation']}"
-                  f" [base: {v['recommendation_basis']}]")
+                  f" [base: {v['recommendation_basis']}{conf}]"
+                  f" [GUT {p['g']}x{p['u']}x{p['t']}={p['score']}]")
+            for ev in v.get("evidence", []):
+                print(f"    evidência: {ev['kind']}: {ev['text']}")
+            if v.get("evidence_note"):
+                print(f"    {v['evidence_note']}")
             for alt in v["alternatives"]:
                 print(f"    alt: {alt}")
         return 0
