@@ -200,6 +200,7 @@ per the **SAGE v10.7 engine-anchored class matrix**:
 | normative · dispositional · temporal | **ASSISTIVE (band-capped)** — advisory + human review |
 | additive/atomic WITHOUT diagnostics | **ASSISTIVE (unverified)** — fail-closed |
 | declared ≠ derived | **REVIEW** — the two channels disagree |
+| **form NOT declared** (default) | **REVIEW (unrouted)** — fail-closed; omission never earns a clean band. If H35 diagnostics derive relational/gestalt → **BLOCKED**. Pass `--legacy-unrouted` to restore the v1.0.0 passthrough |
 
 The demo: `examples/fair-relational.json` scores **1.0 / HIGH** via `aggregate_spec` but
 **BLOCKED** via `structural_route` — because the additive tree can't see the *relation* a high

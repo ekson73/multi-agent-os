@@ -155,6 +155,22 @@ r_awspure="$(scan "$awspure")"
 if [ -z "$r_awspure" ]; then ok "AWS-URI: pure reference URI correctly suppressed"
 else bad "AWS-URI: a legitimate SM reference URI produced a finding"; fi
 
+# ══ 7. REDACTED marker — whole value IS `<REDACTED…>`, real secrets still fire ═
+# The vek-db-password allowlist exempts an extracted value that is exactly the
+# literal redaction marker (anchored ^…$ on the secret). A real password that
+# merely contains the marker, or a marker that is not closed, must still fire.
+# The historical document shape is `KEY=${VEK_DB_PASSWORD:<REDACTED>}`: the rule
+# captures the default inside the brace, and that default is the marker.
+redacted=$'DB_PASSWORD=<REDACTED>\nquarkus.datasource.password=${VEK_DB_PASSWORD:<REDACTED>}\nDB_PASSWORD=<REDACTED_DB>\n'
+r_redacted="$(scan "$redacted")"
+if [ -z "$r_redacted" ]; then ok "REDACTED: literal marker values suppressed"
+else bad "REDACTED: a literal marker produced a finding"; fi
+redacted_trap=$'DB_PASSWORD=<REDACTED>ExtraSecret1\nDB_PASSWORD=RealPass1<REDACTED>\nDB_PASSWORD=<REDACTED\nquarkus.datasource.password=${VEK_DB_PASSWORD:Abcd1234Efgh5678Ijkl90}\n'
+r_redacted_trap="$(scan "$redacted_trap")"
+n_redacted_trap="$(grep -c . <<<"$r_redacted_trap" || true)"
+if [ "${n_redacted_trap:-0}" -ge 4 ]; then ok "REDACTED: real secret near the marker still fires ($n_redacted_trap)"
+else bad "REDACTED: a real secret near the marker was suppressed ($n_redacted_trap/4)"; fi
+
 # ── summary ──────────────────────────────────────────────────────────────────
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

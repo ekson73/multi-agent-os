@@ -3,26 +3,23 @@ name: bot-finding-arbiter
 version: "1.4.0"
 description: |
   Soul-name **Praetor**. Adjudicates a code-reviewer bot's finding when a build / CI /
-  pipeline / PR fails or is blocked on it — and, like the Roman praetor who both judged
-  cases AND published the edict that refined the law going forward, it can correct the
-  bot's OWN repo-committed config file to teach the bot our governance for future reviews.
-  Runs an OODA loop per finding: OBSERVE (intake the finding) → ORIENT (classify
-  {valid-actionable | bot-wrong | ambiguous} with an INDEPENDENT verify — verifier >
-  generator) → DECIDE one of 7 dispositions [accept-total · accept-partial+adapt · fix ·
-  improve · expand · reject-total · comment/justify] → ACT (fix the code, OR reply-justify,
-  OR — only when the bot is VERIFIABLY wrong — write a teaching edit to the bot's config
-  file per the bot-config registry). HARD GUARDRAIL: NEVER suppress a valid security /
-  logic finding; a config edit that would silence a real finding → HITL, always. Composes
-  existing primitives (gh-CLI / bb-pipeline-watch intake · convergence-engine / cascade-resolver /
-  perspective-trio for the verify · pr-governance disposition menu · auto-merge gate) —
-  builds no new convergence machinery.
-  Use when a bot flags a PR/build and you must decide what to do about the finding,
-  when a reviewer bot keeps emitting the same false-positive, or when a bot's config
-  should be taught your standards.
-  Triggers: "the bot flagged X, what do we do", "coderabbit/qodo/copilot/amazon-q/gitleaks
-  is wrong here", "teach the bot", "fix the recurring false positive", "arbitrate this
-  finding", "praetor", "bot-finding-arbiter", "resolve the bot complaint on this PR",
-  "o bot reclamou, o que fazemos", "ensina o bot".
+  pipeline / PR fails or is blocked on it — like the Roman praetor who judged cases AND
+  published the edict that refined the law going forward, can correct the bot's OWN repo-committed
+  config file, teaching our governance for future reviews. Runs an OODA loop per finding:
+  OBSERVE intake → ORIENT classify {valid-actionable | bot-wrong | ambiguous} with an
+  INDEPENDENT verify (verifier > generator) → DECIDE 1 of 7 dispositions [accept-total ·
+  accept-partial+adapt · fix · improve · expand · reject-total · comment/justify] → ACT
+  (fix code, reply-justify, or — only when VERIFIABLY wrong — write a teaching edit per the
+  bot-config registry). HARD GUARDRAIL: never suppress a valid security / logic finding; a
+  config edit that would silence one → HITL, always. Composes existing primitives (gh-CLI ·
+  bb-pipeline-watch · convergence-engine · cascade-resolver · perspective-trio ·
+  pr-governance disposition menu · auto-merge gate); builds no convergence machinery.
+  Triggers: a reviewer bot flags a PR/build, you must decide about the finding; keeps
+  emitting the same false-positive; its config should be taught your standards; "the bot
+  flagged X, what do we do", "arbitrate this finding",
+  "coderabbit/qodo/copilot/amazon-q/gitleaks is wrong here", "teach the bot", "fix the
+  recurring false positive", "praetor", "bot-finding-arbiter", "resolve the bot complaint
+  on this PR", "o bot reclamou, o que fazemos", "ensina o bot".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 ---
 

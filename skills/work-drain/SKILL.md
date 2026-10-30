@@ -3,16 +3,16 @@ name: work-drain
 version: "0.1.0"
 description: |
   Given one or more <object-targets> (a sprint, a backlog query, open PRs, tracker issues,
-  a filter), DISCOVER every matching item across trackers, DERIVE a work-register from them,
-  ORDER it (Eisenhower x dependency-DAG), and DRAIN it item-by-item to quiescence —
+  a filter), DISCOVER every matching item across trackers, DERIVE a work-register from
+  them, ORDER it (Eisenhower x dependency-DAG), DRAIN it item-by-item to quiescence —
   autonomously, unattended, resumable. Level-triggered by design: every pass RE-DERIVES the
-  register from the trackers (the source of truth) instead of replaying a stored queue, so a
-  mid-drain interruption resumes correctly and a re-run is a no-op once empty. Thin conductor:
-  delegates discovery to work-compass, prioritization to pulse, and EACH item's actual work to
-  quiesce --scope ticket:<id> — reimplements no loop, no PDCA, no merge gate. Soul-name: Antlia
-  (the bilge-pump: drains a hold to empty, load by load).
-  Triggers: "work-drain", "drain the sprint", "drain the backlog", "work through my tickets",
-  "clear the sprint", "item by item until empty", "drenar o sprint", "drenar o backlog",
+  register from the trackers (the source of truth) instead of replaying a stored queue, so
+  a mid-drain interruption resumes correctly and a re-run is a no-op once empty. Thin
+  conductor: delegates discovery to work-compass, prioritization to pulse, EACH item's
+  actual work to quiesce --scope ticket:<id>; reimplements no loop, no PDCA, no merge gate.
+  Soul-name: Antlia (the bilge-pump: drains a hold to empty, load by load). Triggers:
+  "work-drain", "drain the sprint", "drain the backlog", "work through my tickets", "clear
+  the sprint", "item by item until empty", "drenar o sprint", "drenar o backlog",
   "trabalhe nos tickets um por um", "esvaziar a fila".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob, AskUserQuestion
 ---
