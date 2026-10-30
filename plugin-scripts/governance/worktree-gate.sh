@@ -19,7 +19,7 @@ set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
 # self-heal-relay (Anima: "self-heal-relay", soul-name "Phoenix") — pattern doc:
-# docs/self-heal-relay.md · upstream standard: ~/.kiro/steering/eko-executable-scripts.md §prop-6.
+# docs/self-heal-relay.md · upstream standard: ~/.kiro/steering/executable-scripts.md §prop-6.
 #
 # On an UNEXPECTED fault (unbound var, require_jq failure, a `source` failing, an
 # unexpected non-0/non-2 exit under `set -e`) this hook captures a run log + writes
@@ -157,7 +157,7 @@ self_heal() {
     echo "Root-cause the fault and fix \`$SELF_PATH\`. DO NOT weaken the gate's block"
     echo "semantics: exit 2 must remain an intentional BLOCK, exit 0 an allow, and the"
     echo "hook's stdout JSON-RPC verdict must stay uncorrupted. Follow the"
-    echo "eko-executable-scripts standard in ~/.kiro/steering/. Keep changes minimal"
+    echo "executable-scripts standard in ~/.kiro/steering/. Keep changes minimal"
     echo "and show a diff."
   } > "$prompt_file"
 

@@ -50,7 +50,7 @@ from pathlib import Path
 
 # ── self-heal-relay (Anima: "self-heal-relay", soul-name "Phoenix") ──────────────
 # Pattern doc: docs/self-heal-relay.md · upstream standard:
-# ~/.kiro/steering/eko-executable-scripts.md §prop-6. Stdlib only (subprocess/tempfile).
+# ~/.kiro/steering/executable-scripts.md §prop-6. Stdlib only (subprocess/tempfile).
 #
 # On an UNCAUGHT exception (an unexpected crash) this collector captures the
 # traceback into a run log + writes an UNTRUSTED-labelled prompt file, then RELAYS
@@ -151,7 +151,7 @@ def _self_heal_relay(exc: BaseException, exit_code: int) -> None:
                 "contract (never execute a provider write / session mutation), its "
                 "stdlib-only constraint, its exit-code semantics (clean run = exit 0, "
                 "argparse usage = exit 2, route-miss = exit 1), and deterministic output. "
-                "Follow the eko-executable-scripts standard in ~/.kiro/steering/. Keep "
+                "Follow the executable-scripts standard in ~/.kiro/steering/. Keep "
                 "changes minimal and show a diff.\n"
             )
     except OSError as e:
@@ -904,7 +904,7 @@ def in_pendency_scope(it: dict, scope: str) -> bool:
     """WHERE the pendency lives (id-prefix), orthogonal to the CPT --scope verbs.
 
     current = session+repo surfaces · session = host session state · repo = repo state
-    · vault = eko-engram inbox (no collector yet — caller reports unavailable, never
+    · vault = notes-vault inbox (no collector yet — caller reports unavailable, never
     fabricates) · all = everything (incl. external jira:)."""
     if scope == "all":
         return True
@@ -923,7 +923,7 @@ def build_pendency_view(items: list[dict], scope: str, include: str,
                         unavailable: list[str], ref=None) -> dict:
     """Filter → classify → Q1..Q4 buckets (the eisenhower-matrix payload)."""
     if scope == "vault":
-        unavailable = unavailable + ["vault: no eko-engram collector (deferred — YAGNI)"]
+        unavailable = unavailable + ["vault: no notes-vault collector (deferred — YAGNI)"]
     rows = [it for it in items if in_pendency_scope(it, scope)]
     if include == "pending":
         rows = [it for it in rows if _is_pending(it)]

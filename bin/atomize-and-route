@@ -96,22 +96,30 @@ need_val() { [ "$2" -ge 2 ] || { echo "$1 requires a value" >&2; exit 1; }; case
 # =====================================================================
 TAXONOMY_JSON='{
   "norm":            {"format":"markdown+frontmatter",   "destination_template":"~/.claude/rules/<slug>.md",                 "gate":"must-fire-every-session AND cross-project AND high-stakes else memory/doc"},
-  "procedure":       {"format":"skill-or-command",        "destination_template":"<repo>/skills/<slug>/SKILL.md",             "gate":"community(maos) vs corporate(vek-ai-toolkit) per scope"},
+  "procedure":       {"format":"skill-or-command",        "destination_template":"<repo>/skills/<slug>/SKILL.md",             "gate":"community(maos) vs corporate(ai-toolkit) per scope"},
   "role":            {"format":"agent",                   "destination_template":"<repo>/agents/<slug>.md",                   "gate":"registry lookup before creating"},
   "insight":         {"format":"markdown",                "destination_template":"~/.claude/projects/<enc>/memory/<slug>.md","gate":"anti-bloat: elevate to norm only if Triple-touch (>=3x)"},
   "fact":            {"format":"markdown-or-notebooklm",  "destination_template":"~/.claude/docs/<slug>.md",                  "gate":"prefer NotebookLM source for research/reference material"},
   "reference":       {"format":"markdown-or-notebooklm",  "destination_template":"~/.claude/docs/<slug>.md",                  "gate":"prefer NotebookLM source for research/reference material"},
   "decision":        {"format":"markdown+frontmatter",    "destination_template":"~/.claude/docs/decisions/<slug>.md",       "gate":"ADR-style; cite decision-capture skill"},
-  "work":            {"format":"tracker-item",            "destination_template":"tracker:<vek-jira|linear|gh-issue>",       "gate":"eko L4 routing: Vek->Jira, personal->Linear, repo->GH Issue"},
+  "work":            {"format":"tracker-item",            "destination_template":"tracker:<work-jira|linear|gh-issue>",       "gate":"L4 routing: work org->its tracker, personal->Linear, repo->GH Issue"},
   "gap":             {"format":"tracker-item-or-ledger",  "destination_template":"tracker-or-taxis-queue",                    "gate":"loose-end-triage-queue tiers; never silent-drop"},
   "pendency":        {"format":"tracker-item-or-ledger",  "destination_template":"tracker-or-taxis-queue",                    "gate":"loose-end-triage-queue tiers; never silent-drop"},
-  "idea":            {"format":"markdown-dendron",        "destination_template":"~/eko-engram/pages/<slug>.md",              "gate":"durable-personal; use plans/ instead if scratch/session-scoped"},
-  "braindump-seed":  {"format":"markdown-dendron",        "destination_template":"~/eko-engram/pages/<slug>.md",              "gate":"durable-personal; use plans/ instead if scratch/session-scoped"},
-  "template":        {"format":"markdown",                "destination_template":"~/eko-engram/templates/<slug>.md",         "gate":"or <repo>/templates/ if repo-specific"},
-  "example":         {"format":"markdown",                "destination_template":"~/eko-engram/templates/<slug>.md",         "gate":"or <repo>/templates/ if repo-specific"},
+  "idea":            {"format":"markdown-dendron",        "destination_template":"~/notes-vault/pages/<slug>.md",              "gate":"durable-personal; use plans/ instead if scratch/session-scoped"},
+  "braindump-seed":  {"format":"markdown-dendron",        "destination_template":"~/notes-vault/pages/<slug>.md",              "gate":"durable-personal; use plans/ instead if scratch/session-scoped"},
+  "template":        {"format":"markdown",                "destination_template":"~/notes-vault/templates/<slug>.md",         "gate":"or <repo>/templates/ if repo-specific"},
+  "example":         {"format":"markdown",                "destination_template":"~/notes-vault/templates/<slug>.md",         "gate":"or <repo>/templates/ if repo-specific"},
   "question":        {"format":"markdown-or-tracker",     "destination_template":"~/.claude/projects/<enc>/memory/<slug>.md","gate":"tracker only if independently actionable"},
   "answer":          {"format":"markdown-or-tracker",     "destination_template":"~/.claude/projects/<enc>/memory/<slug>.md","gate":"tracker only if independently actionable"}
 }'
+
+# Durable vault root is installation config (default ~/notes-vault). Paths with " or \ are
+# rejected so the substitution can never break the JSON table.
+NOTES_VAULT="${MAOS_NOTES_VAULT:-~/notes-vault}"
+case "$NOTES_VAULT" in *'"'*|*'\'*) echo "MAOS_NOTES_VAULT must not contain quotes or backslashes" >&2; exit 1 ;; esac
+# Bash 5.2 patsub_replacement would expand "&" in the replacement; keep it literal.
+shopt -u patsub_replacement 2>/dev/null || true
+TAXONOMY_JSON="${TAXONOMY_JSON//\~\/notes-vault/$NOTES_VAULT}"
 
 VALID_SCOPES="self user project work community corporate durable-personal"
 
@@ -152,10 +160,10 @@ resolve_scope_prefix() {
     self)             echo "self-scope (session-local, not persisted beyond this turn)" ;;
     user)             echo "user-scope (~/.claude, auto-loaded cross-project)" ;;
     project)          echo "project-scope (this repo's own memory/docs)" ;;
-    work)             echo "work-scope (Vek: Jira VKS, corp toolkit)" ;;
+    work)             echo "work-scope (work org tracker, corp toolkit)" ;;
     community)        echo "community-scope (multi-agent-os)" ;;
-    corporate)        echo "corporate-scope (vek-ai-toolkit)" ;;
-    durable-personal) echo "durable-personal-scope (~/eko-engram, git-backed)" ;;
+    corporate)        echo "corporate-scope (ai-toolkit)" ;;
+    durable-personal) echo "durable-personal-scope (${NOTES_VAULT}, git-backed)" ;;
     *) echo "" ;;
   esac
 }

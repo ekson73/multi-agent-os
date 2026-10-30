@@ -21,7 +21,7 @@ This file is GitHub Copilot's entry point. **The canonical agent contract is [`A
 
 - Use `--no-verify` to bypass pre-commit hooks (gitleaks is non-negotiable).
 - Commit secrets, tokens, `.env`, or PAT credentials.
-- Edit `.claude-plugin/plugin.json` `version` or `name` without coordinating the downstream marketplace pin in [`ekson73/eko-claude-plugins`](https://github.com/ekson73/eko-claude-plugins).
+- Edit `.claude-plugin/plugin.json` `version` or `name` without coordinating the downstream marketplace pin in [`OWNER/plugin-marketplace`](https://github.com/OWNER/plugin-marketplace).
 - Mass-create governance scaffolding (`.ai/`, ADRs, EVALS yaml, etc.) without Triple-touch evidence (`AGENTS.md` § Architecture Decisions + 3 occurrences of need).
 
 ## Code style

@@ -21,8 +21,8 @@ APPLY=0
 [ "${1:-}" = "--apply" ] && APPLY=1
 
 MAOS="${MAOS_DIR:-$HOME/Projects/multi-agent-os}"
-VEK="${VEK_DIR:-$HOME/Projects/vek-ai-toolkit}"
-REPOS=("$MAOS" "$VEK")
+TOOLKIT="${MAOS_TOOLKIT_DIR:-$HOME/Projects/ai-toolkit}"
+REPOS=("$MAOS" "$TOOLKIT")
 
 SKILLS_DIR="$HOME/.agents/skills"
 AGENTS_DIR="$HOME/.omp/agent/agents"
@@ -61,7 +61,7 @@ for repo in "${REPOS[@]}"; do
 done
 
 say "=== agents (frontmatter name+description required by omp)"
-[ -d "$VEK/agents" ] && for f in "$VEK"/agents/*.md; do
+[ -d "$TOOLKIT/agents" ] && for f in "$TOOLKIT"/agents/*.md; do
   case "$(basename "$f")" in README.md|AGENTS.md|COWORK-*) continue;; esac
   if has_fm "$f" name && has_fm "$f" description; then
     name="$(grep -m1 '^name:' "$f" | sed 's/^name:[[:space:]]*//')"
@@ -77,11 +77,16 @@ for repo in "${REPOS[@]}"; do
   for f in "$repo"/rules/*.md; do
     has_fm "$f" description || say "WARN (no description, loads-but-lurks): $f"
     base="$(basename "$f")"
-    if [ "$repo" = "$VEK" ] && [ -f "$MAOS/rules/$base" ]; then
+    if [ "$repo" = "$TOOLKIT" ] && [ -f "$MAOS/rules/$base" ]; then
       if diff -q "$MAOS/rules/$base" "$f" >/dev/null 2>&1; then
         say "TRUE-DUP (identical to maos canonical): $base"; continue
       fi
-      link "$f" "$RULES_DIR/vek-$base"   # vek overlay of a maos rule -> namespaced
+      link "$f" "$RULES_DIR/org-$base"   # toolkit overlay of a maos rule -> namespaced
+      # Migration: an earlier namespace left a second link to the SAME target; remove it.
+      for _old in "$RULES_DIR"/*-"$base"; do
+        [ -L "$_old" ] && [ "$_old" != "$RULES_DIR/org-$base" ] && [ "$(readlink "$_old")" = "$f" ] || continue
+        say "PRUNE (legacy namespace duplicate): $_old"; if [ "$APPLY" = 1 ]; then rm "$_old"; fi
+      done
       continue
     fi
     link "$f" "$RULES_DIR/$base"
@@ -103,7 +108,7 @@ for dir in "$SKILLS_DIR" "$AGENTS_DIR" "$RULES_DIR" "${COMMANDS_DIRS[@]}"; do
   find "$dir" -maxdepth 1 -type l | while read -r l; do
     target="$(readlink "$l")"
     case "$target" in
-      "$MAOS"/*|"$VEK"/*) [ -e "$target" ] || { say "PRUNE (target gone): $l"; if [ "$APPLY" = 1 ]; then rm "$l"; fi; } ;;
+      "$MAOS"/*|"$TOOLKIT"/*) [ -e "$target" ] || { say "PRUNE (target gone): $l"; if [ "$APPLY" = 1 ]; then rm "$l"; fi; } ;;
     esac
   done
 done

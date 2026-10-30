@@ -28,7 +28,7 @@ Referenced as ./dotslash_ref.md in the index.
 EOF
 cat > "$FIX/corpus/topic_a.md" <<'EOF'
 # Topic Alpha
-Content. PR ekson73/example#TBD.
+Content. PR OWNER/example#TBD.
 EOF
 cat > "$FIX/corpus/orphan_note.md" <<'EOF'
 # Orphan Note

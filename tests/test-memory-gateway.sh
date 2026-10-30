@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test: bin/memory-gateway — the memory-CRUD gateway (ADR-013, EKO-116).
+# Test: bin/memory-gateway — the memory-CRUD gateway (ADR-013, TICKET-116).
 # ----------------------------------------------------------------------------
 # Covers the ADR-013 Definition-of-Done test list:
 #   - every verb happy-path (create/read/update/archive/index/search/neighborhood)
