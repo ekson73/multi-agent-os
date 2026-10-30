@@ -4,7 +4,7 @@
 # Purpose: Safely heal/harmonize the current branch from its origin (R2 of the
 #          `preflight` bootstrap bundle): fetch → classify → act, where "act" is
 #          ALWAYS the safe option for the classified state and DEFER otherwise.
-# Version: 1.0.0
+# Version: 1.1.0
 # Protocol: C04 (Git Worktree Protocol v2.0), C06 (AI-Native Environment)
 #
 # Safety invariants (never violated):
@@ -12,6 +12,8 @@
 #   - Never clobber uncommitted TRACKED work → DEFER on a dirty tree.
 #   - Never touch a detached / mid-rebase / mid-merge HEAD → DEFER.
 #   - Never act while another writer holds `.git/index.lock` → DEFER.
+#   - Never rebase unless the caller opts in (GSS_ALLOW_REBASE=1) → diverged = DEFER.
+#     Automatic heal is fast-forward only (no history rewrite).
 #   - On rebase conflict → `rebase --abort` (restore prior state) → DEFER.
 #   - A branch checked out in another worktree is git-locked → not our concern here
 #     (the current branch can never be locked elsewhere; gbd_locked_branches reports it).
@@ -94,7 +96,13 @@ gss_heal() {
         fi
         echo "DEFERRED ff-failed"; return 1
     else
-        # Diverged (ahead>0 AND behind>0) → rebase local work onto upstream, autostash-guarded
+        # Diverged (ahead>0 AND behind>0). Rebasing rewrites local commits and the
+        # working tree of a checkout other sessions may share, so it is NEVER automatic:
+        # DEFER unless the caller explicitly opts in (GSS_ALLOW_REBASE=1, e.g. an
+        # operator-invoked `/maos:preflight heal`). The SessionStart hook never sets it.
+        if [ "${GSS_ALLOW_REBASE:-0}" != "1" ]; then
+            echo "DEFERRED diverged(ahead=${ahead},behind=${behind}; rebase is opt-in: GSS_ALLOW_REBASE=1)"; return 1
+        fi
         if git -C "$repo" rebase --autostash '@{upstream}' >/dev/null 2>&1; then
             sha=$(git -C "$repo" rev-parse --short HEAD 2>/dev/null)
             echo "HEALED_REBASE $sha"; return 0

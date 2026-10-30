@@ -31,6 +31,9 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$HERE/lib/fixture-guard.sh"   # #495: fail closed before git mutations
+fx_reject_git_env || exit 1
 CONFIG="$HERE/../.gitleaks.toml"
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -50,11 +53,11 @@ command -v gitleaks >/dev/null || { echo "FAIL: gitleaks not installed — the s
 # whole suite (set -e via the `return 1` surfacing) rather than passing silently.
 scan() {
   local body="$1" sbx out rc
-  sbx="$(mktemp -d)"
+  sbx="$(fx_mktemp_dir)" || return 1   # #495: never fall through to the caller checkout
   # EXIT trap: remove the fixture dir on normal completion AND early failure.
   trap 'rm -rf "$sbx"' RETURN
   printf '%s' "$body" > "$sbx/creds.env"
-  ( cd "$sbx" && git init -q && git config user.email fixture@example.com && git config user.name fixture \
+  ( fx_enter_fresh "$sbx" && git init -q && fx_assert_root "$sbx" && git config user.email fixture@example.com && git config user.name fixture \
       && git add -A && git commit -qm fixture ) >/dev/null 2>&1
   out="$sbx/report.json"
   gitleaks detect --source "$sbx" --config "$CONFIG" --no-banner \

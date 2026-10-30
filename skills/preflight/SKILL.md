@@ -79,7 +79,7 @@ R0 is ZERO-network at the hook layer; agentic ticket reconciliation follows tick
 | **R0** | **Anchor** the session to its ticket on the N-Tree + **classify** the session type | (a) deterministic hook anchors the ticket (seed `refs.ticket` › branch › last-commit via `locus --density anchor`, ZERO network) → coarse `mode`; (b) skill walks the N-Tree (parent-chain to epic/root + siblings) via capability-detected MCP; (c) classifies `session_type=<mode>/<work>`; (d) if no ticket → authorized create/reuse or durable pending-ticket record | `bin/locus.sh` + `references/session-type-taxonomy.md` |
 | **R1** | Detect the right branch **without interfering** with other agents/sessions/worktrees | branch + upstream + ahead/behind + branches **locked by other worktrees** (`git worktree list --porcelain`) + tree-state | `lib/git-branch-detect.sh` |
 | **R1.5** | **Peer-aware** non-interference (optional, capability-detected) | detect OTHER live sessions writing the **SAME checkout** (host session-activity signal, self-excluded, freshness-windowed); peers active → R2 **DEFERs**; off-host → `UNKNOWN` (report-only) | `lib/peer-session-detect.sh` |
-| **R2** | **Heal** the current branch from origin | `fetch` → classify {up-to-date / ff-ready / diverged / dirty / detached / mid-op / busy / **peers-active**} → act: `ff-only` \| `rebase --autostash` \| **DEFER** | `lib/git-safe-sync.sh` |
+| **R2** | **Heal** the current branch from origin | `fetch` → classify {up-to-date / ff-ready / diverged / dirty / detached / mid-op / busy / **peers-active**} → act: `ff-only` \| **DEFER** (diverged → DEFER; `rebase --autostash` only with `GSS_ALLOW_REBASE=1`) | `lib/git-safe-sync.sh` |
 | **R3** | **Isolate** file mutations in a worktree | only when about to create/update files; compose `/maos:worktree create` (or `git worktree add .worktrees/<slug> -b <type>/<scope>`) | `commands/worktree.md` |
 
 **Non-interference (R1) is structural**: a branch checked out in another worktree is
@@ -179,7 +179,7 @@ exposes right now** and adapt to it (do NOT hardcode):
 1. R1: read-only detect — current branch, upstream, ahead/behind, tree-state,
    branches locked by other worktrees. Report; never mutate.
 2. R2: if the action benefits from fresh state → safe-heal from origin
-   (fetch → classify → ff-only | rebase-autostash | DEFER). Report the verdict.
+   (fetch → classify → ff-only | DEFER; rebase only with GSS_ALLOW_REBASE=1). Report the verdict.
 3. R3: IF (and only if) the action will create/update files/directories AND you are
    in the main checkout (not already a worktree) AND it is not a C04 exception:
      - derive slug + branch from the action intent + discovered conventions

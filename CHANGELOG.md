@@ -283,6 +283,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   agents carry the mandatory pt-BR line in their descriptions.
 - `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
 
+### Fixed — fail closed in hooks and test fixtures (#399, #495)
+
+- `session-fission/snapshot.sh`: a gitleaks scanner error is no longer reported as
+  `findings`, and a non-zero gitleaks exit no longer aborts before the manifest (#399).
+- `preflight` SessionStart heal never rebases; a diverged branch DEFERs. Rebase is
+  opt-in via `GSS_ALLOW_REBASE=1`. Fast-forward of a clean tree is unchanged.
+- `worktree-gate.sh`: an unexpected fault while gating a git command now blocks
+  (exit 2) instead of letting the command run; the AI-CLI self-heal relay is opt-in
+  (`MAOS_SELFHEAL=1`).
+- Test fixtures: new `tests/lib/fixture-guard.sh` stops allocation, mkdir and
+  directory-entry failures and inherited `GIT_DIR` before any git mutation; applied to
+  the locus, gitleaks-config, preflight-r0 and worktree-gate suites (#495).
+
 ### Changed — ticket-first traceability (#484)
 
 - Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
