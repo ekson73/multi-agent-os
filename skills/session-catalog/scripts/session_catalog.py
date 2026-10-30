@@ -166,8 +166,12 @@ ENVELOPE_TAGS = (
     "persisted-output", "post-tool-use-hook", "hook_output", "attachments",
     "permissions instructions", "collaboration_mode", "memory", "subagent_notification",
 )
-_ENV_BLOCK = re.compile(r"<(" + "|".join(map(re.escape, ENVELOPE_TAGS)) + r")(?:\s[^>]*)?>[\s\S]*?</\1\s*>")
-_ENV_SELF = re.compile(r"<(?:" + "|".join(map(re.escape, ENVELOPE_TAGS)) + r")(?:\s[^>]*)?/>")
+# Envelope blocks are stripped by a linear scan, not one backtracking regex: `<tag>` repeated with no
+# closing tag made `<tag ...>[\s\S]*?</tag>` rescan the rest of the record from every opening (quadratic).
+# Attribute runs stop at `<` so an unterminated `<tag ` cannot rescan the record either.
+_ENV_OPEN = re.compile(r"<(" + "|".join(map(re.escape, ENVELOPE_TAGS)) + r")(?:\s[^<>]*)?>")
+_ENV_CLOSE = {t: re.compile(r"</" + re.escape(t) + r"\s*>") for t in ENVELOPE_TAGS}
+_ENV_SELF = re.compile(r"<(?:" + "|".join(map(re.escape, ENVELOPE_TAGS)) + r")(?:\s[^<>]*)?/>")
 _WHOLE_TAG = re.compile(r"^\s*<([A-Za-z_][\w -]*)(?:\s[^>]*)?>[\s\S]*</\1\s*>\s*$")
 _INJECTED_PREFIXES = (
     "# AGENTS.md instructions for", "Base directory for this skill:",
@@ -197,10 +201,14 @@ REDACTIONS: List[Tuple[str, bool, re.Pattern]] = [
         r"(?i)([?&](?:" + _REDACTION_KEYWORDS + r"|sig|signature|code|key|auth|x-amz-signature|x-amz-credential)=)[^&#\s]+")),
     # a quoted value is consumed through its closing quote, so `password="a b c d"` is covered too
     ("assignment", True, re.compile(
-        r"(?i)\b(" + _REDACTION_KEYWORDS + r")([\"']?\s*[:=]\s*)(\"[^\"\r\n]{6,}\"|'[^'\r\n]{6,}'|[^\s\"',;]{6,})")),
+        # an identifier prefix (`DB_PASSWORD`, `OPENAI_API_KEY`) is part of the name; matching starts only
+        # at the beginning of an identifier run, so a long `a_a_a_...` run is scanned once, not per segment.
+        # Any nonempty value is redacted; credible() alone decides whether it is also a finding.
+        r"(?i)(?<![A-Za-z0-9_-])((?:[A-Za-z0-9]+[_-])*(?:" + _REDACTION_KEYWORDS + r"))"
+        r"([\"']?\s*[:=]\s*)(\"[^\"\r\n]+\"|'[^'\r\n]+'|[^\s\"',;]+)")),
     ("opaque-blob", True, re.compile(r"[A-Za-z0-9+/_-]{40,}={0,2}")),
     ("op-ref", False, re.compile(r"\bop://[^\s'\"`)]+")),
-    ("email", False, re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
+    ("email", False, re.compile(r"(?<![A-Za-z0-9._%+-])\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
     ("cpf", False, re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b")),
     ("phone", False, re.compile(r"(?<![\w.])\+\d{10,15}\b")),
 ]
@@ -238,8 +246,32 @@ def clean(text: str) -> str:
     return _CONTROLS.sub("", _ANSI.sub("", text))
 
 
+def _strip_env_blocks(text: str) -> str:
+    """Same result as removing every `<tag ...>...</tag>` (first close after the opening), in
+    amortized linear time: each tag's next close is searched once and reused until passed."""
+    out: List[str] = []
+    pos, nxt = 0, {}  # tag -> next close match at/after the last search point, or False (none left)
+    while True:
+        m = _ENV_OPEN.search(text, pos)
+        if m is None:
+            break
+        tag = m.group(1)
+        c = nxt.get(tag)
+        if c is None or (c is not False and c.start() < m.end()):
+            c = _ENV_CLOSE[tag].search(text, m.end()) or False
+            nxt[tag] = c
+        if c is False:  # no close for this tag anywhere further right: keep the opening, move on
+            out.append(text[pos:m.start() + 1])
+            pos = m.start() + 1
+        else:
+            out.append(text[pos:m.start()])
+            pos = c.end()
+    out.append(text[pos:])
+    return "".join(out)
+
+
 def strip_envelopes(text: str) -> str:
-    out = _ENV_SELF.sub("", _ENV_BLOCK.sub("", text))
+    out = _ENV_SELF.sub("", _strip_env_blocks(text))
     return "" if any(out.lstrip().startswith(p) for p in _INJECTED_PREFIXES) else out.strip()
 
 
@@ -466,6 +498,7 @@ class Ctx:
         self.quarantine: List[dict] = []
         self.findings: Dict[tuple, dict] = {}
         self.sources: Dict[str, str] = {}
+        self.listing_capped: set = set()  # directories whose listing exceeded DIR_ENTRY_CEILING
         self.files_admitted = 0
         self.files_discovered = 0   # every file retained by any walk, held to --max-files
         self.records_total = 0
@@ -490,7 +523,7 @@ class Ctx:
 
     def source_id(self, path: str) -> str:
         sid = self.opaque("src-", path)
-        self.sources[sid] = rel(self.home, path)
+        self.sources[sid] = redact(rel(self.home, path))[0]  # a filename can carry secret-shaped text
         return sid
 
     def quarantine_(self, store: str, path: str, reason: str, line: Optional[int] = None, **extra):
@@ -615,12 +648,19 @@ class Ctx:
             fd = self._descend(comps)
         except OSError:
             return []
+        names: List[str] = []
         try:
-            return sorted(os.listdir(fd))
+            with os.scandir(fd) as it:
+                for e in it:
+                    if len(names) >= DIR_ENTRY_CEILING:  # fail closed: never materialize an unbounded listing
+                        self.listing_capped.add(path)
+                        return []
+                    names.append(e.name)
         except OSError:
             return []
         finally:
             os.close(fd)
+        return sorted(names)
 
     def excluded(self, path: str) -> bool:
         rp = self.real_of(path)
@@ -1167,8 +1207,8 @@ def load_agy_history(ctx: Ctx, store: "Store", path: str, fh) -> Dict[str, tuple
     metas: Dict[str, dict] = {}
     emitters: Dict[str, Emit] = {}
     for ln, r in ctx.jsonl(store.id, path, fh):
-        cid = r.get("conversationId")
-        if not cid or "display" not in r:
+        cid, disp = r.get("conversationId"), r.get("display")
+        if not (isinstance(cid, str) and cid.strip() and isinstance(disp, str) and disp.strip()):
             ctx.unknown(store.id, path, ln, ("history-shape", sorted(map(str, r))[:3]))
             continue
         cid = str(cid)
@@ -1185,6 +1225,18 @@ def load_agy_history(ctx: Ctx, store: "Store", path: str, fh) -> Dict[str, tuple
             emitters[cid].cwd = ws or emitters[cid].cwd
             emitters[cid].text("user", r.get("display"), r.get("timestamp"), ln)
     return {cid: (meta, emitters[cid].result()) for cid, meta in metas.items()}
+
+
+def _brain_usable(ctx: "Ctx", unit: "Unit") -> bool:
+    """The primary brain copy loaded (cached, so it is read once) into dialogue that ended before high_water."""
+    try:
+        meta, msgs = unit.load(keep=True)
+    except Exception:
+        return False
+    if meta is None or not msgs:
+        return False
+    stamps = [m["ts"] for m in msgs if m["ts"]]
+    return bool(stamps) and max(stamps) < iso(ctx.high_water)
 
 
 def load_brain(ctx: Ctx, store: "Store", files: List[str], sid: str) -> tuple:
@@ -1715,7 +1767,7 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]], scope: Optional[List[
                         reason="full trajectories are protobuf blobs inside SQLite with no public schema; "
                                "not parsed (this tool never opens SQLite)"))
 
-    seen_brain: set = set()
+    primary_brain: Dict[str, Unit] = {}  # conversation id -> the primary (antigravity) unit
     for name in ("antigravity", "antigravity-ide"):
         base = J(".gemini", name)
         stores.append(Store(name + "/conversations", "google", "google.antigravity",
@@ -1732,12 +1784,16 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]], scope: Optional[List[
                 groups[os.path.basename(os.path.dirname(f))].append(f)
             units = []
             for sid, files in sorted(groups.items()):
-                if sid in seen_brain:  # the IDE keeps mirror copies of the same conversation
+                # the IDE keeps mirror copies of the same conversation: skip a mirror only when the
+                # primary copy itself parsed into past dialogue (recent/unreadable/malformed -> keep the mirror)
+                if s.id != "antigravity/brain" and sid in primary_brain and _brain_usable(ctx, primary_brain[sid]):
                     ctx.receipt[s.id]["sessions_duplicate_skipped"] += 1
                     continue
-                seen_brain.add(sid)
-                units.append(Unit(os.path.dirname(files[0]), lambda files=files, sid=sid: load_brain(ctx, s, files, sid),
-                                  max(ctx.mtime(f) for f in files)))
+                u = Unit(os.path.dirname(files[0]), lambda files=files, sid=sid: load_brain(ctx, s, files, sid),
+                         max(ctx.mtime(f) for f in files))
+                if s.id == "antigravity/brain":
+                    primary_brain[sid] = u
+                units.append(u)
             return units
         s.enumerate = _brain
         stores.append(s)
@@ -1756,6 +1812,9 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]], scope: Optional[List[
 
     def _cg_acct(s=s, cg=cg):
         dirs = [d for d in ctx.listdir(cg) if d.startswith("conversations-v3-")]
+        if cg in ctx.listing_capped:
+            s.evidence["conversation_dirs"] = "over %d entries: not enumerated" % DIR_ENTRY_CEILING
+            return "acct-not-recorded"
         s.evidence["conversation_dirs"] = len(dirs)
         return fingerprint(ctx, dirs[0][len("conversations-v3-"):]) if dirs else "acct-not-recorded"
     cg_acct = _once(_cg_acct)
@@ -1969,6 +2028,15 @@ def _within(p: str, root: str) -> bool:
     return p == root or p.startswith(root.rstrip(os.sep) + os.sep)
 
 
+def _within_fs(p: str, root: str) -> bool:
+    """`_within` that also holds on a case-insensitive / normalization-insensitive filesystem (the
+    default macOS APFS): `~/.GEMINI` and `~/.gemini`, or `export.zip` and `EXPORT.ZIP`, are one object
+    there. Compared lexically after NFC + casefold, so no input path is stat'ed (data minimization);
+    on a case-sensitive filesystem this refuses a case-variant of an input too, which is conservative."""
+    fold = lambda n: unicodedata.normalize("NFC", n).casefold()  # noqa: E731
+    return _within(p, root) or _within(fold(p), fold(root))
+
+
 def input_paths(ctx: Ctx) -> set:
     """Inputs, lexical and canonical: every supplied export and every store location under the
     home anchor (whose canonical form is fixed by the no-follow policy, so nothing is stat'ed)."""
@@ -2000,7 +2068,7 @@ def open_private_dir(ctx: Ctx, path: str, what: str, own: bool) -> Tuple[str, in
     skill = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if any(p == skill or p.startswith(skill + os.sep) for p in both):
         die("refusing %s %s: inside the session-catalog skill directory" % (what, shown), "blocked")
-    if own and any(_within(p, i) or _within(i, p) for p in both for i in input_paths(ctx)):
+    if own and any(_within_fs(p, i) or _within_fs(i, p) for p in both for i in input_paths(ctx)):
         die("refusing %s %s: it overlaps an input (a store root, a harness metadata file or a supplied export)"
             % (what, shown), "blocked")
     repo = in_git_worktree(canon) or in_git_worktree(lexical)
@@ -2144,7 +2212,7 @@ def findings_target(ctx: Ctx, spec: Optional[str]) -> Tuple[int, str]:
         die("refusing --security-findings %s: not a plain file path" % rel(ctx.home, path), "blocked")
     parent, fd = open_private_dir(ctx, os.path.dirname(path), "--security-findings directory", own=False)
     target = os.path.join(parent, name)
-    if any(_within(p, i) for p in (path, target) for i in input_paths(ctx)):
+    if any(_within_fs(p, i) for p in (path, target) for i in input_paths(ctx)):
         os.close(fd)
         die("refusing --security-findings %s: it is, or lies inside, an input (a store root, a harness metadata "
             "file or a supplied export) and would be replaced" % rel(ctx.home, path), "blocked")
@@ -2257,7 +2325,13 @@ def project_match(cwd: Optional[str], projects: List[str]) -> bool:
 
 
 def surface_filter(args) -> Optional[List[str]]:
-    return [x.strip() for x in args.surface.split(",") if x.strip()] if getattr(args, "surface", None) else None
+    raw = getattr(args, "surface", None)
+    if raw is None:
+        return None
+    prefixes = [x.strip() for x in raw.split(",") if x.strip()]
+    if not prefixes:  # a supplied filter that names nothing must not silently widen to every store
+        die("--surface %r names no surface prefix" % raw, "usage")
+    return prefixes
 
 
 def store_in_scope(s: Store, surfaces: Optional[List[str]]) -> bool:

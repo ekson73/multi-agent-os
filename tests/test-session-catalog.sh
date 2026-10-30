@@ -17,7 +17,7 @@ export FIX
 trap 'chmod -R u+rwx "$FIX" 2>/dev/null; rm -rf "$FIX"' EXIT
 echo "test-session-catalog:"
 python3 - <<'PY'
-import builtins, hashlib, io, json, math, os, re, shutil, stat, subprocess, sys, threading, time, zipfile
+import atexit, builtins, hashlib, io, json, math, os, re, shutil, stat, subprocess, sys, threading, time, zipfile
 
 sys.dont_write_bytecode = True  # importing the reader must leave no __pycache__ in the skill dir
 
@@ -197,6 +197,7 @@ open_writer = put(".claude/projects/-work-demo-atlas/%s.jsonl" % U6, raw=(
     + '{"type": "user", "sessionId": "%s", "version": "2.1.0", "message": {"content": "demo-atlas TRUNCATED-7Q' % U6).encode())
 writer = subprocess.Popen([sys.executable, "-c", "import sys; f = open(sys.argv[1], 'ab'); print('open', flush=True); "
                            "sys.stdin.read()", open_writer], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+atexit.register(lambda: writer.poll() is None and writer.kill())  # a failed check must not leak the child
 assert writer.stdout.readline().strip() == b"open"
 
 # ── Codex rollouts: developer prompt, reasoning, per-turn cwd, imported duplicate, missing version ──
@@ -678,6 +679,7 @@ holder = subprocess.Popen([sys.executable, "-c", "import fcntl, os, sys; fd = os
                            "fcntl.flock(fd, fcntl.LOCK_EX); os.ftruncate(fd, 0); os.write(fd, b'{\"pid\": %d, \"host\": \"h\"}' % os.getpid()); "
                            "print('held', flush=True); sys.stdin.read()", os.path.join(OUT, ".lock")],
                           stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+atexit.register(lambda: holder.poll() is None and holder.kill())
 assert holder.stdout.readline().strip() == b"held"
 code, _, err, rc = run("--out", OUT, "index", "--project", PROJ)
 ok(code == 5 and rc.get("status") == "blocked" and "pid %d" % holder.pid in rc.get("error", ""),
@@ -1061,6 +1063,61 @@ ok(big_code in (3, 4) and listings and max(x.n for x in listings) <= bound + 1
    and any(x["reason"] == "directory-entry-cap" for x in big_q),
    "a 3000-entry directory with --max-files 1 is read only %d entries deep, then quarantined directory-entry-cap"
    % max([x.n for x in listings] or [0]))
+
+# 14b. review regressions (PR #449 round): redaction gaps, linear-time envelope/email scans, empty
+# --surface, case-folded input overlap, path redaction in receipts, history shape, brain mirror dedupe
+pw = "Correct" + "Horse9"
+red = mod.redact("DB_PASSWORD=" + pw + " MY_API_KEY=Abcd" + "12345678")[0]
+ok(pw not in red and "Abcd12345678" not in red, "prefixed credential names (DB_PASSWORD=, MY_API_KEY=) are redacted")
+ok("abc12" not in mod.redact("password=abc" + "12")[0], "a short credential assignment value is redacted too")
+t0 = time.time()
+mod.strip_envelopes("<irc>" * 20000)
+mod.redact("a." * 20000)
+ok(time.time() - t0 < 2.0, "20k unclosed envelope openings / dotted runs scan in linear time (%.2fs)" % (time.time() - t0))
+ok(mod.strip_envelopes("a<irc x=1>hidden</irc>b<irc>open") == "ab<irc>open",
+   "linear envelope stripping keeps the regex semantics (block removed, unclosed opening kept)")
+import argparse as _ap
+try:
+    mod.surface_filter(_ap.Namespace(surface=" , "))
+    sf = "accepted"
+except SystemExit as exc:
+    sf = exc.code
+ok(sf == 2, "--surface with no nonempty prefix is a usage error, not 'every store' (%s)" % sf)
+ok(mod._within_fs("/h/.GEMINI/out", "/h/.gemini") and mod._within_fs("/x/EXPORT.ZIP", "/x/export.zip"),
+   "output/findings overlap with an input is case-folded (case-insensitive filesystems)")
+rx_home = os.path.join(FIX, "home-rx")
+os.makedirs(rx_home, exist_ok=True)
+rctx = mod.Ctx(rx_home, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+tok = "gh" + "p_" + "A1b2C3d4" * 5
+rctx.source_id(os.path.join(rx_home, ".prime", "agent", "sessions", tok + ".jsonl"))
+ok(not any(tok in v for v in rctx.sources.values()), "secret-shaped source filenames are redacted in sources_private")
+hh = os.path.join(FIX, "home-agy")
+put(".gemini/antigravity-cli/history.jsonl", [
+    {"conversationId": "agy-bad", "display": {}, "timestamp": 1767348000000},
+    {"conversationId": 7, "display": "numeric id", "timestamp": 1767348000000}], home=hh)
+hctx = mod.Ctx(hh, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+hs = next(x for x in mod.build_stores(hctx, []) if x.id == "antigravity-cli/history")
+ok(hs.units() == [],
+   "Antigravity history records with non-string conversationId/display are not emitted")
+_ceil = mod.DIR_ENTRY_CEILING
+mod.DIR_ENTRY_CEILING = 3
+lh = os.path.join(FIX, "home-ls")
+for i in range(5):
+    os.makedirs(os.path.join(lh, "big", "conversations-v3-%d" % i), exist_ok=True)
+lctx = mod.Ctx(lh, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+ok(lctx.listdir(os.path.join(lh, "big")) == [] and os.path.join(lh, "big") in lctx.listing_capped,
+   "a directory listing over DIR_ENTRY_CEILING fails closed instead of materializing every entry")
+mod.DIR_ENTRY_CEILING = _ceil
+bh = os.path.join(FIX, "home-brain")
+BID = "c0ffee11-0000-4000-8000-000000000000"
+put(".gemini/antigravity/brain/%s/task.md" % BID, raw=b"\xff\xfe broken", home=bh)
+put(".gemini/antigravity-ide/brain/%s/task.md" % BID, raw=b"# Task\n- [ ] mirror MIRROR-OK-7Q\n", home=bh)
+bctx = mod.Ctx(bh, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+bst = {x.id: x for x in mod.build_stores(bctx, [])}
+bst["antigravity/brain"].units()
+mirror = bst["antigravity-ide/brain"].units()
+ok(len(mirror) == 1 and "MIRROR-OK-7Q" in " ".join(m["text"] for m in mirror[0].load()[1]),
+   "a malformed primary brain copy does not hide the valid IDE mirror of the same conversation")
 
 # 15. passes 1 and 2 never touch the network: any socket creation raises
 import socket as _socket
