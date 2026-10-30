@@ -98,7 +98,8 @@ The operator's reading holds for the **workflow** and is refined for the **App**
 
 ### 4. What is copied from the pilot, and what is not
 
-Copied as-is (generic): comment/dispatch trigger and its `author_association` filter, concurrency per PR, the
+Copied as-is (generic): comment/dispatch trigger and its `author_association` filter, review only open PRs whose
+head is in the same repository (no forks — this matters on the 7 public repositories), concurrency per PR, the
 two-job split, agent-config stripping, pinned CLI + lockfile, read-only tools, fail-closed verdict validation,
 head-moved ⇒ do not publish, the pre-filter. Generic but optional: the grounding check (on by default). Not
 copied: the pilot's reserved-class path list, its gate allowlist, its people and its message references — those
@@ -151,7 +152,8 @@ re-run the repository's gate on open PRs so a review by the App stops counting.
 - [Reuse workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows) — environment
   secrets in called workflows.
 - [Access to components in a private repository](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository)
-  — a public repository's reusable workflow is callable by any repository; a private one only by private
-  repositories of the same owner, when access is enabled.
+  — a reusable workflow in a private repository is callable only from private repositories of the same owner,
+  and only when that access is enabled. This framework repository is public, so a caller of a workflow here
+  needs no access setting; that is why the central workflow carries no secret and no repository-specific policy.
 - `skills/routed-pr-review` (lands with PR #414), `agents/code-reviewer.md`, `skills/git-cycle-sentinel`, `skills/agentic-tool-forge`,
   `skills/anima`.
