@@ -251,6 +251,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `skills/git-cycle-sentinel/SKILL.md` bumped 0.1.0 → 0.1.1 after dogfood cycle-1 (dry-run, decision-vs-norm) and cycle-2 (real execution in a throwaway `/tmp` git sandbox, 7/7 assertions PASS). Two previously-decorative guards made functional: **§A6** host-alias parse now strips any scp-style `[user@]host:` prefix (incl. a userless alias like `github.com-ekson73:`) so the alias never glues onto the owner, and RECUSA (STOP-ERROR) when the slug is not `owner/repo`; **§A7** idempotency probe scopes `git log --grep="idmp:<key>"` to the branch's unmerged range `origin/<base>..HEAD` (never whole reachable history) so a reused key on a merged-and-deleted branch cannot false-positive. Repo-awareness table corrected: `multi-agent-os gpgsign` re-measured `true` (read live, not the frozen cell). `dogfood_status → dogfood-cycle-2-real-7of7-pass-promotable`.
 
+### Fixed — `verified-agentic-session-model`: PR #421 round-4 bot review (13 threads, no version bump)
+
+- Validation: world→actor and world→domain reciprocity is now two-way; actor↔responsibility
+  assignments must agree both ways (`RESPONSIBILITY_ACTOR_RECIPROCITY`).
+- Readiness: any critical-path node that is not `completed` keeps readiness `NOT_READY`;
+  `next` no longer reports `QUIESCENT` while a wave is unfinished, and `transition` can
+  target a wave. Waves are still never selected as the next task.
+- Privacy gates: UNC `\\host\Users\` paths, quoted and JSON-shaped `password="..."`
+  credentials, and RFC 2765 `::ffff:0:a.b.c.d` hosts are now rejected; dependency-cycle and
+  capability-denial diagnostics no longer echo source values.
+- Integrity: sidecard `inspect`/`verify` rebuild with the receipt's recorded generator, so a
+  different Node patch version no longer fails a valid artifact; `transition` refuses event
+  `decision_ref`/`successor_ref`/`resume_after` the target state does not own; `derive-child`
+  refuses a child `as_of` older than the parent; standard render re-reads the source before
+  promotion so a concurrent edit is refused instead of overwritten.
+- VERSION stays 2.1.4 so already-published 2.1.4 sidecards keep verifying. Measured: old and
+  new CLI give identical `validate` results on 25 eko-engram models and identical `verify`
+  results on 21 manifests. 11 new tests (73 total), each mutation-checked.
+
 ### Fixed — `verified-agentic-session-model` v2.1.4: standard HTML no longer loads Google Fonts
 
 - Every session model lists `network_access_from_html` under `governance.default_denies`,

@@ -243,7 +243,7 @@ function scanSensitive(bytes) {
     [/\b(AKIA[0-9A-Z]{16})\b/gu, "aws_access_key", "AKIA…REDACTED"],
     [/\b((?:ghp|github_pat)_[A-Za-z0-9_]{20,})\b/gu, "access_token", "token…REDACTED"],
     [/\b(sk-[A-Za-z0-9_-]{20,})\b/gu, "api_key", "sk-…REDACTED"],
-    [/\b(?:api[_-]?key|secret|token|password)\b\s*[:=]\s*["']?([A-Za-z0-9_./+=-]{16,})/giu, "named_secret", "value…REDACTED"]
+    [/\b(?:api[_-]?key|secret|token|password)\b(?:\\*["'])?\s*[:=]\s*(?:\\*["'])?([A-Za-z0-9_./+=-]{16,})/giu, "named_secret", "value…REDACTED"]
   ];
   for (const [pattern, type, masked] of secrets) {
     for (const _match of text.matchAll(pattern)) record(type, masked);
@@ -545,10 +545,23 @@ function semanticErrors(model) {
   model.organization.worlds.forEach((world, index) => {
     world.actor_refs.forEach((ref, refIndex) => requireRef(actorIds, ref, `/organization/worlds/${index}/actor_refs/${refIndex}`, "DANGLING_ACTOR_REF"));
     world.domain_refs.forEach((ref, refIndex) => requireRef(domainIds, ref, `/organization/worlds/${index}/domain_refs/${refIndex}`, "DANGLING_DOMAIN_REF"));
+    // Reciprocity is two-way: a world must not claim an actor or domain that does not point back.
+    world.actor_refs.forEach((ref, refIndex) => {
+      const actor = model.organization.actors.find((item) => item.id === ref);
+      if (actor && actor.world_ref !== world.id) add(`/organization/worlds/${index}/actor_refs/${refIndex}`, "ACTOR_WORLD_RECIPROCITY", "world.actor_refs must be reciprocated by the actor's world_ref");
+    });
+    world.domain_refs.forEach((ref, refIndex) => {
+      const domain = model.organization.domains.find((item) => item.id === ref);
+      if (domain && !domain.world_refs.includes(world.id)) add(`/organization/worlds/${index}/domain_refs/${refIndex}`, "DOMAIN_WORLD_RECIPROCITY", "world.domain_refs must be reciprocated by the domain's world_refs");
+    });
   });
   model.organization.actors.forEach((actor, index) => {
     requireRef(worldIds, actor.world_ref, `/organization/actors/${index}/world_ref`, "DANGLING_WORLD_REF");
-    actor.responsibility_refs.forEach((ref, refIndex) => requireRef(responsibilityIds, ref, `/organization/actors/${index}/responsibility_refs/${refIndex}`, "DANGLING_RESPONSIBILITY_REF"));
+    actor.responsibility_refs.forEach((ref, refIndex) => {
+      requireRef(responsibilityIds, ref, `/organization/actors/${index}/responsibility_refs/${refIndex}`, "DANGLING_RESPONSIBILITY_REF");
+      const responsibility = model.governance.responsibilities.find((item) => item.id === ref);
+      if (responsibility && responsibility.actor_ref !== actor.id) add(`/organization/actors/${index}/responsibility_refs/${refIndex}`, "RESPONSIBILITY_ACTOR_RECIPROCITY", "actor.responsibility_refs must name responsibilities whose actor_ref is this actor");
+    });
     const expectedKind = ["human", "human_team"].includes(actor.kind) ? "human" : "agentic";
     const owningWorld = worldById.get(actor.world_ref);
     if (owningWorld?.kind !== expectedKind) add(`/organization/actors/${index}/world_ref`, "ACTOR_WORLD_MISMATCH", `${actor.kind} requires ${expectedKind} world`);
@@ -603,6 +616,8 @@ function semanticErrors(model) {
   model.governance.responsibilities.forEach((item, index) => {
     if (!ids.has(item.subject_ref)) add(`/governance/responsibilities/${index}/subject_ref`, "DANGLING_SUBJECT_REF", "unknown subject");
     requireRef(actorIds, item.actor_ref, `/governance/responsibilities/${index}/actor_ref`, "DANGLING_ACTOR_REF");
+    const owner = model.organization.actors.find((actor) => actor.id === item.actor_ref);
+    if (owner && !owner.responsibility_refs.includes(item.id)) add(`/governance/responsibilities/${index}/actor_ref`, "RESPONSIBILITY_ACTOR_RECIPROCITY", "responsibility.actor_ref must be reciprocated by the actor's responsibility_refs");
   });
   const materialById = new Map(Object.values(model.inert_material).flat().map((item) => [item.id, item]));
   const expectedMaterialKinds = { seeds: "seed", dna: "dna", templates: "template", instructions: "instruction", prompts: "prompt", directives: "directive", governance: "governance" };
@@ -631,7 +646,7 @@ function semanticErrors(model) {
   const visited = new Set();
   const dependencyMap = new Map(work.map((item) => [item.id, item.dependencies]));
   function visitDependency(id) {
-    if (visiting.has(id)) { add("/plan", "DEPENDENCY_CYCLE", `dependency cycle at ${id}`); return; }
+    if (visiting.has(id)) { add("/plan", "DEPENDENCY_CYCLE", "dependency cycle (id masked)"); return; }
     if (visited.has(id)) return;
     visiting.add(id);
     for (const dependency of dependencyMap.get(id) || []) visitDependency(dependency);
@@ -704,6 +719,7 @@ function nextTask(model) {
   const blockers = new Map([...model.analysis.gaps, ...model.analysis.risks].map((item) => [item.id, item]));
   const criticalIndex = new Map(model.topology.critical_path.map((id, index) => [id, index]));
   const criticalRank = (item) => item.critical_path_ref === null ? Number.MAX_SAFE_INTEGER : (criticalIndex.get(item.critical_path_ref) ?? Number.MAX_SAFE_INTEGER);
+  const units = [...model.plan.waves, ...model.plan.work_items];
   const eligible = model.plan.work_items.filter((item) => {
     if (item.lifecycle_state.state !== "planned") return false;
     if (!item.dependencies.every((id) => dependencySucceeded(id, items))) return false;
@@ -726,8 +742,10 @@ function nextTask(model) {
   if (delegated.length) return { disposition: "DELEGATED", task_ref: delegated[0].id };
   eligible.sort(compare);
   if (eligible.length) return { disposition: "TASK", task_ref: eligible[0].id };
-  if (model.plan.work_items.some((item) => item.lifecycle_state.state === "hitl")) return { disposition: "HITL", task_ref: null };
-  if (model.plan.work_items.some((item) => !TERMINAL_STATES.has(item.lifecycle_state.state))) return { disposition: "BLOCKED", task_ref: null };
+  // Waves are containers: they never become the selected task, but an unfinished wave
+  // must not let next report QUIESCENT while deriveFacts reports NOT_READY.
+  if (units.some((item) => item.lifecycle_state.state === "hitl")) return { disposition: "HITL", task_ref: null };
+  if (units.some((item) => !TERMINAL_STATES.has(item.lifecycle_state.state))) return { disposition: "BLOCKED", task_ref: null };
   return { disposition: "QUIESCENT", task_ref: null };
 }
 
@@ -745,7 +763,7 @@ function deriveFacts(model) {
     .some((item) => item.blocking && !["completed", "superseded"].includes(item.status));
   const workAndWaves = [...model.plan.waves, ...model.plan.work_items];
   const blockingWork = workAndWaves.some((item) => item.blocking && !dependencySucceeded(item.id, new Map(workAndWaves.map((work) => [work.id, work]))));
-  const criticalBad = pathNodes.some((node) => ["unknown", "hitl", "blocked"].includes(node.status));
+  const criticalBad = pathNodes.some((node) => node.status !== "completed");
   const readiness = criteria.every((item) => item.status === "completed") && !blockingDomain && !blockingWork && !criticalBad ? "READY" : "NOT_READY";
   return { status_counts: STATUS_VALUES.map((status) => ({ status, count: counts[status] })), readiness, critical_path_head: criticalPathHead, next: nextTask(model) };
 }
@@ -756,7 +774,8 @@ function embeddedIPv4FromMappedHost(inner) {
   // NAT64) both end in two hex groups holding the embedded IPv4. A bare "::HHHH:HHHH"
   // with no prefix is RFC 4291 §2.5.5.1's deprecated "IPv4-compatible" form -- WHATWG
   // URL's hex-compressed serializer produces exactly that shape for e.g. ::127.0.0.1.
-  const trailingPair = /^(?:::ffff:|64:ff9b::|::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/u.exec(inner);
+  // ::ffff:0:HHHH:HHHH is RFC 2765's IPv4-translated form (::ffff:0:0:0/96).
+  const trailingPair = /^(?:::ffff:0:|::ffff:|64:ff9b::|::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/u.exec(inner);
   // 6to4 (RFC 3056, 2002::/16) embeds the IPv4 in the two hex groups immediately after
   // the 2002 prefix, e.g. 2002:7f00:1::1 for 127.0.0.1 -- a structurally different
   // position (mid-address, not a trailing pair) so it needs its own anchor.
@@ -850,7 +869,7 @@ function validatePortableDistribution(model) {
     // Windows filesystem paths are case-insensitive (C:\users\... is the same path as
     // C:\Users\...); the whole pattern is case-insensitive since over-matching here is
     // the safe direction for a privacy gate.
-    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|\/root\/|[A-Za-z]:\\+Users\\+|~[\/\\])/iu],
+    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|\/root\/|[A-Za-z]:\\+Users\\+|\\{2,}[^\\\s"]+\\+Users\\+|~[\/\\])/iu],
     ["LOCAL_IDENTIFIER", /(?:account|store)[_-]?id\s*[:=]/iu],
     ["RAW_TRANSCRIPT", /(?:raw|full|verbatim)[ _-]?transcript/iu],
     ["HIDDEN_PROMPT", /(?:system|developer)[ _-]?prompt/iu],
@@ -992,7 +1011,7 @@ function buildCsp() {
   return `default-src 'none'; base-uri 'none'; connect-src 'none'; img-src 'none'; style-src 'sha256-${createHash("sha256").update(PORTABLE_CSS).digest("base64")}'; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; form-action 'none'`;
 }
 
-function renderPortableSidecard(model, stemOverride = undefined) {
+function renderPortableSidecard(model, stemOverride = undefined, generatorOverride = undefined) {
   validatePortableDistribution(model);
   model = JSON.parse(canonicalBytes(model).toString("utf8"));
   const derived = deriveFacts(model);
@@ -1004,7 +1023,7 @@ function renderPortableSidecard(model, stemOverride = undefined) {
     source_sha256: sha256(source), source_bytes: source.length, identity_sha256: identitySha,
     identity_stem: stem, schema_sha256: sha256(fs.readFileSync(MODEL_SCHEMA)),
     template_sha256: sha256(Buffer.from(`portable-sidecard-template-v2\\n${PORTABLE_CSS}`)),
-    generator: generatorIdentity(), run_id: deterministicUuid(sha256(Buffer.concat([source, Buffer.from(PORTABLE_CSS)]))),
+    generator: generatorOverride ?? generatorIdentity(), run_id: deterministicUuid(sha256(Buffer.concat([source, Buffer.from(PORTABLE_CSS)]))),
     generated_at: model.identity.chronological.as_of,
     capability_profile: { mode: "passive_snapshot", browser_effects: "none", external_tool_required: true }
   };
@@ -1137,7 +1156,7 @@ function inspectSidecardBytes(bytes) {
       || receipt.template_sha256 !== sha256(Buffer.from(`portable-sidecard-template-v2\\n${PORTABLE_CSS}`))) {
     throw new AppError("CAPSULE_RECEIPT_MISMATCH", "Render receipt shape or binding differs");
   }
-  const reconstructed = renderPortableSidecard(decoded["vasm-semantic-source"].value, receipt.identity_stem);
+  const reconstructed = renderPortableSidecard(decoded["vasm-semantic-source"].value, receipt.identity_stem, receipt.generator);
   if (!bytes.equals(reconstructed.htmlBytes)) throw new AppError("SIDECARD_OUTER_MISMATCH", "Outer sidecard bytes differ from the deterministic semantic projection");
   return { model: decoded["vasm-semantic-source"].value, receipt, blocks: blocks.map((match) => match[1]), trust: "CONSISTENT_UNTRUSTED" };
 }
@@ -1903,6 +1922,9 @@ async function renderStandard(modelFile, options) {
     };
     const problems = [...schemaErrors(manifest, MANIFEST_SCHEMA), ...manifestSemanticErrors(manifest)];
     if (problems.length) throw new AppError("MANIFEST_SCHEMA_INVALID", "Generated manifest failed validation", 1, problems);
+    // outputs.source may alias modelFile; re-read the input right before promotion so a
+    // concurrent edit made while Archify ran is refused instead of overwritten.
+    if (!(await readBounded(modelFile, "session model")).equals(sourceBytes)) throw new AppError("BASE_DIGEST_MISMATCH", "Source changed during render; refusing to overwrite it");
     for (const role of ["source", "workflow", "html", "markdown"]) await rename(staged[role], outputs[role]);
     await assertPromotedSubjects(manifest, { source: outputs.source, workflow: outputs.workflow, diagram_html: outputs.html, markdown: outputs.markdown });
     await writeValidatedManifest(outputs.manifest, manifest);
@@ -2164,7 +2186,7 @@ async function verifyCommand(manifestFile, options) {
     const sidecard = subjectFiles.get("sidecard_html");
     const inspected = inspectSidecardBytes(sidecard.bytes);
     if (!deepEqual(inspected.model, model)) parity.push({ view: "sidecard_html", reason: "semantic capsule differs" });
-    const expected = renderPortableSidecard(model, inspected.receipt.identity_stem);
+    const expected = renderPortableSidecard(model, inspected.receipt.identity_stem, inspected.receipt.generator);
     if (!sidecard.bytes.equals(expected.htmlBytes)) parity.push({ view: "sidecard_html", reason: "deterministic projection differs" });
     if (!deepEqual(manifest.embedded_blocks, expected.blocks)) parity.push({ view: "manifest", reason: "embedded block descriptors differ" });
     if (!deepEqual(manifest.sections, portableSections())) parity.push({ view: "manifest", reason: "sections differ" });
@@ -2222,7 +2244,7 @@ async function transitionCommand(modelFile, options) {
   validateModel(model);
   assertBaseDigest(bytes, options["expected-digest"]);
   const { value: event } = await readJson(path.resolve(options.event), "transition event");
-  const task = model.plan.work_items.find((item) => item.id === event.task_ref);
+  const task = [...model.plan.waves, ...model.plan.work_items].find((item) => item.id === event.task_ref);
   if (!task) throw new AppError("TASK_NOT_FOUND", "Transition task_ref does not resolve");
   if (event.base_source_sha256 !== options["expected-digest"]) throw new AppError("BASE_DIGEST_MISMATCH", "Event base digest differs");
   if (event.from_state !== task.lifecycle_state.state) throw new AppError("TRANSITION_STALE", "Event from_state differs from current task state");
@@ -2232,7 +2254,13 @@ async function transitionCommand(modelFile, options) {
   if (new Date(event.occurred_at) < new Date(model.traceability.updated_at) || new Date(event.occurred_at) < new Date(model.identity.chronological.as_of)) {
     throw new AppError("EVENT_TIME_REGRESSION", "Transition event.occurred_at must not precede the model's current updated_at/as_of");
   }
-  task.lifecycle_state = stateFromEvent(task.lifecycle_state, event);
+  const nextState = stateFromEvent(task.lifecycle_state, event);
+  // State-specific event fields must match what the snapshot keeps, so the audit trail never
+  // records a decision/successor/resume claim that the target state does not own.
+  for (const field of ["resume_after", "decision_ref", "successor_ref"]) {
+    if ((event[field] ?? null) !== nextState[field]) throw new AppError("TRANSITION_EVENT_INVALID", `Event ${field} is not valid for target state ${event.to_state}`);
+  }
+  task.lifecycle_state = nextState;
   model.lifecycle.events.push(event);
   model.lifecycle.latest_event_ref = event.event_id;
   model.traceability.updated_at = event.occurred_at;
@@ -2281,8 +2309,11 @@ async function deriveChildCommand(modelFile, options) {
   if (parent.child_derivation.generation_depth >= 2) throw new AppError("CHILD_DEPTH_EXCEEDED", "Maximum child generation depth reached");
   const { value: request } = await readJson(path.resolve(options.request), "child request");
   validateChildRequest(request);
+  if (new Date(request.as_of) < new Date(parent.identity.chronological.as_of) || new Date(request.as_of) < new Date(parent.traceability.updated_at)) {
+    throw new AppError("CHILD_REQUEST_INVALID", "Child as_of must not precede the parent's as_of/updated_at");
+  }
   const denied = request.capability_ceiling.filter((item) => !parent.child_derivation.capability_ceiling.includes(item));
-  if (denied.length) throw new AppError("CAPABILITY_WIDENING", "Child capability request exceeds parent ceiling", 1, { denied });
+  if (denied.length) throw new AppError("CAPABILITY_WIDENING", "Child capability request exceeds parent ceiling (values masked)", 1, { denied_count: denied.length });
   const depth = parent.child_derivation.generation_depth + 1;
   if (depth === 2 && request.capability_ceiling.includes("sync_parent_model")) throw new AppError("CAPABILITY_WIDENING", "Depth-two child cannot request sync_parent_model");
   const parentReferences = new Map(parent.references.map((item) => [item.id, item]));

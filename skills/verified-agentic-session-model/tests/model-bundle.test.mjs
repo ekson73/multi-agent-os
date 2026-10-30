@@ -936,7 +936,9 @@ test("portable distribution rejects private-network and credentialed reference U
     "https://[::10.0.0.5]/status",
     "https://[::169.254.169.254]/status",
     "https://[2002:7f00:1::1]/status",
-    "https://[2002:a9fe:a9fe::1]/status"
+    "https://[2002:a9fe:a9fe::1]/status",
+    "https://[::ffff:0:7f00:1]/status",
+    "https://[::ffff:0:a9fe:a9fe]/latest/meta-data/"
   ];
   for (const uri of badUris) await temp(async (directory) => {
     const model = await mutateModel(directory, (value) => { value.references.find((item) => item.id === "ref_scope").uri = uri; });
@@ -1481,5 +1483,173 @@ test("truncateAtWord does not append an ellipsis for a string under the code-poi
     assert.equal(result.status, 0, result.stderr);
     const html = await readFile(body(result.stdout).outputs.sidecard, "utf8");
     assert.equal(html.includes(`${emoji}…`), false, "a string under the code-point maximum must not gain a spurious ellipsis");
+  });
+});
+
+// --- PR #421 bot-review round 4 regressions (cursor + codex threads) ---
+function semanticCodes(result) {
+  return body(result.stderr).error.details.map((item) => `${item.code}@${item.path}`);
+}
+
+test("organization reciprocity is enforced from the world side too", async () => {
+  await temp(async (directory) => {
+    const actorSide = await mutateModel(directory, (value) => { value.organization.worlds[0].actor_refs.push("actor_compiler"); });
+    const actorResult = run(["validate", actorSide]);
+    assert.equal(actorResult.status, 1);
+    assert.ok(semanticCodes(actorResult).some((item) => item.startsWith("ACTOR_WORLD_RECIPROCITY@/organization/worlds/0/actor_refs/")), actorResult.stderr);
+  });
+  await temp(async (directory) => {
+    const domainSide = await mutateModel(directory, (value) => {
+      value.organization.domains.find((item) => item.id === "domain_release").world_refs = ["world_human"];
+    });
+    const domainResult = run(["validate", domainSide]);
+    assert.equal(domainResult.status, 1);
+    assert.ok(semanticCodes(domainResult).some((item) => item.startsWith("DOMAIN_WORLD_RECIPROCITY@/organization/worlds/")), domainResult.stderr);
+  });
+});
+
+test("actor responsibility assignments must agree in both directions", async () => {
+  await temp(async (directory) => {
+    const wrongActor = await mutateModel(directory, (value) => { value.organization.actors.find((item) => item.id === "actor_reviewers").responsibility_refs = ["resp_review"]; });
+    const result = run(["validate", wrongActor]);
+    assert.equal(result.status, 1);
+    assert.ok(semanticCodes(result).includes("RESPONSIBILITY_ACTOR_RECIPROCITY@/organization/actors/1/responsibility_refs/0"), result.stderr);
+  });
+  await temp(async (directory) => {
+    const missingBack = await mutateModel(directory, (value) => { value.organization.actors.find((item) => item.id === "actor_steward").responsibility_refs = []; });
+    const result = run(["validate", missingBack]);
+    assert.equal(result.status, 1);
+    assert.ok(semanticCodes(result).includes("RESPONSIBILITY_ACTOR_RECIPROCITY@/governance/responsibilities/0/actor_ref"), result.stderr);
+  });
+});
+
+test("sidecard inspect does not depend on the verifying Node patch version", async () => {
+  await temp(async (directory) => {
+    const { out, result } = await renderPortable(directory);
+    assert.equal(result.status, 0, result.stderr);
+    const file = fs.readdirSync(out).map((name) => path.join(out, name)).find((name) => name.endsWith(".html"));
+    let html = await readFile(file, "utf8");
+    const receipt = decodeCapsule(html, "vasm-render-receipt");
+    const recorded = receipt.generator.runtime;
+    assert.notEqual(recorded, "node v1.2.3");
+    receipt.generator.runtime = "node v1.2.3";
+    html = replaceCapsule(html, "vasm-render-receipt", receipt).replace(`(${recorded})`, "(node v1.2.3)");
+    await writeFile(file, html);
+    const inspect = run(["inspect", file]);
+    assert.equal(inspect.status, 0, inspect.stderr);
+  });
+});
+
+test("next does not report QUIESCENT while a wave is still unfinished", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      for (const item of value.plan.work_items) item.lifecycle_state = lifecycle("completed");
+      value.plan.waves[0].lifecycle_state = lifecycle("started");
+    });
+    const result = run(["validate", model]);
+    assert.equal(result.status, 0, result.stderr);
+    const derived = body(result.stdout).derived;
+    assert.equal(derived.readiness, "NOT_READY");
+    assert.notEqual(derived.next.disposition, "QUIESCENT");
+  });
+});
+
+test("an unfinished critical-path node keeps readiness NOT_READY", async () => {
+  for (const status of ["planned", "started", "delegated", "deferred"]) await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      const node = value.topology.nodes.find((item) => item.id === value.topology.critical_path.at(-1));
+      node.status = status;
+    }, readyFixture);
+    const result = run(["validate", model]);
+    if (result.status !== 0) return; // a status the schema forbids for a node cannot reach readiness
+    assert.equal(body(result.stdout).derived.readiness, "NOT_READY", status);
+  });
+  assert.equal(body(run(["validate", readyFixture]).stdout).derived.readiness, "READY");
+});
+
+test("portable distribution rejects UNC user-profile paths", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.plan.next_action.what = "\\\\server\\Users\\alice\\.ssh\\id_rsa"; }, readyFixture);
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(body(result.stderr).error.code, "PORTABLE_DISTRIBUTION_REJECTED");
+  });
+});
+
+test("quoted and JSON-shaped credentials are caught by the sensitive-data gate", async () => {
+  for (const what of ['password="abcdefghijklmnop"', '{"password":"abcdefghijklmnop"}']) await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.plan.next_action.what = what; }, readyFixture);
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 1, what);
+    assert.equal(body(result.stderr).error.code, "SENSITIVE_DATA_DETECTED", what);
+    assert.equal(`${result.stdout}${result.stderr}`.includes("abcdefghijklmnop"), false, what);
+  });
+});
+
+test("dependency-cycle diagnostics never echo the source identifier", async () => {
+  const token = "ghp_abcdefghijklmnopqrstuvwxyz123456";
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      const item = value.plan.work_items.at(-1);
+      item.dependencies = [item.id];
+    });
+    const result = run(["validate", model]);
+    assert.equal(result.status, 1);
+    assert.ok(semanticCodes(result).some((item) => item.startsWith("DEPENDENCY_CYCLE@")), result.stderr);
+  });
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      const item = value.plan.work_items.at(-1);
+      item.id = token;
+      item.dependencies = [token];
+    });
+    for (const command of ["validate", "next"]) {
+      const result = run([command, model]);
+      assert.equal(result.status, 1, command);
+      assert.equal(`${result.stdout}${result.stderr}`.includes(token), false, `${command}: ${result.stderr}`);
+    }
+  });
+});
+
+test("transition refuses state-specific event fields the target state does not own", async () => {
+  for (const [field, value] of [["decision_ref", "ref_policy"], ["successor_ref", "work_publish"], ["resume_after", "2026-09-13T14:00:00Z"]]) await temp(async (directory) => {
+    const model = await mutateModel(directory, (model) => { model.plan.work_items[0].lifecycle_state = lifecycle("planned"); });
+    const digest = sha(await readFile(model));
+    const event = { ...eventFor("planned", "started", digest), [field]: value };
+    const eventFile = path.join(directory, "event.json");
+    await writeFile(eventFile, JSON.stringify(event));
+    const output = path.join(directory, "out.json");
+    const result = run(["transition", model, "--event", eventFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 1, field);
+    assert.equal(body(result.stderr).error.code, "TRANSITION_EVENT_INVALID", field);
+    assert.equal(fs.existsSync(output), false);
+  });
+});
+
+test("derive-child rejects a child timestamp older than the parent snapshot", async () => {
+  await temp(async (directory) => {
+    const model = await copyModel(directory);
+    const digest = sha(await readFile(model));
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(childRequest({ as_of: "2020-01-01T00:00:00Z" })));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "CHILD_REQUEST_INVALID");
+    assert.equal(fs.existsSync(output), false);
+  });
+});
+
+test("derive-child capability denials never echo the requested values", async () => {
+  await temp(async (directory) => {
+    const model = await copyModel(directory);
+    const digest = sha(await readFile(model));
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(childRequest({ capability_ceiling: ["password=abcdefghijklmnop"] })));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 1);
+    assert.equal(`${result.stdout}${result.stderr}`.includes("abcdefghijklmnop"), false, result.stderr);
+    assert.equal(fs.existsSync(output), false);
   });
 });
