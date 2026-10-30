@@ -454,7 +454,8 @@ function semanticErrors(model) {
   const responsibilityIds = new Set(model.governance.responsibilities.map((item) => item.id));
   const work = [...model.plan.waves, ...model.plan.work_items];
   const workIds = new Set(work.map((item) => item.id));
-  const itemIds = new Set(model.plan.work_items.map((item) => item.id));
+  // Waves share the work-unit lifecycle, so events and successors may reference them too.
+  const itemIds = new Set([...model.plan.waves, ...model.plan.work_items].map((item) => item.id));
   const gapRiskIds = new Set([...model.analysis.gaps, ...model.analysis.risks].map((item) => item.id));
   const edgePairs = new Set(model.topology.edges.map((edge) => `${edge.from}\u0000${edge.to}`));
   const add = (at, code, message) => errors.push({ path: at || "/", code, message });
@@ -605,7 +606,7 @@ function semanticErrors(model) {
   const topologyVisiting = new Set();
   const topologyVisited = new Set();
   function visitNode(id) {
-    if (topologyVisiting.has(id)) { add("/topology/edges", "TOPOLOGY_CYCLE", `topology cycle at ${id}`); return; }
+    if (topologyVisiting.has(id)) { add("/topology/edges", "TOPOLOGY_CYCLE", "topology cycle (id masked)"); return; }
     if (topologyVisited.has(id)) return;
     topologyVisiting.add(id);
     for (const target of adjacency.get(id) || []) visitNode(target);
@@ -674,8 +675,8 @@ function semanticErrors(model) {
   const lastEventId = model.lifecycle.events.at(-1)?.event_id ?? null;
   if (model.lifecycle.latest_event_ref !== lastEventId) add("/lifecycle/latest_event_ref", "LATEST_EVENT_INVALID", "latest_event_ref must be null exactly for empty history, otherwise the final event id");
   for (const [taskRef, finalState] of lastStateByTask) {
-    const current = model.plan.work_items.find((item) => item.id === taskRef);
-    if (current && current.lifecycle_state.state !== finalState) add("/plan/work_items", "HISTORY_FINAL_STATE_MISMATCH", `task ${taskRef} state differs from its final event`);
+    const current = [...model.plan.waves, ...model.plan.work_items].find((item) => item.id === taskRef);
+    if (current && current.lifecycle_state.state !== finalState) add("/plan/work_items", "HISTORY_FINAL_STATE_MISMATCH", "a task state differs from its final event (id masked)");
   }
   const lineage = model.child_derivation.parent_lineage;
   const lineageValues = [lineage.parent_artifact_id, lineage.parent_source_sha256, lineage.derivation_plan_id];
@@ -686,7 +687,7 @@ function semanticErrors(model) {
     const seen = new Set();
     let current = item;
     while (current?.lifecycle_state.state === "superseded" && current.lifecycle_state.successor_ref) {
-      if (seen.has(current.id)) { add("/plan/work_items", "SUCCESSOR_CYCLE", `successor cycle at ${current.id}`); break; }
+      if (seen.has(current.id)) { add("/plan/work_items", "SUCCESSOR_CYCLE", "successor cycle (id masked)"); break; }
       seen.add(current.id);
       current = model.plan.work_items.find((candidate) => candidate.id === current.lifecycle_state.successor_ref);
     }

@@ -1653,3 +1653,48 @@ test("derive-child capability denials never echo the requested values", async ()
     assert.equal(fs.existsSync(output), false);
   });
 });
+
+test("transition can target a plan wave and the event history validates against it", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      const wave = JSON.parse(JSON.stringify(value.plan.work_items[0]));
+      Object.assign(wave, { id: "wave_one", sequence: 9, dependencies: [], blocking: true, lifecycle_state: lifecycle("started") });
+      value.plan.waves = [wave];
+    }, readyFixture);
+    const digest = sha(await readFile(model));
+    const eventFile = path.join(directory, "event.json");
+    await writeFile(eventFile, JSON.stringify({ ...eventFor("started", "completed", digest), task_ref: "wave_one", event_id: "event_wave_done", evidence_refs: ["ref_catalog"] }));
+    const output = path.join(directory, "after.json");
+    const result = run(["transition", model, "--event", eventFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(await readFile(output, "utf8")).plan.waves[0].lifecycle_state.state, "completed");
+    assert.equal(body(run(["validate", output]).stdout).ok, true);
+  });
+});
+
+test("topology and successor cycle diagnostics never echo node or task identifiers", async () => {
+  const secretId = "ghp_abcdefghijklmnopqrstuvwxyz123456";
+  await temp(async (directory) => {
+    const file = path.join(directory, "topology.session-model.json");
+    const model = JSON.parse((await readFile(readyFixture, "utf8")).replaceAll('"read_entry"', `"${secretId}"`));
+    const [from, to] = [model.topology.critical_path[1], secretId];
+    model.topology.edges.push({ ...model.topology.edges[0], from, to });
+    await writeFile(file, JSON.stringify(model, null, 2));
+    const result = run(["validate", file]);
+    assert.equal(result.status, 1);
+    assert.ok(body(result.stderr).error.details.some((detail) => detail.code === "TOPOLOGY_CYCLE"));
+    assert.ok(!result.stderr.includes("ghp_"));
+  });
+  await temp(async (directory) => {
+    const file = path.join(directory, "successor.session-model.json");
+    const model = JSON.parse((await readFile(activeFixture, "utf8")).replaceAll('"work_publish"', `"${secretId}"`));
+    const [first, second] = model.plan.work_items;
+    first.lifecycle_state = { ...lifecycle("superseded"), successor_ref: second.id };
+    second.lifecycle_state = { ...lifecycle("superseded"), successor_ref: first.id };
+    await writeFile(file, JSON.stringify(model, null, 2));
+    const result = run(["validate", file]);
+    assert.equal(result.status, 1);
+    assert.ok(body(result.stderr).error.details.some((detail) => detail.code === "SUCCESSOR_CYCLE"), result.stderr);
+    assert.ok(!result.stderr.includes("ghp_"));
+  });
+});

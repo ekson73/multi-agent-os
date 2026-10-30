@@ -266,6 +266,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `decision_ref`/`successor_ref`/`resume_after` the target state does not own; `derive-child`
   refuses a child `as_of` older than the parent; standard render re-reads the source before
   promotion so a concurrent edit is refused instead of overwritten.
+- Follow-up: wave ids are now valid `task_ref`/successor targets in the model validator, so a
+  `transition` on a wave is accepted end to end (it previously failed `DANGLING_TASK_REF`
+  after the write); topology, successor-cycle and history-mismatch diagnostics also stop
+  echoing identifiers.
 - VERSION stays 2.1.4 so already-published 2.1.4 sidecards keep verifying. Measured: old and
   new CLI give identical `validate` results on 25 eko-engram models and identical `verify`
   results on 21 manifests. 11 new tests (73 total), each mutation-checked.
