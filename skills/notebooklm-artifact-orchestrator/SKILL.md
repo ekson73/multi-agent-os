@@ -42,11 +42,11 @@ Default artifact set with **computed** choices (not defaults; reasoned):
 | Video summary | `video` | `explainer` | (n/a) | `whiteboard` | (n/a) | (n/a) | Whiteboard evokes classroom; 5-7 min visual recap |
 | Mind map | `mind_map` | (n/a) | (n/a) | (n/a) | (n/a) | (n/a) | Hierarchical with branches per major section |
 | Infographic | `infographic` | (n/a) | (n/a) | `instructional` | `landscape` | `detailed` | 1-page recap with central analogy + timeline + 5 terms |
-| Quiz | `quiz` | (n/a) | (n/a) | (n/a) | (n/a) | (n/a) | 10-15 questions, difficulty `medium`; Bloom 40/40/20 |
+| Quiz | `quiz` | (n/a) | (n/a) | (n/a) | (n/a) | (n/a) | 10-15 questions, `--difficulty 3` (integer 1-5); Bloom 40/40/20 |
 
 **Adjustments by audience:**
 
-- For **expert audience**: `audio` → `critique` or `debate`; `infographic` → `concise`; `quiz` → `hard`
+- For **expert audience**: `audio` → `critique` or `debate`; `infographic` → `concise`; `quiz` → `--difficulty 5`
 - For **lay audience** (default): keep as above; emphasize `focus_prompt` to bias toward analogies
 - For **quick reference**: `audio` → `brief`; `slide_deck` → `presenter_slides` + `short`; `quiz` → 5 questions
 

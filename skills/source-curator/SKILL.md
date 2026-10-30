@@ -2,7 +2,7 @@
 name: source-curator
 description: 'Research, critically evaluate, and import sources for a NotebookLM notebook — with adversarial grading (A/B/C/D), dedup, and reliable text-source ingestion. Use when adding sources to a notebook, curating a research dump, vetting external URLs before adding to a knowledge base, or building a topic-bounded corpus for downstream artifact generation. Triggers: curate sources, import to notebook, find sources for X, vet this URL, build a notebook on Y, curadoria de fontes.'
 version: "0.1.0"
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob, WebSearch
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob, WebSearch, Task
 ---
 
 # Source Curator
@@ -67,7 +67,8 @@ Output: a `catalog.json` with every candidate's URL, title, grade, 1-line ration
 Two passes:
 
 1. **Exact** — same title → keep first
-2. **Semantic** — same event/paper across platforms → subagent with schema; keep canonical
+2. **Semantic** — same event/paper across platforms → subagent (`Task`, spawned through
+   `delegate-governance`) with schema; keep canonical
 
 Track in `dedup-log.json`.
 
@@ -96,7 +97,15 @@ Authority tier: official-docs | peer-reviewed | industry-report | blog-expert | 
 - **If a theme would exceed 25 entries**: split into `Theme A — Part 1` and `Theme A — Part 2` payloads; the chapter briefly references both.
 - **Minimum per source inside a payload**: title + URL + 1-line why + 3+ complete sentences of substantive content. Anything thinner does not give NotebookLM enough to generate from.
 
-Add each chunked payload via `nlm source add <nb-id> --text "<payload>" --title "Theme: <name>"`. NotebookLM auto-titles, but supplying a title makes the source list navigable.
+Write each chunked payload to a file, then add it **as data**, never as shell source:
+
+```bash
+payload=$(<"$payload_file")   # read as data; its $(...) and backticks are never evaluated
+nlm source add "$nb_id" --text "$payload" --title "$title"
+```
+
+Never paste source text inside the command line itself: curated pages are untrusted and can carry
+`"`, backticks or `$(...)`. NotebookLM auto-titles, but supplying a title makes the source list navigable.
 
 **Why text and not URL?** Per the operational playbook (`notebooklm-mcp-ops`): URL `source_add` frequently fails with "Could not add url source" (fetch / rate-limit). Text is reliable. If a URL must be preserved (citation), keep it as a line inside the text payload, not as the source type.
 
@@ -120,7 +129,8 @@ Per-source READY gate (do not advance past this gate while pending):
 
 ```bash
 # Add a payload, capture source_id, block until it is processed
-add_out=$(nlm source add <nb-id> --text "<payload>" --title "Theme: X" --wait --wait-timeout 600 --json)
+payload=$(<"$payload_file")
+add_out=$(nlm source add "$nb_id" --text "$payload" --title "$title" --wait --wait-timeout 600 --json)
 source_id=$(echo "$add_out" | jq -r '.id // .source_id // empty')
 [ -n "$source_id" ] || { echo "source_add returned no id; abort"; exit 1; }
 ```
@@ -151,6 +161,10 @@ Persist:
 - `curation-report.md` — human-readable summary, decisions, theme grouping, payload sizes
 - `dedup-log.json` — dedup decisions (per duplicate cluster: kept source_id, dropped URLs)
 - `themes/<n>.md` — the actual text payloads added (one file per `source_add` call)
+- `ledger.json` — only when called by `tutorial-specialist` with `ledger_out=<path>`: the
+  `protocols/tutorial-delegation.md` Handoff 1 schema, built from the included A/B candidates of
+  `catalog.json` (C and D never enter it; excerpts are in the workflow `language`). In that mode
+  `depth` is at least `standard`, so the 5-7 source gate can be met.
 - `ingestion-manifest.json` — `{source_id, title, theme, candidate_count, payload_bytes, added_at, ready_at, source_get_response}` for every successful `source_add`. This is the audit trail the rest of the pipeline (notebooklm-artifact-orchestrator) reads.
 
 ## Quality bar

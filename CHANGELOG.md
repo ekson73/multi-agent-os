@@ -628,8 +628,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/tutorial-forge/SKILL.md` (v0.1.0) — forge de tutoriais multi-capítulo parametrizáveis (analogias-first, leigo-friendly)
 - `skills/source-curator/SKILL.md` (v0.1.0) — curadoria adversarial de fontes NotebookLM (A/B/C/D grading, baseline-aware invariant)
 - `skills/notebooklm-artifact-orchestrator/SKILL.md` (v0.1.0) — orquestração de 6 studio artifacts por notebook (contrato verificado contra `nlm 0.15.3`)
-- `agents/tutorial-specialist.md` (v0.2.0) — agente orquestrador parametrizável que despacha 4 subagentes separados por `role=` (pesquisador-critico, redator-tutor, revisor-pedagogico, produtor-multimidia)
-- `protocols/tutorial-delegation.md` (v0.1.0) — contrato de 3 handoffs estritos (Pesquisador → Redator → Revisor) com JSON schemas e validação
+- `agents/tutorial-specialist.md` (v0.3.0) — agente orquestrador parametrizável que despacha 4 subagentes separados por `role=` (pesquisador-critico, redator-tutor, revisor-pedagogico, produtor-multimidia), cada um via `delegate-governance` e o schema `Task` (`subagent_type`/`description`/`prompt`); ramo file-only para `markdown`/`html`; Phase 0 cria ou exige um notebook por capítulo; ingere o `tutorial.md` aprovado antes dos artefatos
+- `protocols/tutorial-delegation.md` (v0.2.0) — contrato de 3 handoffs estritos (Pesquisador → Redator → Revisor) com JSON schemas e validação; `excerpt` e títulos seguem `language`
+- Rodada de review: `source-curator` passa o payload como dado (`payload=$(<file)`), nunca como código de shell; emite `ledger.json` (Handoff 1) com `ledger_out=`; dedup semântico com `Task`. Quiz usa `--difficulty` inteiro 1-5.
 
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 

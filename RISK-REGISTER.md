@@ -58,7 +58,6 @@ GitNexus status was `commitsBehind=N` initially; ran `node .gitnexus/run.cjs ana
 
 ## 6. Backlog (non-blocking, post-merge)
 
-- Add a one-line CHANGELOG `[Unreleased]` entry classifying the 3 skills as MAJOR (new consumable surface). Skipped here to keep this PR scope clean.
 - Add a `tests/skill-contract.test.sh` that runs `nlm --version` and asserts the version stays within the range documented in the skills' "verified against" notes. Useful guardrail for future nlm upgrades.
 - Add a `bin/source-curate` executable that implements the skill (currently the skill is documentation only — works fine via the agent, but a script would be more deterministic).
 
@@ -68,5 +67,5 @@ GitNexus status was `commitsBehind=N` initially; ran `node .gitnexus/run.cjs ana
 - [x] No commits to main; no `--no-verify`; no force-push
 - [x] All 3 SKILL.md pass YAML + frontmatter + structure validation
 - [x] All contract claims verified against `nlm 0.15.3 --help/--ai`
-- [ ] CHANGELOG entry (see backlog)
+- [x] CHANGELOG entry under `[Unreleased]`
 - [ ] PR open + Co-author trailer (operator action)

@@ -1,21 +1,24 @@
 ---
 name: tutorial-delegation
 description: Three-role delegation contract that governs handoffs in the tutorial-specialist workflow: Pesquisador-Crítico → Redator-Tutor → Revisor Pedagógico. Each handoff returns a strict JSON artifact; downstream rejects malformed inputs.
-version: "0.1.0"
+version: "0.2.0"
 ---
 
 # Tutorial Delegation Contract
 
-The `tutorial-specialist` agent cycles through 8 roles, but only 3
-require strict handoffs because they produce structured JSON
-artifacts that downstream consumers (the agent's own later phases)
-must parse and validate.
+The `tutorial-specialist` orchestrator keeps 3 roles itself (Diretor Editorial, Curador de
+Conteúdo, QA Final) and dispatches the others as separate subagents through
+`delegate-governance`. Three of those handoffs are strict: the producer is a different subagent
+from the consumer, so the artifact is the only thing that crosses.
+
+All language-bound fields and labels follow the workflow `language` parameter (BCP-47). The
+examples below use `pt-BR`, the default.
 
 ## The 3 strict handoffs
 
 ### Handoff 1: Pesquisador-Crítico → Redator-Tutor
 
-- **Producer:** Pesquisador-Crítico (role 3+4 combined)
+- **Producer:** Pesquisador-Crítico (role 3+4 combined), via `source-curator ledger_out=`
 - **Output:** `ledger.json` per chapter
 - **Schema (required fields):**
   ```json
@@ -32,7 +35,7 @@ must parse and validate.
         "authority_tier": "A|B",
         "why": "<str>",
         "key_facts": ["<str>", "<str>", "<str>"],
-        "excerpt_pt": "<5+ sentences pt-BR>"
+        "excerpt": "<5+ sentences in the workflow language>"
       }
     ],
     "rejected": [{ "url": "<str>", "reason": "<str>" }]
@@ -42,7 +45,7 @@ must parse and validate.
   - `len(sources) ∈ [5, 7]`
   - all `authority_tier ∈ {A, B}` (no C, no D as included)
   - 0 occurrences of `wikipedia.org` in `sources[].url` (Wikipedia allowed only in `rejected[]` with reason)
-  - each `excerpt_pt` has ≥ 5 sentences (rough: ≥ 80 words)
+  - each `excerpt` has ≥ 5 sentences, written in `language` (rough: ≥ 80 words)
 - **Downstream rejection:** if validation fails, Redator-Tutor refuses
   to start and asks Pesquisador-Crítico to re-emit the ledger.
 
@@ -52,7 +55,8 @@ must parse and validate.
 - **Output:** `tutorial.md` per chapter
 - **Validation gates:**
   - `wc -w` ∈ [1000, 1500]
-  - 10 H2 sections, in this exact order:
+  - 10 H2 sections, in this exact order (headings translated into `language`; the pt-BR
+    labels are shown):
     1. Contexto
     2. Analogia do Mundo Real
     3. Definição Simples
@@ -106,3 +110,5 @@ The 3 handoffs happen **per chapter**. Total fan-out:
 ## Versioning
 
 - v0.1.0 (2026-10-08): initial 3-handoff contract.
+- v0.2.0 (2026-10-30): true delegation wording, `excerpt` + headings follow `language`, ledger
+  produced by `source-curator ledger_out=`.
