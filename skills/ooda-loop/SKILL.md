@@ -11,11 +11,11 @@ description: |
 allowed-tools: "Task Read Write Edit Bash Grep Glob"
 compatibility: "Portable Agent Skills core. Claude Code command wrapper included; every runtime must map host tools, identity and promotion gates explicitly. No direct chat, webhook or deployment integration is provided."
 metadata:
-  version: "0.3.0"
+  version: "0.3.1"
   scope: AAIF cross-vendor
   family: orchestration-convergence
   cross_link_slug: ooda-loop
-  dogfood_status: pending-first-cycle
+  dogfood_status: manual-cycle-1-recorded-2026-10-25  # tree cadence applied by hand; behavioral ACT still unverified
 ---
 
 # OODA-Loop
@@ -294,6 +294,35 @@ Exit: `0` STOP-DONE · `1` STOP-ERROR · `2` STOP-HITL (irreducible operator int
 <!--ORCH-STATUS: CONTINUE -->      round done; DoD not met; another bounded OODA cycle is authorized and budgeted
 ```
 
+## Tree cadence (one bounded cycle per node, both directions)
+
+When the work is a goal tree rather than a single item (project -> purposes -> DoR/DoD/goals ->
+tasks -> steps -> session -> sub-agents), apply the same OODA+PDCA pass **once per node**, not
+once per tree. Forward (root to leaves) plans: a node starts only when its DoR holds. Backward
+(leaves to root) reconciles: a parent closes only when its children's evidence satisfies its DoD.
+Each node runs the same four beats, sized to the node (a trivial node gets one line). They are
+the bounded PDCA cycle above, named for the tree view, not a second loop:
+
+```text
+EXECUTE     = PLAN + DO     the node's smallest eligible step
+FEEDBACK    = CHECK         compare the result to the node's DoD; inherits verifier != generator
+INTROSPECT  = ADJUST        fix what CHECK found and record at most ONE lesson for the next node
+PERSIST     (close gate)    write the result and lesson to the durable source BEFORE closing
+```
+
+Two invariants, both checkable (no automated enforcement yet; a reviewer checks them by hand):
+
+- **Persist before close.** A node is not closed until its record exists in the durable source the
+  host may write to. Where direct pushes to a protected branch are forbidden, the durable record is
+  the PR, never a chat message or a session note.
+- **One human package per cycle.** When the residue is human-owned (credential, spend, irreversible,
+  external send, business), the cycle emits ONE consolidated, deduplicated package to the
+  operator's ledger, not N separate questions. In the one recorded run most top-priority residue
+  was of this kind; producing more analysis instead of the package is theater.
+
+Before authoring any new concept or loop for a node, search the existing store and skills first;
+a concept that already exists is dogfooded and version-bumped, not rewritten.
+
 ## Relationship to siblings
 | Tool | Scope | Drives | Recovers goal? | Derives DoD? |
 |---|---|---|---|---|
@@ -376,6 +405,11 @@ preset never fires (E3) · operator retraction (E4) · >=3 false-positive runs (
 - External grounding: Boyd OODA (1976) · GOOD arXiv:2508.15119 (uncertainty-aware goal) · RLCF 2507.18624 (judge x verifier per criterion ~ Prisma) · MoA 2406.04692 · Huang et al. 2310.01798 (verifier > generator, independent — the hard invariant) · optimal-stopping 2510.01394 (economic stop) · Raghavan & Schneier IEEE S&P 2025 (OODA)
 
 ## Versioning
+- v0.3.1 (2026-10-25) — documents the **tree cadence** (one bounded cycle per goal-tree node,
+  forward and backward) with two measurable invariants: persist-before-close and one human package
+  per cycle. Additive guidance; no schema, script or marker change. Grounded in one real
+  manual application recorded in `docs/dogfood/2026-10-25-ooda-loop-tree-cadence.md`; behavioral
+  ACT stays UNVERIFIED.
 - v0.3.0 (2026-08-01) — extends the existing conductor rather than creating a competing loop: adds
   `operator-profile` intake, trigger classification, dynamic lifecycle-stage routing, explicit outer
   OODA/inner bounded-PDCA relationship, preflight/postflight wiring, proportionate pre-HITL convergence,
