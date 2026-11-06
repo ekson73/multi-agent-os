@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # CLAUDE.md - Multi-Agent OS Plugin
 
 This file provides guidance to Claude Code (claude.ai/code) when working with this repository.
