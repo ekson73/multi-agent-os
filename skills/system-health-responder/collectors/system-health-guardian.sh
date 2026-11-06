@@ -190,6 +190,59 @@ if [ "${1:-}" = "--xprotect-status" ]; then xprotect_status "${2:-0}" "${3:-on}"
 if [ "${1:-}" = "--top-consumer-status" ]; then top_consumer_status "${2:-0}" "${3:-1}" "${4:-70}" "${5:-0.50}"; exit 0; fi
 if [ "${1:-}" = "--counts-status" ]; then counts_status "${2:-0}" "${3:-0}" "${4:-5}" "${5:-20}" "${6:-0}" "${7:-0}"; exit 0; fi
 if [ "${1:-}" = "--mem-pressure-status" ]; then mem_pressure_status "${2:-}"; exit 0; fi
+# ── memory_spine lag (EKO-106) ────────────────────────────────────────────────────────────────────
+# How long has persisted memory (the `projects/` tree of the memory-home repo) been sitting un-shipped?
+#   lag = max(0, now − min(t_unpushed, t_dirty))      — computed AFTER a fresh `git fetch`
+#   t_unpushed = committer time of the OLDEST commit in `@{u}..HEAD -- projects/` (never a literal origin/main)
+#   t_dirty    = oldest mtime among dirty/untracked paths under projects/ (deleted path → parent dir mtime)
+# FAIL-CLOSED: fetch failure, unresolvable @{u}, missing repo or an unparsable timestamp → status "unknown"
+# (never 0 — an unmeasured spine must not read as healthy). Emitted as a TOP-LEVEL advisory object (like
+# burn_down): it does NOT feed .system.status, so it can surface residue but never tighten autonomy bands.
+# `canary` is the liveness proof: "alive" only when every probe in the chain actually ran.
+_ms_mtime() { # portable mtime: GNU `stat -c %Y` first (BSD `stat -f %m` misparses on GNU), validated numeric
+  local m; m="$(stat -c %Y "$1" 2>/dev/null)"; case "$m" in ''|*[!0-9]*) m="$(stat -f %m "$1" 2>/dev/null)";; esac
+  case "$m" in ''|*[!0-9]*) return 1;; esac; echo "$m"; }
+_ms_unknown() { printf '{"status":"unknown","reason":"%s","canary":"dead","checked_at":%s}' "$1" "$(date +%s)"; }
+memory_spine_lag() { # $1=repo $2=warn_h $3=crit_h → one-line JSON
+  local repo="$1" warn_h="${2:-24}" crit_h="${3:-72}" now tmo="" c ts oldest="" p m d rec top st_out rc
+  now="$(date +%s)"
+  # thresholds go into JSON unquoted → must be plain numbers, else the whole contract write breaks
+  case "$warn_h" in ''|*[!0-9.]*|*.*.*|.) _ms_unknown "bad-threshold"; return 0;; esac
+  case "$crit_h" in ''|*[!0-9.]*|*.*.*|.) _ms_unknown "bad-threshold"; return 0;; esac
+  # the configured path must BE the repo root: a subdirectory (possibly of an unrelated repo) is a
+  # misconfiguration and must not be measured as if it were the memory-home → fail-closed
+  [ -d "$repo" ] && top="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$top" ] \
+    && [ "$(cd "$repo" && pwd -P)" = "$(cd "$top" && pwd -P)" ] || { _ms_unknown "repo-missing"; return 0; }
+  for c in /opt/homebrew/bin/timeout /opt/homebrew/bin/gtimeout /usr/local/bin/timeout /usr/local/bin/gtimeout /usr/bin/timeout; do
+    [ -x "$c" ] && { tmo="$c"; break; }; done
+  # never prompt, never hang on a dead link: without a `timeout` binary (stock macOS) the fetch is still
+  # bounded per transport — ssh ConnectTimeout + ServerAlive (stalled session), http lowSpeed (stalled transfer)
+  if ! GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes -oConnectTimeout=10 -oServerAliveInterval=10 -oServerAliveCountMax=3}" \
+       ${tmo:+"$tmo" "${MEMORY_SPINE_FETCH_TIMEOUT:-30}"} \
+       git -C "$top" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 fetch -q --no-tags >/dev/null 2>&1; then
+    _ms_unknown "fetch-failed"; return 0; fi
+  git -C "$top" rev-parse -q --verify '@{u}' >/dev/null 2>&1 || { _ms_unknown "no-upstream"; return 0; }
+  # unpushed commits touching projects/ — oldest committer time (sort -n | head -1, never trust log order)
+  ts="$(git -C "$top" log --format=%ct '@{u}..HEAD' -- projects/ 2>/dev/null)" || { _ms_unknown "log-failed"; return 0; }
+  ts="$(printf '%s\n' "$ts" | grep -E '^[0-9]+$' | sort -n | head -1 || true)"
+  # dirty/untracked paths under projects/ (NUL-safe porcelain v1, captured to a file so a failing
+  # `git status` is DETECTED — a process substitution would hide it and read as "clean")
+  st_out="$(mktemp "${TMPDIR:-/tmp}/ms-status.XXXXXX" 2>/dev/null)" || { _ms_unknown "mktemp-failed"; return 0; }
+  rc=0; git -C "$top" status --porcelain=v1 -z --untracked-files=all -- projects/ >"$st_out" 2>/dev/null || rc=$?
+  [ "$rc" -eq 0 ] || { rm -f "$st_out"; _ms_unknown "status-failed"; return 0; }
+  while IFS= read -r -d '' rec; do
+    p="${rec:3}"; m="$(_ms_mtime "$top/$p")" || { d="$(dirname "$top/$p")"; while [ ! -e "$d" ] && [ "$d" != "$top" ]; do d="$(dirname "$d")"; done
+      m="$(_ms_mtime "$d")" || { rm -f "$st_out"; _ms_unknown "mtime-unreadable"; return 0; }; }
+    { [ -z "$oldest" ] || [ "$m" -lt "$oldest" ]; } && oldest="$m"
+    case "$rec" in R*|C*|?R*|?C*) IFS= read -r -d '' _ || true;; esac   # skip the rename/copy source record
+  done <"$st_out"
+  rm -f "$st_out"
+  [ -n "$ts" ] && { [ -z "$oldest" ] || [ "$ts" -lt "$oldest" ]; } && oldest="$ts"
+  awk -v now="$now" -v o="${oldest:-}" -v w="$warn_h" -v cr="$crit_h" 'BEGIN{
+    w+=0; cr+=0; lag=(o=="")?0:now-o; if(lag<0)lag=0; h=lag/3600.0; st=(h>=cr)?"crit":((h>=w)?"warn":"ok");
+    printf "{\"status\":\"%s\",\"lag_sec\":%d,\"lag_h\":%.2f,\"warn_h\":%g,\"crit_h\":%g,\"canary\":\"alive\",\"checked_at\":%d}", st,lag,h,w,cr,now }'
+}
+if [ "${1:-}" = "--memory-spine-lag" ]; then memory_spine_lag "${2:-$HOME/.claude}" "${3:-24}" "${4:-72}"; echo; exit 0; fi
 
 # ── CPU ───────────────────────────────────────────────────────────────────────
 NCPU="$(sysctl -n hw.ncpu 2>/dev/null || echo 1)"
@@ -361,6 +414,8 @@ AT_ST="$(worst "$CLAUDE_ST" "$PRODUCER_ST")"
 # emits a structured object {status,trend,drain_gb_per_hr,days_to_threshold,threshold_gb,…} OR "unknown"/
 # "ok stable-or-recovering". Never fabricates a number (Tomé). --argjson below already expects JSON.
 BURN_DOWN="$(compute_burndown)"
+# memory_spine (EKO-106) — top-level advisory, NOT rolled into SYS_ST (never tightens bands)
+MEMORY_SPINE="$(memory_spine_lag "${MEMORY_SPINE_REPO:-$HOME/.claude}" "${MEMORY_SPINE_WARN_H:-24}" "${MEMORY_SPINE_CRIT_H:-72}")"
 
 # ── ROLL-UP ───────────────────────────────────────────────────────────────────
 # each branch root_fail = its own worst leaf id; system root_fail = worst branch id
@@ -399,11 +454,11 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
   --arg mal_st "$MAL_ST" --argjson mal_rf "$MAL_RF" --arg xp_ver "$XP_VER" --arg xp_age "$XP_AGE_DAYS" --arg xp_au "$XP_AUTOUPDATE" --arg xp_src "$XP_SRC" \
   --arg proc_st "$PROC_ST" --argjson proc_rf "$PROC_RF" --arg proc_count "$PROC_COUNT" --arg thread_count "$THREAD_COUNT" --arg zombie "$ZOMBIE_COUNT" --arg counts_st "$COUNTS_ST" \
   --arg net_st "$NET_ST" --argjson net_rf "$NET_RF" --arg listeners "$LISTENERS" --arg estab "$ESTAB" \
-  --argjson burn "$BURN_DOWN" \
+  --argjson burn "$BURN_DOWN" --argjson mspine "$MEMORY_SPINE" \
   --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" --arg uvx_producers "$UVX_PRODUCERS" \
 'def n(v): (v|tonumber?) // v;
 {
-  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.6.0", secret_free: true,
+  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.7.0", secret_free: true,
           note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; comm-name for health signals — argv read ONLY for the uv-producer <pkg>@latest attribution via a strict grammar that rejects flags/values, never a secret)" },
   system: {
     status: $sys_st, tag: "resource.system", root_fail: $sys_rf,
@@ -433,7 +488,8 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
                                     uvx_latest_producers: ($uvx_producers | if . == "" then null else split(",") end) } } }
     }
   },
-  burn_down: $burn
+  burn_down: $burn,
+  memory_spine: $mspine
 }' > "$CONTRACT_JSON.tmp" && mv "$CONTRACT_JSON.tmp" "$CONTRACT_JSON"
 chmod 644 "$CONTRACT_JSON"
 
